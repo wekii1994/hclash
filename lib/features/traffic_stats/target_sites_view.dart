@@ -1,8 +1,9 @@
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/ui/ui.dart';
 import 'package:fl_clash/views/dashboard/style.dart';
 import 'package:fl_clash/widgets/widgets.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide LinearProgressIndicator;
 import 'package:material_ui/material_ui.dart';
 
 import 'traffic_stats_models.dart';

@@ -1,5 +1,7 @@
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/features/traffic_stats/traffic_stats.dart';
+import 'package:fl_clash/models/models.dart';
+import 'package:fl_clash/ui/icons/app_glyphs.dart';
 import 'package:fl_clash/ui/ui.dart';
 import 'package:fl_clash/views/dashboard/style.dart';
 import 'package:fl_clash/views/dashboard/widgets/card.dart';
@@ -43,12 +45,12 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
   }
 
   String _rangeLabel(TrafficStatsRange range, BuildContext context) {
-    final l = context.appLocalizations;
+    final isZh = Localizations.localeOf(context).languageCode == 'zh';
     return switch (range) {
-      TrafficStatsRange.today => l.today,
-      TrafficStatsRange.week => l.week,
-      TrafficStatsRange.month => l.month,
-      TrafficStatsRange.all => l.all,
+      TrafficStatsRange.today => isZh ? '今日' : 'Today',
+      TrafficStatsRange.week => isZh ? '本周' : 'This Week',
+      TrafficStatsRange.month => isZh ? '本月' : 'This Month',
+      TrafficStatsRange.all => isZh ? '全部' : 'All',
     };
   }
 
@@ -57,6 +59,15 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
     final l = context.appLocalizations;
     final colorScheme = context.colorScheme;
     final store = TrafficStatsStore.instance;
+
+    final isZh = Localizations.localeOf(context).languageCode == 'zh';
+    final todayText = isZh ? '今日' : 'Today';
+    final weekText = isZh ? '本周' : 'This Week';
+    final cleanText = isZh ? '清空' : 'Clear';
+    final cleanTitle = isZh ? '清空流量统计' : 'Clear Traffic Statistics';
+    final cleanTip = isZh
+        ? '确定要清空所有流量统计历史和站点记录吗？此操作无法撤销。'
+        : 'Are you sure you want to clear all traffic statistics and site records? This action cannot be undone.';
 
     final todayTotal = store.todayTotal;
     final weekTotal = store.weekTotal;
@@ -69,15 +80,15 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
 
     return CommonScaffold(
       title: l.trafficUsage,
-      actions: [
+      iconActions: [
         IconButtonData(
           glyph: AppGlyphs.clearAll,
-          tooltip: l.clean,
+          tooltip: cleanText,
           onPressed: () async {
             final confirmed = await dialogs.showMessage(
               context: context,
-              title: l.clean,
-              message: TextSpan(text: l.cleanTip),
+              title: cleanTitle,
+              message: TextSpan(text: cleanTip),
               destructive: true,
             );
             if (confirmed == true) {
@@ -111,7 +122,7 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        l.today,
+                        todayText,
                         style: AppTextStyle.caption1
                             .of(context)
                             .copyWith(color: colorScheme.onSurfaceVariant),
@@ -119,7 +130,9 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
                       const SizedBox(height: 6),
                       Text(
                         todayTotal.traffic.show,
-                        style: AppTextStyle.title1.of(context, emphasized: true).toTabular,
+                        style: AppTextStyle.title1
+                            .of(context, emphasized: true)
+                            .toTabular,
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -149,7 +162,7 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        l.week,
+                        weekText,
                         style: AppTextStyle.caption1
                             .of(context)
                             .copyWith(color: colorScheme.onSurfaceVariant),
@@ -157,7 +170,9 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
                       const SizedBox(height: 6),
                       Text(
                         weekTotal.traffic.show,
-                        style: AppTextStyle.title1.of(context, emphasized: true).toTabular,
+                        style: AppTextStyle.title1
+                            .of(context, emphasized: true)
+                            .toTabular,
                       ),
                       const SizedBox(height: 6),
                       Row(
@@ -335,11 +350,12 @@ class _RangeChip extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: AppTextStyle.caption1.of(context, emphasized: selected).copyWith(
-                color: selected
-                    ? colorScheme.onPrimary
-                    : colorScheme.onSurfaceVariant,
-              ),
+          style:
+              AppTextStyle.caption1.of(context, emphasized: selected).copyWith(
+                    color: selected
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSurfaceVariant,
+                  ),
         ),
       ),
     );
