@@ -1,0 +1,166 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_universal:
+        description: 'Build universal APK (in addition to split-per-abi)'
+        type: boolean
+        default: true
+      create_release:
+        description: 'Publish as GitHub Release'
+        type: boolean
+        default: false
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.agents/**'
+      - '.claude/**'
+      - '.github/workflows/pages.yaml'
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.6'
+  GO_VERSION: '1.27.1'
+  NDK_VERSION: r28c
+
+jobs:
+  build-apk:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: core/go.sum
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        id: build-ndk
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+          add-to-path: true
+          link-to-sdk: true
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Setup Android Release Keystore
+        run: |
+          if [ -n "${{ secrets.KEYSTORE }}" ]; then
+            echo "Using signing keystore from GitHub Secrets..."
+            echo "${{ secrets.KEYSTORE }}" | base64 --decode > android/app/keystore.jks
+            {
+              echo "keyAlias=${{ secrets.KEY_ALIAS }}"
+              echo "storePassword=${{ secrets.STORE_PASSWORD }}"
+              echo "keyPassword=${{ secrets.KEY_PASSWORD }}"
+            } >> android/local.properties
+          else
+            echo "No custom secrets provided. Generating fallback signing keystore..."
+            keytool -genkeypair -v \
+              -keystore android/app/keystore.jks \
+              -alias hclash \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass 123456 \
+              -keypass 123456 \
+              -dname "CN=hclash, OU=hclash, O=hclash, L=City, ST=State, C=US"
+            {
+              echo "keyAlias=hclash"
+              echo "storePassword=123456"
+              echo "keyPassword=123456"
+            } >> android/local.properties
+          fi
+
+      - name: Fetch CA certificates
+        shell: bash
+        env:
+          CA_BUNDLE: cacert-2026-09-25.pem
+          CA_BUNDLE_SHA256: a41b5d356aea97a529fe27e0f7316d2f9d946d75927476cf9cf1b90637d00505
+        run: |
+          bundle=core/Clash.Meta/component/ca/ca-certificates.crt
+          mkdir -p "$(dirname "$bundle")"
+          curl -fsSL --retry 3 -o "$bundle" "https://curl.se/ca/$CA_BUNDLE"
+          echo "$CA_BUNDLE_SHA256  $bundle" | sha256sum -c -
+
+      - name: Install dependencies
+        run: |
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+          flutter pub get
+
+      - name: Build Android APK (split-per-abi)
+        env:
+          ANDROID_NDK_HOME: ${{ steps.build-ndk.outputs.ndk-path }}
+        run: |
+          dart setup.dart android --env stable -v
+
+      - name: Build Universal APK
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.build_universal != 'false' }}
+        run: |
+          echo "Building universal release APK..."
+          flutter build apk --release --dart-define-from-file=env.json
+          VERSION=$(sed -n 's/^version: *\([^ +]*\).*/\1/p' pubspec.yaml)
+          echo "Detected version: $VERSION"
+          OUT_DIR=$(find dist -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n 1)
+          if [ -z "$OUT_DIR" ]; then
+            OUT_DIR="dist/$VERSION"
+            mkdir -p "$OUT_DIR"
+          fi
+          cp build/app/outputs/flutter-apk/app-release.apk "$OUT_DIR/hclash-${VERSION}-android-universal.apk"
+          echo "Universal APK placed at $OUT_DIR/hclash-${VERSION}-android-universal.apk"
+
+      - name: Generate Checksums
+        run: |
+          cd dist
+          find . -name "*.apk" -type f -exec sha256sum {} + > sha256sum.txt
+          cat sha256sum.txt
+
+      - name: Upload APK Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hclash-android-apks
+          path: dist/
+          overwrite: true
+
+      - name: Publish Release
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/**/*.apk
+            dist/sha256sum.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: false
