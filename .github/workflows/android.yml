@@ -2,11 +2,6 @@ name: Build Android APK
 
 on:
   workflow_dispatch:
-    inputs:
-      build_universal:
-        description: 'Build universal APK (in addition to split-per-abi)'
-        type: boolean
-        default: true
   push:
     branches:
       - main
@@ -136,26 +131,11 @@ jobs:
           echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
           flutter pub get
 
-      - name: Build Android APK (split-per-abi)
+      - name: Build Android APK (arm64-v8a)
         env:
           ANDROID_NDK_HOME: ${{ steps.build-ndk.outputs.ndk-path }}
         run: |
-          dart setup.dart android --env stable -v
-
-      - name: Build Universal APK
-        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.build_universal != 'false' }}
-        run: |
-          echo "Building universal release APK..."
-          flutter build apk --release --dart-define-from-file=env.json
-          VERSION=$(sed -n 's/^version: *\([^ +]*\).*/\1/p' pubspec.yaml)
-          echo "Detected version: $VERSION"
-          OUT_DIR=$(find dist -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n 1)
-          if [ -z "$OUT_DIR" ]; then
-            OUT_DIR="dist/$VERSION"
-            mkdir -p "$OUT_DIR"
-          fi
-          cp build/app/outputs/flutter-apk/app-release.apk "$OUT_DIR/hclash-${VERSION}-android-universal.apk"
-          echo "Universal APK placed at $OUT_DIR/hclash-${VERSION}-android-universal.apk"
+          dart setup.dart android --arch arm64 --env stable -v
 
       - name: Generate Checksums
         run: |
@@ -185,7 +165,7 @@ jobs:
           
           echo "Publishing release for tag: $TAG"
           
-          # Flatten all APKs into dist/
+          # Flatten any nested APKs into dist/
           find dist -mindepth 2 -name "*.apk" -exec mv -f {} dist/ \; 2>/dev/null || true
           
           APK_FILES=$(find dist -maxdepth 1 -name "*.apk" -o -name "sha256sum.txt")
