@@ -96,6 +96,7 @@ class TrafficStatsStore extends ChangeNotifier {
         }
       }
       _pruneOldData();
+      _reconcileTodayData();
       _isLoaded = true;
       notifyListeners();
     } catch (e) {
@@ -141,7 +142,7 @@ class TrafficStatsStore extends ChangeNotifier {
     }
   }
 
-  void recordTraffic({required int uploadDelta, required int downloadDelta}) {
+  void _accumulate({required int uploadDelta, required int downloadDelta}) {
     if (uploadDelta <= 0 && downloadDelta <= 0) return;
 
     final now = DateTime.now();
@@ -161,7 +162,50 @@ class TrafficStatsStore extends ChangeNotifier {
     );
     hourly.upload += uploadDelta;
     hourly.download += downloadDelta;
+  }
 
+  void _reconcileTodayData() {
+    final todayKey = _dateKey(DateTime.now());
+    final todayDaily = _dailySummaries[todayKey];
+    var sitesUp = 0;
+    var sitesDown = 0;
+    for (final s in _targetSiteUsages.values) {
+      sitesUp += s.upload;
+      sitesDown += s.download;
+    }
+    if (todayDaily == null) {
+      if (sitesUp > 0 || sitesDown > 0) {
+        final d = DailyTrafficData(
+          date: todayKey,
+          upload: sitesUp,
+          download: sitesDown,
+        );
+        final hour = DateTime.now().hour;
+        d.hourly[hour] = HourlyTrafficData(
+          hour: hour,
+          upload: sitesUp,
+          download: sitesDown,
+        );
+        _dailySummaries[todayKey] = d;
+      }
+    } else if (todayDaily.total < (sitesUp + sitesDown)) {
+      final missingUp = (sitesUp - todayDaily.upload).clamp(0, sitesUp);
+      final missingDown = (sitesDown - todayDaily.download).clamp(0, sitesDown);
+      todayDaily.upload += missingUp;
+      todayDaily.download += missingDown;
+      final hour = DateTime.now().hour;
+      final h = todayDaily.hourly.putIfAbsent(
+        hour,
+        () => HourlyTrafficData(hour: hour),
+      );
+      h.upload += missingUp;
+      h.download += missingDown;
+    }
+  }
+
+  void recordTraffic({required int uploadDelta, required int downloadDelta}) {
+    if (uploadDelta <= 0 && downloadDelta <= 0) return;
+    _accumulate(uploadDelta: uploadDelta, downloadDelta: downloadDelta);
     scheduleSave();
     notifyListeners();
   }
@@ -201,6 +245,13 @@ class TrafficStatsStore extends ChangeNotifier {
     site.count++;
     site.lastSeen = DateTime.now().millisecondsSinceEpoch;
 
+    if (info.upload > 0 || info.download > 0) {
+      _accumulate(
+        uploadDelta: info.upload > 0 ? info.upload : 0,
+        downloadDelta: info.download > 0 ? info.download : 0,
+      );
+    }
+
     scheduleSave();
     notifyListeners();
   }
@@ -211,7 +262,6 @@ class TrafficStatsStore extends ChangeNotifier {
 
     trafficMap.forEach((id, traffic) {
       final host = _requestIdToHost[id];
-      if (host == null) return;
 
       final last = _requestIdToTraffic[id];
       final lastUp = last?.upload ?? 0;
@@ -226,13 +276,20 @@ class TrafficStatsStore extends ChangeNotifier {
       );
 
       if (deltaUp > 0 || deltaDown > 0) {
-        final site = _targetSiteUsages[host];
-        if (site != null) {
-          if (deltaUp > 0) site.upload += deltaUp;
-          if (deltaDown > 0) site.download += deltaDown;
-          site.lastSeen = DateTime.now().millisecondsSinceEpoch;
-          hasUpdates = true;
+        if (host != null && host.isNotEmpty) {
+          final site = _targetSiteUsages[host];
+          if (site != null) {
+            if (deltaUp > 0) site.upload += deltaUp;
+            if (deltaDown > 0) site.download += deltaDown;
+            site.lastSeen = DateTime.now().millisecondsSinceEpoch;
+          }
         }
+
+        _accumulate(
+          uploadDelta: deltaUp > 0 ? deltaUp : 0,
+          downloadDelta: deltaDown > 0 ? deltaDown : 0,
+        );
+        hasUpdates = true;
       }
     });
 
