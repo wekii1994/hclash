@@ -320,32 +320,62 @@ class _AggregatedGroupTile extends StatelessWidget {
                               thickness: 0.5,
                               color: colorScheme.outlineVariant.withValues(alpha: 0.2),
                             ),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.subdirectory_arrow_right,
-                                size: 14,
-                                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  group.subSites[i].host,
-                                  style: AppTextStyle.caption1.of(context).copyWith(
-                                        color: colorScheme.onSurface,
-                                      ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                group.subSites[i].total.traffic.show,
-                                style: AppTextStyle.caption1.of(context, emphasized: true).copyWith(
-                                      color: colorScheme.onSurfaceVariant,
+                          Builder(
+                            builder: (context) {
+                              final sub = group.subSites[i];
+                              final app = DomainClassifier.friendlyAppName(sub.process);
+                              return Row(
+                                children: [
+                                  Icon(
+                                    Icons.subdirectory_arrow_right,
+                                    size: 14,
+                                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            sub.host,
+                                            style: AppTextStyle.caption1.of(context).copyWith(
+                                                  color: colorScheme.onSurface,
+                                                ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (app != null && app.isNotEmpty) ...[
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                            decoration: BoxDecoration(
+                                              color: colorScheme.surfaceContainerHighest,
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              app,
+                                              style: AppTextStyle.caption2.of(context).copyWith(
+                                                    color: colorScheme.onSurfaceVariant,
+                                                    fontSize: 10,
+                                                  ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
                                     ),
-                              ),
-                            ],
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    sub.total.traffic.show,
+                                    style: AppTextStyle.caption1.of(context, emphasized: true).copyWith(
+                                          color: colorScheme.onSurfaceVariant,
+                                        ),
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                         ],
                       ],
@@ -376,7 +406,16 @@ class _SiteTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = context.colorScheme;
     final fraction = (site.total / maxTotal).clamp(0.0, 1.0);
-    final initial = site.host.isNotEmpty ? site.host[0].toUpperCase() : '?';
+    final isIp = DomainClassifier.isIpAddress(site.host);
+    final initial = isIp
+        ? 'IP'
+        : (site.host.isNotEmpty ? site.host[0].toUpperCase() : '?');
+    final app = DomainClassifier.friendlyAppName(site.process);
+    final detail = [
+      '↑ ${site.upload.traffic.show}   ↓ ${site.download.traffic.show}',
+      '(${site.count})',
+      if (app != null && app.isNotEmpty) '·  $app',
+    ].join('   ');
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -405,14 +444,17 @@ class _SiteTile extends StatelessWidget {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
+                  color: isIp
+                      ? const Color(0xFF607D8B).withValues(alpha: 0.15)
+                      : colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   initial,
                   style: AppTextStyle.subheadline.of(context, emphasized: true).copyWith(
-                        color: colorScheme.primary,
+                        color: isIp ? const Color(0xFF607D8B) : colorScheme.primary,
+                        fontSize: initial.length > 1 ? 11 : 13,
                       ),
                 ),
               ),
@@ -430,7 +472,7 @@ class _SiteTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '↑ ${site.upload.traffic.show}   ↓ ${site.download.traffic.show}   (${site.count})',
+                      detail,
                       style: AppTextStyle.caption2.of(context).copyWith(
                             color: colorScheme.onSurfaceVariant,
                           ),

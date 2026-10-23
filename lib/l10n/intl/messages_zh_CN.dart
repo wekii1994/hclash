@@ -1363,7 +1363,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "testUrl": MessageLookupByLibrary.simpleMessage("测速链接"),
     "testWhenUsed": MessageLookupByLibrary.simpleMessage("使用时测试"),
     "pageScale": MessageLookupByLibrary.simpleMessage("页面缩放"),
-    "pageScaleDesc": MessageLookupByLibrary.simpleMessage("整体界面元素缩放（80% - 120%）"),
+    "pageScaleDesc": MessageLookupByLibrary.simpleMessage("整体界面元素缩放（60% - 120%）"),
     "textScale": MessageLookupByLibrary.simpleMessage("文本缩放"),
     "textScalePreview": MessageLookupByLibrary.simpleMessage("应用内的文字将以这个大小显示"),
     "theme": MessageLookupByLibrary.simpleMessage("主题"),

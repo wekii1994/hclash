@@ -1763,7 +1763,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "testWhenUsed": MessageLookupByLibrary.simpleMessage("Test when used"),
     "pageScale": MessageLookupByLibrary.simpleMessage("Page scaling"),
     "pageScaleDesc": MessageLookupByLibrary.simpleMessage(
-      "Scale overall interface elements (80% - 120%)",
+      "Scale overall interface elements (60% - 120%)",
     ),
     "textScale": MessageLookupByLibrary.simpleMessage("Text scaling"),
     "textScalePreview": MessageLookupByLibrary.simpleMessage(

@@ -439,7 +439,7 @@
   "launchInterruptedTip": "应用上次在启动过程中意外退出。已跳过本次自动配置，你可以手动启动重试。",
   "clearData": "清除数据",
   "pageScale": "页面缩放",
-  "pageScaleDesc": "整体界面元素缩放（80% - 120%）",
+  "pageScaleDesc": "整体界面元素缩放（60% - 120%）",
   "textScale": "文本缩放",
   "textScalePreview": "应用内的文字将以这个大小显示",
   "followSystem": "跟随系统",

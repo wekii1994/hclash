@@ -93,6 +93,7 @@ class TargetSiteData {
   int download;
   int count;
   int lastSeen; // timestamp ms
+  String? process;
 
   TargetSiteData({
     required this.host,
@@ -100,6 +101,7 @@ class TargetSiteData {
     this.download = 0,
     this.count = 1,
     int? lastSeen,
+    this.process,
   }) : lastSeen = lastSeen ?? DateTime.now().millisecondsSinceEpoch;
 
   int get total => upload + download;
@@ -110,6 +112,7 @@ class TargetSiteData {
         'download': download,
         'count': count,
         'lastSeen': lastSeen,
+        if (process != null && process!.isNotEmpty) 'process': process,
       };
 
   factory TargetSiteData.fromJson(Map<String, dynamic> json) => TargetSiteData(
@@ -118,6 +121,7 @@ class TargetSiteData {
         download: json['download'] as int? ?? 0,
         count: json['count'] as int? ?? 1,
         lastSeen: json['lastSeen'] as int? ?? 0,
+        process: json['process'] as String?,
       );
 }
 

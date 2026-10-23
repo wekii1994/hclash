@@ -90,6 +90,10 @@ class TrafficStatsStore extends ChangeNotifier {
                     loaded.upload += existing.upload;
                     loaded.download += existing.download;
                     loaded.count += existing.count;
+                    if ((loaded.process == null || loaded.process!.isEmpty) &&
+                        existing.process != null) {
+                      loaded.process = existing.process;
+                    }
                   }
                   _targetSiteUsages[k.toString()] = loaded;
                 }
@@ -262,14 +266,25 @@ class TrafficStatsStore extends ChangeNotifier {
       }
     }
 
+    final process = info.metadata.process.trim();
+
     final site = _targetSiteUsages.putIfAbsent(
       host,
-      () => TargetSiteData(host: host, upload: 0, download: 0, count: 0),
+      () => TargetSiteData(
+        host: host,
+        upload: 0,
+        download: 0,
+        count: 0,
+        process: process.isNotEmpty ? process : null,
+      ),
     );
     site.upload += info.upload;
     site.download += info.download;
     site.count++;
     site.lastSeen = DateTime.now().millisecondsSinceEpoch;
+    if ((site.process == null || site.process!.isEmpty) && process.isNotEmpty) {
+      site.process = process;
+    }
 
     if (info.upload > 0 || info.download > 0) {
       _accumulate(

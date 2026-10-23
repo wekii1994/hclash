@@ -1095,7 +1095,7 @@ class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
         title: context.appLocalizations.pageScale,
         value: '${(currentScale * 100).round()}',
         suffixText: '%',
-        labelText: '80 - 120',
+        labelText: '60 - 120',
         keyboardType: TextInputType.number,
         inputFormatters: [
           FilteringTextInputFormatter.digitsOnly,
@@ -1103,8 +1103,8 @@ class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
         ],
         validator: (value) {
           final intVal = int.tryParse(value ?? '');
-          if (intVal == null || intVal < 80 || intVal > 120) {
-            return '80% - 120%';
+          if (intVal == null || intVal < 60 || intVal > 120) {
+            return '60% - 120%';
           }
           return null;
         },
@@ -1113,7 +1113,7 @@ class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
     if (text != null && mounted) {
       final intVal = int.tryParse(text);
       if (intVal != null) {
-        final clamped = (intVal.clamp(80, 120) / 100).toDouble();
+        final clamped = (intVal.clamp(60, 120) / 100).toDouble();
         _update(clamped);
       }
     }
@@ -1206,7 +1206,7 @@ class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
                   children: [
                     ExcludeSemantics(
                       child: Text(
-                        '80%',
+                        '${(minPageScale * 100).round()}%',
                         style: AppTextStyle.footnote.of(context).copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),

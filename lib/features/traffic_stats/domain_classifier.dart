@@ -145,7 +145,167 @@ class DomainClassifier {
     '.co.kr',
   ];
 
-  static ServiceCategory classify(String rawHost) {
+  static bool isIpAddress(String host) {
+    if (RegExp(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$').hasMatch(host)) {
+      return true;
+    }
+    if (host.contains(':') && !host.contains('.')) {
+      return true;
+    }
+    return false;
+  }
+
+  static bool isPrivateIp(String ip) {
+    if (ip == '127.0.0.1' || ip == 'localhost' || ip == '::1') return true;
+    final parts = ip.split('.');
+    if (parts.length != 4) return false;
+    final o1 = int.tryParse(parts[0]);
+    final o2 = int.tryParse(parts[1]);
+    if (o1 == null || o2 == null) return false;
+
+    if (o1 == 10) return true;
+    if (o1 == 192 && o2 == 168) return true;
+    if (o1 == 172 && o2 >= 16 && o2 <= 31) return true;
+    if (o1 == 169 && o2 == 254) return true;
+    return false;
+  }
+
+  static bool isTelegramIp(String ip) {
+    final parts = ip.split('.');
+    if (parts.length != 4) return false;
+    final o1 = int.tryParse(parts[0]);
+    final o2 = int.tryParse(parts[1]);
+    final o3 = int.tryParse(parts[2]);
+    if (o1 == null || o2 == null || o3 == null) return false;
+
+    // 149.154.160.0/20 -> 149.154.160.0 - 149.154.175.255
+    if (o1 == 149 && o2 == 154 && o3 >= 160 && o3 <= 175) return true;
+
+    // 91.108.4.0/22, 91.108.8.0/22, 91.108.12.0/22, 91.108.16.0/22, 91.108.20.0/22
+    if (o1 == 91 && o2 == 108 && o3 >= 4 && o3 <= 23) return true;
+
+    // 91.108.56.0/22 -> 91.108.56.0 - 91.108.59.255
+    if (o1 == 91 && o2 == 108 && o3 >= 56 && o3 <= 59) return true;
+
+    return false;
+  }
+
+  static ServiceCategory? classifyIp(String ip) {
+    if (ip == '127.0.0.1' || ip == 'localhost' || ip == '::1') {
+      return const ServiceCategory(
+        name: '本地回环 (Localhost)',
+        iconText: 'LAN',
+        brandColor: Color(0xFF607D8B),
+      );
+    }
+    if (isPrivateIp(ip)) {
+      return const ServiceCategory(
+        name: '局域网设备 (LAN)',
+        iconText: 'LAN',
+        brandColor: Color(0xFF009688),
+      );
+    }
+    if (isTelegramIp(ip)) {
+      return const ServiceCategory(
+        name: 'Telegram',
+        iconText: 'TG',
+        brandColor: Color(0xFF2AABEE),
+      );
+    }
+    // Public DNS
+    if (ip == '1.1.1.1' || ip == '1.0.0.1') {
+      return const ServiceCategory(
+        name: 'Cloudflare DNS',
+        iconText: 'CF',
+        brandColor: Color(0xFFF38020),
+      );
+    }
+    if (ip == '8.8.8.8' || ip == '8.8.4.4') {
+      return const ServiceCategory(
+        name: 'Google DNS',
+        iconText: 'G',
+        brandColor: Color(0xFF4285F4),
+      );
+    }
+    if (ip == '114.114.114.114' || ip == '114.114.115.115') {
+      return const ServiceCategory(
+        name: '114 DNS',
+        iconText: '114',
+        brandColor: Color(0xFF00897B),
+      );
+    }
+    if (ip == '223.5.5.5' || ip == '223.6.6.6') {
+      return const ServiceCategory(
+        name: '阿里公共 DNS',
+        iconText: 'AL',
+        brandColor: Color(0xFFFF5000),
+      );
+    }
+    if (ip == '119.29.29.29' || ip == '182.254.116.116') {
+      return const ServiceCategory(
+        name: '腾讯 DNSPod',
+        iconText: 'TX',
+        brandColor: Color(0xFF12B7F5),
+      );
+    }
+    // Apple IP block: 17.0.0.0/8
+    if (ip.startsWith('17.')) {
+      return const ServiceCategory(
+        name: 'Apple',
+        iconText: 'AP',
+        brandColor: Color(0xFF888888),
+      );
+    }
+    // Cloudflare IP ranges: 104.16.0.0 - 104.31.255.255
+    if (ip.startsWith('104.')) {
+      final parts = ip.split('.');
+      if (parts.length == 4) {
+        final o2 = int.tryParse(parts[1]);
+        if (o2 != null && o2 >= 16 && o2 <= 31) {
+          return const ServiceCategory(
+            name: 'Cloudflare',
+            iconText: 'CF',
+            brandColor: Color(0xFFF38020),
+          );
+        }
+      }
+    }
+    return null;
+  }
+
+  static String? friendlyAppName(String? process) {
+    if (process == null || process.trim().isEmpty) return null;
+    final p = process.trim().toLowerCase();
+    if (p.contains('telegram') || p.contains('challegram')) return 'Telegram';
+    if (p.contains('youtube')) return 'YouTube';
+    if (p.contains('bilibili') || p.contains('danmaku.bili')) return '哔哩哔哩';
+    if (p.contains('tencent.mm')) return '微信';
+    if (p.contains('tencent.mobileqq') || p.contains('tencent.tim')) return 'QQ';
+    if (p.contains('netease.cloudmusic')) return '网易云音乐';
+    if (p.contains('twitter') || p.contains('com.twitter')) return 'X (Twitter)';
+    if (p.contains('github')) return 'GitHub';
+    if (p.contains('spotify')) return 'Spotify';
+    if (p.contains('netflix')) return 'Netflix';
+    if (p.contains('tiktok') || p.contains('aweme') || p.contains('byteoversea')) return 'TikTok / 抖音';
+    if (p.contains('coolapk')) return '酷安';
+    if (p.contains('chrome')) return 'Chrome';
+    if (p.contains('firefox')) return 'Firefox';
+    if (p.contains('edge')) return 'Edge';
+    if (p.contains('clash')) return 'Clash 内核';
+
+    if (process.contains('.')) {
+      final parts = process.split('.');
+      if (parts.length >= 2) {
+        final last = parts.last;
+        if (last.length >= 3) {
+          return last[0].toUpperCase() + last.substring(1);
+        }
+      }
+    }
+    return process;
+  }
+
+  static ServiceCategory classify(String rawHost, {String? process}) {
     var host = rawHost.trim().toLowerCase();
     if (host.contains(':')) {
       final parts = host.split(':');
@@ -158,7 +318,32 @@ class DomainClassifier {
       return const ServiceCategory(name: '未知服务', iconText: '?');
     }
 
-    // Check known service domains
+    // 1. IP Address Classification
+    if (isIpAddress(host)) {
+      final ipCat = classifyIp(host);
+      if (ipCat != null) {
+        return ipCat;
+      }
+
+      final app = friendlyAppName(process);
+      if (app != null && app.isNotEmpty) {
+        final initial = app.isNotEmpty ? app[0].toUpperCase() : 'IP';
+        return ServiceCategory(
+          name: '$app (IP直连)',
+          iconText: initial.length > 2 ? initial.substring(0, 2) : initial,
+          brandColor: const Color(0xFF3F51B5),
+        );
+      }
+
+      // Group unidentified numeric IPs into one expandable card
+      return const ServiceCategory(
+        name: 'IP 直连访问',
+        iconText: 'IP',
+        brandColor: Color(0xFF607D8B),
+      );
+    }
+
+    // 2. Check known service domains
     for (final entry in _knownRules.entries) {
       final rule = entry.key;
       if (host == rule || host.endsWith('.$rule')) {
@@ -173,9 +358,7 @@ class DomainClassifier {
   }
 
   static String extractRootDomain(String host) {
-    // Check if IP address
-    final ipv4 = RegExp(r'^\d+\.\d+\.\d+\.\d+$');
-    if (ipv4.hasMatch(host) || host.contains(':')) {
+    if (isIpAddress(host)) {
       return host;
     }
 
@@ -200,7 +383,7 @@ class DomainClassifier {
     final Map<String, ServiceCategory> categories = {};
 
     for (final site in sites) {
-      final cat = classify(site.host);
+      final cat = classify(site.host, process: site.process);
       groups.putIfAbsent(cat.name, () => []).add(site);
       categories[cat.name] = cat;
     }
