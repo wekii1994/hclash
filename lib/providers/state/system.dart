@@ -209,10 +209,10 @@ String _resolveNotificationTitle({
   required Mode mode,
   required String? currentGroupName,
   required String fallbackLabel,
-  required AppLocalizations appLocalizations,
+  required String directLabel,
 }) {
   if (mode == Mode.direct) {
-    return appLocalizations.direct;
+    return directLabel;
   }
   final primaryGroup = _findPrimaryGroup(
     groups,
@@ -276,7 +276,7 @@ SharedState sharedState(Ref ref) {
     mode: mode,
     currentGroupName: currentGroupName,
     fallbackLabel: currentProfile.label,
-    appLocalizations: currentAppLocalizations,
+    directLabel: currentAppLocalizations.direct,
   );
   final selectedMap = currentProfile.selectedMap;
   final onlyStatisticsProxy = appSetting.onlyStatisticsProxy;
