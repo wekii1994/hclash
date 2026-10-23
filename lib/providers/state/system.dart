@@ -166,6 +166,82 @@ bool shouldPatchSystemDns(Ref ref) {
       authorizationState == TunAuthorizationState.authorized;
 }
 
+Group? _findPrimaryGroup(
+  List<Group> groups,
+  Mode mode, {
+  String? currentGroupName,
+}) {
+  if (groups.isEmpty) return null;
+  if (mode == Mode.global) {
+    return groups.getGroup('GLOBAL') ?? groups.first;
+  }
+  const primaryKeywords = [
+    '节点选择',
+    '选择节点',
+    'proxy',
+    'proxies',
+    'select',
+    'default',
+  ];
+  for (final keyword in primaryKeywords) {
+    for (final group in groups) {
+      if (group.name.toLowerCase().contains(keyword) &&
+          group.name.toUpperCase() != 'GLOBAL') {
+        return group;
+      }
+    }
+  }
+  if (currentGroupName != null && currentGroupName.isNotEmpty) {
+    final currentGroup = groups.getGroup(currentGroupName);
+    if (currentGroup != null) return currentGroup;
+  }
+  for (final group in groups) {
+    if (group.name.toUpperCase() != 'GLOBAL') {
+      return group;
+    }
+  }
+  return groups.first;
+}
+
+String _resolveNotificationTitle({
+  required List<Group> groups,
+  required Map<String, String> selectedMap,
+  required Mode mode,
+  required String? currentGroupName,
+  required String fallbackLabel,
+  required AppLocalizations appLocalizations,
+}) {
+  if (mode == Mode.direct) {
+    return appLocalizations.direct;
+  }
+  final primaryGroup = _findPrimaryGroup(
+    groups,
+    mode,
+    currentGroupName: currentGroupName,
+  );
+  if (primaryGroup != null) {
+    final realState = computeRealSelectedProxyState(
+      primaryGroup.name,
+      groups: groups,
+      selectedMap: selectedMap,
+    );
+    if (realState.proxyName.isNotEmpty &&
+        groups.getGroup(realState.proxyName) == null) {
+      return realState.proxyName;
+    }
+    final selectedName = primaryGroup.getCurrentSelectedName(
+      selectedMap[primaryGroup.name] ?? '',
+    );
+    if (selectedName.isNotEmpty && groups.getGroup(selectedName) == null) {
+      return selectedName;
+    }
+  }
+  if (fallbackLabel.isNotEmpty) {
+    return fallbackLabel;
+  }
+  return 'hclash';
+}
+
 @riverpod
 SharedState sharedState(Ref ref) {
   ref.watch(loadedLocaleProvider);
@@ -177,6 +253,13 @@ SharedState sharedState(Ref ref) {
       ),
     ),
   );
+  final currentGroupName = ref.watch(
+    currentProfileProvider.select((state) => state?.currentGroupName),
+  );
+  final groups = ref.watch(groupsProvider);
+  final mode = ref.watch(
+    patchClashConfigProvider.select((state) => state.mode),
+  );
   final appSetting = ref.watch(
     appSettingProvider.select(
       (state) => (
@@ -187,7 +270,14 @@ SharedState sharedState(Ref ref) {
       ),
     ),
   );
-  final currentProfileName = currentProfile.label;
+  final currentProfileName = _resolveNotificationTitle(
+    groups: groups,
+    selectedMap: currentProfile.selectedMap,
+    mode: mode,
+    currentGroupName: currentGroupName,
+    fallbackLabel: currentProfile.label,
+    appLocalizations: currentAppLocalizations,
+  );
   final selectedMap = currentProfile.selectedMap;
   final onlyStatisticsProxy = appSetting.onlyStatisticsProxy;
   final testUrl = appSetting.testUrl;
