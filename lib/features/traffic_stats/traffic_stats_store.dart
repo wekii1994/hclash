@@ -23,6 +23,9 @@ class TrafficStatsStore extends ChangeNotifier {
 
   bool _isLoaded = false;
   Timer? _saveDebounceTimer;
+  DateTime? _lastSaveTime;
+  Timer? _uiThrottleTimer;
+  bool _needsNotify = false;
 
   static const int maxDaysToKeep = 90;
   static const int maxSitesToKeep = 200;
@@ -121,8 +124,14 @@ class TrafficStatsStore extends ChangeNotifier {
   }
 
   void scheduleSave() {
-    _saveDebounceTimer?.cancel();
-    _saveDebounceTimer = Timer(const Duration(seconds: 5), () async {
+    final now = DateTime.now();
+    if (_lastSaveTime != null &&
+        now.difference(_lastSaveTime!) > const Duration(seconds: 60)) {
+      save();
+      return;
+    }
+    _saveDebounceTimer ??= Timer(const Duration(seconds: 30), () async {
+      _saveDebounceTimer = null;
       await save();
     });
   }
@@ -130,6 +139,7 @@ class TrafficStatsStore extends ChangeNotifier {
   Future<void> save() async {
     _saveDebounceTimer?.cancel();
     _saveDebounceTimer = null;
+    _lastSaveTime = DateTime.now();
     try {
       final file = await _getFile();
       final data = {
@@ -140,6 +150,22 @@ class TrafficStatsStore extends ChangeNotifier {
     } catch (e) {
       commonPrint.log('TrafficStatsStore save error: $e');
     }
+  }
+
+  void _scheduleNotify() {
+    if (!hasListeners) return;
+    if (_uiThrottleTimer?.isActive ?? false) {
+      _needsNotify = true;
+      return;
+    }
+    notifyListeners();
+    _needsNotify = false;
+    _uiThrottleTimer = Timer(const Duration(milliseconds: 800), () {
+      if (_needsNotify && hasListeners) {
+        _needsNotify = false;
+        notifyListeners();
+      }
+    });
   }
 
   void _accumulate({required int uploadDelta, required int downloadDelta}) {
@@ -207,7 +233,7 @@ class TrafficStatsStore extends ChangeNotifier {
     if (uploadDelta <= 0 && downloadDelta <= 0) return;
     _accumulate(uploadDelta: uploadDelta, downloadDelta: downloadDelta);
     scheduleSave();
-    notifyListeners();
+    _scheduleNotify();
   }
 
   void recordRequest(TrackerInfo info) {
@@ -253,7 +279,7 @@ class TrafficStatsStore extends ChangeNotifier {
     }
 
     scheduleSave();
-    notifyListeners();
+    _scheduleNotify();
   }
 
   void recordRequestTraffic(Map<String, RequestTraffic> trafficMap) {
@@ -295,8 +321,15 @@ class TrafficStatsStore extends ChangeNotifier {
 
     if (hasUpdates) {
       scheduleSave();
-      notifyListeners();
+      _scheduleNotify();
     }
+  }
+
+  @override
+  void dispose() {
+    _saveDebounceTimer?.cancel();
+    _uiThrottleTimer?.cancel();
+    super.dispose();
   }
 
   DailyTrafficData? get todayData => _dailySummaries[_dateKey(DateTime.now())];
