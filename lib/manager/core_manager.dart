@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/core/core.dart';
 import 'package:fl_clash/enum/enum.dart';
+import 'package:fl_clash/features/traffic_stats/traffic_stats.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/providers/app.dart';
@@ -34,6 +35,7 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   @override
   void initState() {
     super.initState();
+    TrafficStatsStore.instance.init();
     coreEventManager.addListener(this);
     ref.read(updatingActionProvider.notifier);
     // A rejected profile stays selected on purpose: silently reverting to
@@ -131,12 +133,14 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   void onRequest(TrackerInfo trackerInfo) async {
     ref.read(requestsProvider.notifier).addRequest(trackerInfo);
     ref.read(requestCountProvider.notifier).update((count) => count + 1);
+    TrafficStatsStore.instance.recordRequest(trackerInfo);
     super.onRequest(trackerInfo);
   }
 
   @override
   void onRequestTraffic(Map<String, RequestTraffic> traffic) {
     ref.read(requestsProvider.notifier).updateTraffic(traffic);
+    TrafficStatsStore.instance.recordRequestTraffic(traffic);
     super.onRequestTraffic(traffic);
   }
 

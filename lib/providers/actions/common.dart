@@ -52,6 +52,7 @@ class CommonAction extends _$CommonAction {
       ]);
       if (traffic != null) {
         ref.read(trafficsProvider.notifier).addTraffic(traffic);
+        TrafficStatsStore.instance.recordTraffic(uploadDelta: traffic.up.toInt(), downloadDelta: traffic.down.toInt());
       }
       if (totalTraffic != null) {
         ref.read(totalTrafficProvider.notifier).value = totalTraffic;

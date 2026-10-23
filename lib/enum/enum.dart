@@ -548,6 +548,7 @@ enum PageLabel {
   resources,
   connections,
   dns,
+  trafficUsage,
 }
 
 enum RuleAction {

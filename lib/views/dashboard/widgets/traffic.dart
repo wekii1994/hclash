@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'card.dart';
+import 'package:fl_clash/views/traffic_statistics.dart';
 
 const _minSpeedScale = 8 * 1024.0;
 
@@ -203,11 +204,18 @@ class NetworkSpeedCard extends ConsumerWidget {
     final latest = traffics.list.safeLast(const Traffic());
     return DashboardCard(
       semanticLabel: context.appLocalizations.networkSpeed,
+      onTap: () {
+        showSheet<void>(
+          context: context,
+          builder: (_) => const TrafficStatisticsView(),
+        );
+      },
       child: Column(
         children: [
           DashboardCardHeader(
             glyph: AppGlyphs.speed,
             title: context.appLocalizations.networkSpeed,
+            chevron: true,
           ),
           const SizedBox(height: 12),
           Row(
