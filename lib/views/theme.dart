@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/services.dart';
 
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/enum/enum.dart';
@@ -42,6 +43,8 @@ class ThemeView extends StatelessWidget {
           _FontFamilyItem(),
           SizedBox(height: 16),
           _TextScaleFactorItem(),
+          SizedBox(height: 16),
+          _PageScaleItem(),
         ],
       ),
     );
@@ -1056,6 +1059,188 @@ class _TextScaleFactorItemState extends ConsumerState<_TextScaleFactorItem> {
                 ),
               ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PageScaleItem extends ConsumerStatefulWidget {
+  const _PageScaleItem();
+
+  static const _step = 0.01;
+
+  @override
+  ConsumerState<_PageScaleItem> createState() => _PageScaleItemState();
+}
+
+class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
+  double? _draft;
+
+  void _update(double scale) {
+    setState(() => _draft = null);
+    ref
+        .read(themeSettingProvider.notifier)
+        .update((state) => state.copyWith(pageScale: scale));
+  }
+
+  Future<void> _showCustomInputDialog(
+    BuildContext context,
+    double currentScale,
+  ) async {
+    final text = await dialogs.showCommonDialog<String>(
+      context: context,
+      child: InputDialog(
+        title: context.appLocalizations.pageScale,
+        value: '${(currentScale * 100).round()}',
+        suffixText: '%',
+        labelText: '80 - 120',
+        keyboardType: TextInputType.number,
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(3),
+        ],
+        validator: (value) {
+          final intVal = int.tryParse(value ?? '');
+          if (intVal == null || intVal < 80 || intVal > 120) {
+            return '80% - 120%';
+          }
+          return null;
+        },
+      ),
+    );
+    if (text != null && mounted) {
+      final intVal = int.tryParse(text);
+      if (intVal != null) {
+        final clamped = (intVal.clamp(80, 120) / 100).toDouble();
+        _update(clamped);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
+    final colorScheme = context.colorScheme;
+    final pageScale = ref.watch(
+      themeSettingProvider.select((state) => state.pageScale),
+    );
+    final scale = _draft ?? pageScale;
+    final percent = '${(scale * 100).round()}%';
+    final level = context.raisedSurfaceLevel;
+    final divisions =
+        ((maxPageScale - minPageScale) / _PageScaleItem._step).round();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InfoHeader(
+          info: Info(
+            label: appLocalizations.pageScale,
+            glyph: AppGlyphs.customize,
+          ),
+          actions: [
+            if (pageScale != defaultPageScale)
+              _ResetButton(
+                onPressed: () => _update(defaultPageScale),
+              ),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            decoration: ShapeDecoration(
+              color: level.colorOf(colorScheme),
+              shape: AppShape.lg,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        appLocalizations.pageScaleDesc,
+                        style: AppTextStyle.subheadline.of(context).copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElasticPress(
+                      child: InkWell(
+                        onTap: () => _showCustomInputDialog(context, scale),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: ShapeDecoration(
+                            color: level.next.colorOf(colorScheme),
+                            shape: AppShape.full,
+                          ),
+                          child: Text(
+                            percent,
+                            style: AppTextStyle.subheadline
+                                .of(context, emphasized: true)
+                                .copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  spacing: 12,
+                  children: [
+                    ExcludeSemantics(
+                      child: Text(
+                        '80%',
+                        style: AppTextStyle.footnote.of(context).copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: SliderTheme(
+                        data: SliderDefaultsM3(context),
+                        child: Slider(
+                          padding: EdgeInsets.zero,
+                          min: minPageScale,
+                          max: maxPageScale,
+                          divisions: divisions,
+                          value: scale,
+                          label: percent,
+                          onChanged: (value) => setState(() => _draft = value),
+                          onChangeEnd: (value) => _update(
+                            (value * 100).round() / 100,
+                          ),
+                        ),
+                      ),
+                    ),
+                    ExcludeSemantics(
+                      child: Text(
+                        '120%',
+                        style: AppTextStyle.footnote.of(context).copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ],

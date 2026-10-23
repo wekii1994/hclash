@@ -26,6 +26,9 @@ const helperProtocolVersionHeader = 'x-flclash-helper-protocol';
 final helperProtocolVersion = Platform.isWindows ? '8' : '6';
 const maxTextScale = 1.4;
 const minTextScale = 0.8;
+const maxPageScale = 1.2;
+const minPageScale = 0.8;
+const defaultPageScale = 1.0;
 
 const watchExecution = false;
 

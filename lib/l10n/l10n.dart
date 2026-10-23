@@ -3490,6 +3490,21 @@ class AppLocalizations {
     return Intl.message('Clear data', name: 'clearData', desc: '', args: []);
   }
 
+  /// `Page scaling`
+  String get pageScale {
+    return Intl.message('Page scaling', name: 'pageScale', desc: '', args: []);
+  }
+
+  /// `Scale overall interface elements (80% - 120%)`
+  String get pageScaleDesc {
+    return Intl.message(
+      'Scale overall interface elements (80% - 120%)',
+      name: 'pageScaleDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `Text scaling`
   String get textScale {
     return Intl.message('Text scaling', name: 'textScale', desc: '', args: []);

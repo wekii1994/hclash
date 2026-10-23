@@ -123,6 +123,9 @@ class ThemeManager extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final pageScale = ref.watch(
+      themeSettingProvider.select((state) => state.pageScale),
+    );
     final textScale = ref.read(
       themeSettingProvider.select((state) => state.textScale),
     );
@@ -141,6 +144,7 @@ class ThemeManager extends ConsumerWidget {
       child: AppViewScope(
         child: _AppMediaQuery(
           textScaler: TextScaler.linear(textScaleFactor),
+          pageScale: pageScale,
           child: _LiquidGlassSetting(
             child: LayoutBuilder(
               builder: (_, constraints) {
@@ -204,23 +208,57 @@ class _LiquidGlassSetting extends ConsumerWidget {
 }
 
 class _AppMediaQuery extends StatelessWidget {
-  const _AppMediaQuery({required this.textScaler, required this.child});
+  const _AppMediaQuery({
+    required this.textScaler,
+    required this.pageScale,
+    required this.child,
+  });
 
   final TextScaler textScaler;
+  final double pageScale;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final data = MediaQuery.of(context);
     final padding = data.padding;
+    final mediaQueryData = data.copyWith(
+      textScaler: textScaler,
+      padding: padding.copyWith(
+        top: padding.top > data.size.height * 0.3 ? 20.0 : padding.top,
+      ),
+    );
+    if (pageScale == 1.0) {
+      return MediaQuery(
+        data: mediaQueryData,
+        child: child,
+      );
+    }
+    final originalSize = mediaQueryData.size;
+    final scaledSize = originalSize / pageScale;
     return MediaQuery(
-      data: data.copyWith(
-        textScaler: textScaler,
-        padding: padding.copyWith(
-          top: padding.top > data.size.height * 0.3 ? 20.0 : padding.top,
+      data: mediaQueryData.copyWith(
+        size: scaledSize,
+        padding: mediaQueryData.padding / pageScale,
+        viewPadding: mediaQueryData.viewPadding / pageScale,
+        viewInsets: mediaQueryData.viewInsets / pageScale,
+      ),
+      child: SizedBox(
+        width: originalSize.width,
+        height: originalSize.height,
+        child: OverflowBox(
+          minWidth: scaledSize.width,
+          maxWidth: scaledSize.width,
+          minHeight: scaledSize.height,
+          maxHeight: scaledSize.height,
+          alignment: Alignment.topLeft,
+          child: Transform.scale(
+            scale: pageScale,
+            alignment: Alignment.topLeft,
+            child: child,
+          ),
         ),
       ),
-      child: child,
     );
   }
 }
