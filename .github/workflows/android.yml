@@ -200,21 +200,18 @@ jobs:
           COMMIT_TITLE=$(git log -1 --pretty=%s)
           COMMIT_BODY=$(git log -1 --pretty=%b)
           
-          RELEASE_NOTES=$(cat <<EOF
-### 变更说明
-**$COMMIT_TITLE**
-
-$COMMIT_BODY
-
----
-- **版本**: \`$TAG\`
-- **Commit**: \`${{ github.sha }}\`
-EOF
-)
+          echo "### 变更说明" > release_notes.md
+          echo "**$COMMIT_TITLE**" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "$COMMIT_BODY" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "---" >> release_notes.md
+          echo "- **版本**: \`$TAG\`" >> release_notes.md
+          echo "- **Commit**: \`${{ github.sha }}\`" >> release_notes.md
           
           echo "Creating new release $TAG..."
           gh release create "$TAG" $APK_FILES \
             --title "hclash $TAG" \
             --target "${{ github.sha }}" \
-            --notes "$RELEASE_NOTES" \
+            --notes-file release_notes.md \
             --latest
