@@ -1,5 +1,6 @@
 export 'android_manager.dart';
 export 'app_manager.dart';
+export 'auto_switch_manager.dart';
 export 'connectivity_manager.dart';
 export 'core_manager.dart';
 export 'locale_manager.dart';

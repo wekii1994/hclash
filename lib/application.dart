@@ -136,6 +136,7 @@ class ApplicationState extends ConsumerState<Application> {
       ref.read(routeTrackerProvider.notifier).bumpHostEpoch();
     }
     _preHasVpn = hasVpn;
+    autoSwitchManager.onNetworkChanged(results, ref);
   }
 
   @override
