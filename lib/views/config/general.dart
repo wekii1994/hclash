@@ -58,9 +58,14 @@ class DelayTestTimeoutItem extends ConsumerWidget {
       options: delayTestTimeoutOptions,
       textBuilder: (value) => '$value ms',
       selector: appSettingProvider.select((state) => state.delayTestTimeout),
-      onChanged: (ref, value) => ref
-          .read(appSettingProvider.notifier)
-          .update((state) => state.copyWith(delayTestTimeout: value)),
+      onChanged: (ref, value) {
+        ref
+            .read(appSettingProvider.notifier)
+            .update((state) => state.copyWith(delayTestTimeout: value));
+        ref
+            .read(setupActionProvider.notifier)
+            .applyProfileDebounce(silence: true);
+      },
     );
   }
 }

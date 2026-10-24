@@ -13,6 +13,8 @@ _SetupParams _$SetupParamsFromJson(Map<String, dynamic> json) => _SetupParams(
   base: json['base'] == null
       ? null
       : SetupBase.fromJson(json['base'] as Map<String, dynamic>),
+  healthCheckTimeout:
+      (json['health-check-timeout'] as num?)?.toInt() ?? 2000,
 );
 
 Map<String, dynamic> _$SetupParamsToJson(_SetupParams instance) =>
@@ -21,6 +23,7 @@ Map<String, dynamic> _$SetupParamsToJson(_SetupParams instance) =>
       'test-url': instance.testUrl,
       'skip-cert-verify': instance.skipCertVerify,
       'base': ?instance.base,
+      'health-check-timeout': instance.healthCheckTimeout,
     };
 
 _SetupBase _$SetupBaseFromJson(Map<String, dynamic> json) => _SetupBase(

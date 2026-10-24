@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/metacubex/mihomo/component/age"
@@ -99,13 +100,25 @@ func isMatchRule(rule string) bool {
 }
 
 func loadConfigWithBase(base *SetupBase, configPath string) (*config.Config, error) {
+	return loadConfigWithBaseAndTimeout(base, configPath, 0)
+}
+
+func loadConfigWithBaseAndTimeout(base *SetupBase, configPath string, healthCheckTimeout int) (*config.Config, error) {
 	document, err := mergeProfileBase(base)
 	if err != nil {
 		return nil, err
 	}
+	if healthCheckTimeout > 0 {
+		if root, err := documentMapping(document); err == nil {
+			patchHealthCheckTimeoutNode(root, healthCheckTimeout)
+		}
+	}
 	raw := config.DefaultRawConfig()
 	if err := document.Decode(raw); err != nil {
 		return nil, err
+	}
+	if healthCheckTimeout > 0 {
+		patchHealthCheckTimeoutRaw(raw, healthCheckTimeout)
 	}
 	if err := writeConfigDocument(configPath, document); err != nil {
 		return nil, err
@@ -115,6 +128,69 @@ func loadConfigWithBase(base *SetupBase, configPath string) (*config.Config, err
 		return nil, err
 	}
 	return withPlatformLimits(cfg), nil
+}
+
+func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
+	if timeout <= 0 || root == nil {
+		return
+	}
+	timeoutStr := strconv.Itoa(timeout)
+	groups := mappingValue(root, "proxy-groups")
+	if groups != nil && groups.Kind == yaml.SequenceNode {
+		for _, group := range groups.Content {
+			if group.Kind != yaml.MappingNode {
+				continue
+			}
+			typeNode := mappingValue(group, "type")
+			if typeNode != nil && (typeNode.Value == "url-test" || typeNode.Value == "fallback" || typeNode.Value == "load-balance") {
+				setMappingValue(group, "timeout", &yaml.Node{
+					Kind:  yaml.ScalarNode,
+					Tag:   "!!int",
+					Value: timeoutStr,
+				})
+			}
+		}
+	}
+	providers := mappingValue(root, "proxy-providers")
+	if providers != nil && providers.Kind == yaml.MappingNode {
+		for i := 1; i < len(providers.Content); i += 2 {
+			provider := providers.Content[i]
+			if provider.Kind != yaml.MappingNode {
+				continue
+			}
+			hc := mappingValue(provider, "health-check")
+			if hc != nil && hc.Kind == yaml.MappingNode {
+				setMappingValue(hc, "timeout", &yaml.Node{
+					Kind:  yaml.ScalarNode,
+					Tag:   "!!int",
+					Value: timeoutStr,
+				})
+			}
+		}
+	}
+}
+
+func patchHealthCheckTimeoutRaw(raw *config.RawConfig, timeout int) {
+	if timeout <= 0 || raw == nil {
+		return
+	}
+	for _, group := range raw.ProxyGroup {
+		if group == nil {
+			continue
+		}
+		groupType, _ := group["type"].(string)
+		if groupType == "url-test" || groupType == "fallback" || groupType == "load-balance" {
+			group["timeout"] = timeout
+		}
+	}
+	for _, provider := range raw.ProxyProvider {
+		if provider == nil {
+			continue
+		}
+		if hc, ok := provider["health-check"].(map[string]any); ok {
+			hc["timeout"] = timeout
+		}
+	}
 }
 
 func mergeProfileBase(base *SetupBase) (*yaml.Node, error) {

@@ -99,10 +99,11 @@ type DecryptConfigParams struct {
 }
 
 type SetupParams struct {
-	SelectedMap    map[string]string `json:"selected-map"`
-	TestURL        string            `json:"test-url"`
-	SkipCertVerify bool              `json:"skip-cert-verify"`
-	Base           *SetupBase        `json:"base,omitempty"`
+	SelectedMap        map[string]string `json:"selected-map"`
+	TestURL            string            `json:"test-url"`
+	SkipCertVerify     bool              `json:"skip-cert-verify"`
+	Base               *SetupBase        `json:"base,omitempty"`
+	HealthCheckTimeout int               `json:"health-check-timeout"`
 }
 
 type SetupBase struct {

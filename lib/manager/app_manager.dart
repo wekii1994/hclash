@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/manager/auto_switch_manager.dart';
 import 'package:fl_clash/common/system_dns.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
@@ -95,7 +94,6 @@ class _AppStateManagerState extends ConsumerState<AppStateManager>
           return;
         }
         ref.read(routeTrackerProvider.notifier).markResumed();
-        autoSwitchManager.onAppResumed(ref);
       });
     }
   }

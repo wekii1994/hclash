@@ -412,3 +412,53 @@ func TestEncodeConfigMappingKeepsEveryKeyAfterAnOpenEndedScalar(t *testing.T) {
 		t.Errorf("decoded %d rules, want all %d in order", len(decoded.Rules), len(rules))
 	}
 }
+
+func TestPatchHealthCheckTimeout(t *testing.T) {
+	yamlContent := `
+proxy-groups:
+  - {name: auto, type: url-test, proxies: [a, b]}
+  - {name: select, type: select, proxies: [a, b]}
+  - {name: fallback-grp, type: fallback, proxies: [a, b]}
+proxy-providers:
+  provider1:
+    type: http
+    url: "http://example.com"
+    health-check:
+      enable: true
+      interval: 300
+`
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(yamlContent), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	root, err := documentMapping(&doc)
+	if err != nil {
+		t.Fatalf("documentMapping: %v", err)
+	}
+	patchHealthCheckTimeoutNode(root, 1500)
+
+	raw := config.DefaultRawConfig()
+	if err := doc.Decode(raw); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	patchHealthCheckTimeoutRaw(raw, 1500)
+
+	for _, g := range raw.ProxyGroup {
+		if g["name"] == "auto" || g["name"] == "fallback-grp" {
+			if timeout, ok := g["timeout"].(int); !ok || timeout != 1500 {
+				t.Errorf("group %v timeout = %v, want 1500", g["name"], g["timeout"])
+			}
+		}
+	}
+	if p, ok := raw.ProxyProvider["provider1"]; ok {
+		if hc, ok := p["health-check"].(map[string]any); ok {
+			if timeout, ok := hc["timeout"].(int); !ok || timeout != 1500 {
+				t.Errorf("provider1 health-check timeout = %v, want 1500", hc["timeout"])
+			}
+		} else {
+			t.Errorf("provider1 missing health-check map")
+		}
+	} else {
+		t.Errorf("missing provider1")
+	}
+}

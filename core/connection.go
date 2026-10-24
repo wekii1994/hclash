@@ -3,6 +3,7 @@ package core
 import (
 	"github.com/metacubex/mihomo/component/resolver"
 	"github.com/metacubex/mihomo/dns"
+	"github.com/metacubex/mihomo/tunnel"
 	"github.com/metacubex/mihomo/tunnel/statistic"
 )
 
@@ -59,6 +60,9 @@ func handleClearDnsCache() {
 func handleResetNetwork() {
 	handleCloseConnections()
 	handleClearDnsCache()
+	for _, pd := range tunnel.ProvidersSnapshot() {
+		pd.HealthCheck()
+	}
 }
 
 func handleCloseConnection(connectionId string) bool {

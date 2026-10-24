@@ -56,7 +56,7 @@ double systemTextScaleOf(BuildContext context) {
 /// probe itself - so the guard below has to outlast twice the longest option.
 const delayTestTimeoutOptions = [500, 1000, 2000, 5000, 8000];
 
-const defaultDelayTestTimeout = 8000;
+const defaultDelayTestTimeout = 2000;
 
 const delayTestGuardDuration = Duration(seconds: 30);
 

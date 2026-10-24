@@ -25,6 +25,7 @@ import (
 	LC "github.com/metacubex/mihomo/listener/config"
 	"github.com/metacubex/mihomo/log"
 	"github.com/metacubex/mihomo/tunnel"
+	"go.yaml.in/yaml/v3"
 )
 
 var (
@@ -37,8 +38,9 @@ var (
 
 func defaultSetupParams() *SetupParams {
 	return &SetupParams{
-		TestURL:     defaultTestURL,
-		SelectedMap: map[string]string{},
+		TestURL:            defaultTestURL,
+		SelectedMap:        map[string]string{},
+		HealthCheckTimeout: 2000,
 	}
 }
 
@@ -117,9 +119,28 @@ func handleDecryptConfig(params DecryptConfigParams) (string, error) {
 var systemTimeWritable = runtime.GOOS != "android"
 
 func loadConfig(path string) (*config.Config, error) {
+	return loadConfigWithTimeout(path, 0)
+}
+
+func loadConfigWithTimeout(path string, healthCheckTimeout int) (*config.Config, error) {
 	buf, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
+	}
+	if healthCheckTimeout > 0 {
+		var document yaml.Node
+		if err := yaml.Unmarshal(buf, &document); err == nil {
+			if root, err := documentMapping(&document); err == nil {
+				patchHealthCheckTimeoutNode(root, healthCheckTimeout)
+			}
+			raw := config.DefaultRawConfig()
+			if err := document.Decode(raw); err == nil {
+				patchHealthCheckTimeoutRaw(raw, healthCheckTimeout)
+				if cfg, err := config.ParseRawConfig(raw); err == nil {
+					return withPlatformLimits(cfg), nil
+				}
+			}
+		}
 	}
 	cfg, err := executor.ParseWithBytes(buf)
 	if err != nil {
@@ -143,9 +164,9 @@ func runningConfigPath() string {
 func loadSetupConfig(params *SetupParams) (*config.Config, error) {
 	path := runningConfigPath()
 	if params.Base != nil {
-		return loadConfigWithBase(params.Base, path)
+		return loadConfigWithBaseAndTimeout(params.Base, path, params.HealthCheckTimeout)
 	}
-	return loadConfig(path)
+	return loadConfigWithTimeout(path, params.HealthCheckTimeout)
 }
 
 func applyConfig(params *SetupParams) error {

@@ -139,13 +139,17 @@ class ApplicationState extends ConsumerState<Application> {
       if (system.isDesktop) {
         debouncer.call(
           FunctionTag.clearDnsCache,
-          ref.read(coreActionProvider.notifier).clearDnsCacheOnNetworkChange,
+          () {
+            ref.read(coreActionProvider.notifier).clearDnsCacheOnNetworkChange();
+            if (ref.read(appSettingProvider).closeConnections) {
+              ref.read(coreActionProvider.notifier).closeConnections();
+            }
+          },
           duration: const Duration(milliseconds: 200),
         );
       }
     }
     _preHasVpn = hasVpn;
-    autoSwitchManager.onNetworkChanged(results, ref);
   }
 
   @override

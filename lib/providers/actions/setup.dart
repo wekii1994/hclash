@@ -70,6 +70,7 @@ class SetupAction extends _$SetupAction {
       selectedMap: selectedMap,
       testUrl: ref.read(patchClashConfigProvider).testUrl,
       skipCertVerify: !appSetting.checkCertificate,
+      healthCheckTimeout: appSetting.delayTestTimeout,
     );
   }
 
