@@ -97,8 +97,15 @@ jobs:
               echo "storePassword=${{ secrets.STORE_PASSWORD }}"
               echo "keyPassword=${{ secrets.KEY_PASSWORD }}"
             } >> android/local.properties
+          elif [ -f "android/app/keystore.jks" ]; then
+            echo "Using committed persistent release keystore..."
+            {
+              echo "keyAlias=hclash"
+              echo "storePassword=123456"
+              echo "keyPassword=123456"
+            } >> android/local.properties
           else
-            echo "No custom secrets provided. Generating fallback signing keystore..."
+            echo "Generating persistent release keystore and committing to repository..."
             keytool -genkeypair -v \
               -keystore android/app/keystore.jks \
               -alias hclash \
@@ -113,6 +120,11 @@ jobs:
               echo "storePassword=123456"
               echo "keyPassword=123456"
             } >> android/local.properties
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -f android/app/keystore.jks
+            git commit -m "chore: persist release signing keystore for consistent app updates [skip ci]" || true
+            git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:main || true
           fi
 
       - name: Fetch CA certificates
