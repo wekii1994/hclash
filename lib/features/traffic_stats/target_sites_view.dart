@@ -20,6 +20,29 @@ class TargetSitesView extends StatefulWidget {
 class _TargetSitesViewState extends State<TargetSitesView> {
   bool _isAggregated = true;
   final Set<String> _expandedKeys = <String>{};
+  List<AggregatedSiteGroup>? _cachedGroups;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateAggregatedGroups();
+  }
+
+  @override
+  void didUpdateWidget(covariant TargetSitesView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sites != widget.sites) {
+      _updateAggregatedGroups();
+    }
+  }
+
+  void _updateAggregatedGroups() {
+    if (widget.sites.isNotEmpty) {
+      _cachedGroups = DomainClassifier.aggregateSites(widget.sites);
+    } else {
+      _cachedGroups = null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,9 +60,7 @@ class _TargetSitesViewState extends State<TargetSitesView> {
       );
     }
 
-    final aggregatedGroups = _isAggregated
-        ? DomainClassifier.aggregateSites(widget.sites)
-        : null;
+    final aggregatedGroups = _isAggregated ? _cachedGroups : null;
 
     final maxTotal = _isAggregated
         ? ((aggregatedGroups?.isNotEmpty ?? false) && aggregatedGroups!.first.total > 0

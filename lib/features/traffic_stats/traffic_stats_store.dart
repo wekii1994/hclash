@@ -8,6 +8,7 @@ import 'package:fl_clash/models/models.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 
+import 'domain_classifier.dart';
 import 'traffic_stats_models.dart';
 
 class TrafficStatsStore extends ChangeNotifier {
@@ -22,6 +23,7 @@ class TrafficStatsStore extends ChangeNotifier {
   final Map<String, ({int upload, int download})> _requestIdToTraffic = {};
 
   bool _isLoaded = false;
+  Future<void>? _initFuture;
   Timer? _saveDebounceTimer;
   DateTime? _lastSaveTime;
   Timer? _uiThrottleTimer;
@@ -45,8 +47,12 @@ class TrafficStatsStore extends ChangeNotifier {
     return File(join(homeDirPath, 'traffic_statistics.json'));
   }
 
-  Future<void> init() async {
-    if (_isLoaded) return;
+  Future<void> init() {
+    if (_isLoaded) return Future.value();
+    return _initFuture ??= _doInit();
+  }
+
+  Future<void> _doInit() async {
     try {
       final file = await _getFile();
       if (await file.exists()) {
@@ -90,6 +96,9 @@ class TrafficStatsStore extends ChangeNotifier {
                     loaded.upload += existing.upload;
                     loaded.download += existing.download;
                     loaded.count += existing.count;
+                    if (existing.lastSeen > loaded.lastSeen) {
+                      loaded.lastSeen = existing.lastSeen;
+                    }
                     if ((loaded.process == null || loaded.process!.isEmpty) &&
                         existing.process != null) {
                       loaded.process = existing.process;
@@ -103,7 +112,6 @@ class TrafficStatsStore extends ChangeNotifier {
         }
       }
       _pruneOldData();
-      _reconcileTodayData();
       _isLoaded = true;
       notifyListeners();
     } catch (e) {
@@ -117,13 +125,13 @@ class TrafficStatsStore extends ChangeNotifier {
     final cutoffKey = _dateKey(cutoff);
     _dailySummaries.removeWhere((key, _) => key.compareTo(cutoffKey) < 0);
 
+    // 当站点数量显著超出阈值时再裁剪，兼顾活跃度与总流量
     if (_targetSiteUsages.length > maxSitesToKeep) {
       final sortedEntries = _targetSiteUsages.entries.toList()
         ..sort((a, b) => b.value.total.compareTo(a.value.total));
-      _targetSiteUsages.clear();
-      for (final entry in sortedEntries.take(maxSitesToKeep)) {
-        _targetSiteUsages[entry.key] = entry.value;
-      }
+      _targetSiteUsages
+        ..clear()
+        ..addEntries(sortedEntries.take(maxSitesToKeep));
     }
   }
 
@@ -144,6 +152,7 @@ class TrafficStatsStore extends ChangeNotifier {
     _saveDebounceTimer?.cancel();
     _saveDebounceTimer = null;
     _lastSaveTime = DateTime.now();
+    _pruneOldData();
     try {
       final file = await _getFile();
       final data = {
@@ -194,45 +203,6 @@ class TrafficStatsStore extends ChangeNotifier {
     hourly.download += downloadDelta;
   }
 
-  void _reconcileTodayData() {
-    final todayKey = _dateKey(DateTime.now());
-    final todayDaily = _dailySummaries[todayKey];
-    var sitesUp = 0;
-    var sitesDown = 0;
-    for (final s in _targetSiteUsages.values) {
-      sitesUp += s.upload;
-      sitesDown += s.download;
-    }
-    if (todayDaily == null) {
-      if (sitesUp > 0 || sitesDown > 0) {
-        final d = DailyTrafficData(
-          date: todayKey,
-          upload: sitesUp,
-          download: sitesDown,
-        );
-        final hour = DateTime.now().hour;
-        d.hourly[hour] = HourlyTrafficData(
-          hour: hour,
-          upload: sitesUp,
-          download: sitesDown,
-        );
-        _dailySummaries[todayKey] = d;
-      }
-    } else if (todayDaily.total < (sitesUp + sitesDown)) {
-      final missingUp = (sitesUp - todayDaily.upload).clamp(0, sitesUp);
-      final missingDown = (sitesDown - todayDaily.download).clamp(0, sitesDown);
-      todayDaily.upload += missingUp;
-      todayDaily.download += missingDown;
-      final hour = DateTime.now().hour;
-      final h = todayDaily.hourly.putIfAbsent(
-        hour,
-        () => HourlyTrafficData(hour: hour),
-      );
-      h.upload += missingUp;
-      h.download += missingDown;
-    }
-  }
-
   void recordTraffic({required int uploadDelta, required int downloadDelta}) {
     if (uploadDelta <= 0 && downloadDelta <= 0) return;
     _accumulate(uploadDelta: uploadDelta, downloadDelta: downloadDelta);
@@ -241,28 +211,20 @@ class TrafficStatsStore extends ChangeNotifier {
   }
 
   void recordRequest(TrackerInfo info) {
-    var host = info.title.trim();
+    final host = DomainClassifier.stripPort(info.title);
     if (host.isEmpty) return;
 
-    if (host.contains(':')) {
-      final parts = host.split(':');
-      if (parts.length == 2 && int.tryParse(parts[1]) != null) {
-        host = parts[0];
-      }
-    }
-
     _requestIdToHost[info.id] = host;
-    if (info.upload > 0 || info.download > 0) {
-      _requestIdToTraffic[info.id] = (
-        upload: info.upload,
-        download: info.download,
-      );
-    }
-    if (_requestIdToHost.length > 2000) {
+    _requestIdToTraffic[info.id] = (
+      upload: math.max(0, info.upload),
+      download: math.max(0, info.download),
+    );
+
+    if (_requestIdToHost.length > 3000) {
       final toRemove = _requestIdToHost.keys.take(500).toList();
       for (final k in toRemove) {
         _requestIdToHost.remove(k);
-        _requestIdToTraffic.remove(k);
+        // 注意：保留 _requestIdToTraffic[k] 或交由 recordRequestTraffic 按活跃集清理，防止长连接被重复计费
       }
     }
 
@@ -278,8 +240,8 @@ class TrafficStatsStore extends ChangeNotifier {
         process: process.isNotEmpty ? process : null,
       ),
     );
-    site.upload += info.upload;
-    site.download += info.download;
+    if (info.upload > 0) site.upload += info.upload;
+    if (info.download > 0) site.download += info.download;
     site.count++;
     site.lastSeen = DateTime.now().millisecondsSinceEpoch;
     if ((site.process == null || site.process!.isEmpty) && process.isNotEmpty) {
@@ -302,14 +264,18 @@ class TrafficStatsStore extends ChangeNotifier {
     var hasUpdates = false;
 
     trafficMap.forEach((id, traffic) {
-      final host = _requestIdToHost[id];
-
       final last = _requestIdToTraffic[id];
-      final lastUp = last?.upload ?? 0;
-      final lastDown = last?.download ?? 0;
+      // 若之前未见过该连接（例如启动前已存在的连接），仅记录当前基准值，避免把历史累计当成增量
+      if (last == null) {
+        _requestIdToTraffic[id] = (
+          upload: traffic.upload,
+          download: traffic.download,
+        );
+        return;
+      }
 
-      final deltaUp = traffic.upload - lastUp;
-      final deltaDown = traffic.download - lastDown;
+      final deltaUp = traffic.upload - last.upload;
+      final deltaDown = traffic.download - last.download;
 
       _requestIdToTraffic[id] = (
         upload: traffic.upload,
@@ -317,6 +283,7 @@ class TrafficStatsStore extends ChangeNotifier {
       );
 
       if (deltaUp > 0 || deltaDown > 0) {
+        final host = _requestIdToHost[id];
         if (host != null && host.isNotEmpty) {
           final site = _targetSiteUsages[host];
           if (site != null) {
@@ -334,17 +301,17 @@ class TrafficStatsStore extends ChangeNotifier {
       }
     });
 
+    // 定期清理已不在当前活跃连接列表中的历史流量缓存，避免内存泄漏
+    if (_requestIdToTraffic.length > 3000) {
+      _requestIdToTraffic.removeWhere(
+        (id, _) => !trafficMap.containsKey(id) && !_requestIdToHost.containsKey(id),
+      );
+    }
+
     if (hasUpdates) {
       scheduleSave();
       _scheduleNotify();
     }
-  }
-
-  @override
-  void dispose() {
-    _saveDebounceTimer?.cancel();
-    _uiThrottleTimer?.cancel();
-    super.dispose();
   }
 
   DailyTrafficData? get todayData => _dailySummaries[_dateKey(DateTime.now())];
@@ -363,18 +330,27 @@ class TrafficStatsStore extends ChangeNotifier {
 
   int get differenceFromYesterday => todayTotal - yesterdayTotal;
 
-  int get weekTotal {
+  int get weekUpload {
     final now = DateTime.now();
     var sum = 0;
     for (var i = 0; i < 7; i++) {
-      final date = now.subtract(Duration(days: i));
-      final data = _dailySummaries[_dateKey(date)];
-      if (data != null) {
-        sum += data.total;
-      }
+      final data = _dailySummaries[_dateKey(now.subtract(Duration(days: i)))];
+      if (data != null) sum += data.upload;
     }
     return sum;
   }
+
+  int get weekDownload {
+    final now = DateTime.now();
+    var sum = 0;
+    for (var i = 0; i < 7; i++) {
+      final data = _dailySummaries[_dateKey(now.subtract(Duration(days: i)))];
+      if (data != null) sum += data.download;
+    }
+    return sum;
+  }
+
+  int get weekTotal => weekUpload + weekDownload;
 
   int get monthTotal {
     final now = DateTime.now();
@@ -408,7 +384,6 @@ class TrafficStatsStore extends ChangeNotifier {
         });
 
       case TrafficStatsRange.week:
-        // Last 7 days, left-to-right (oldest to newest)
         return List.generate(7, (i) {
           final d = now.subtract(Duration(days: 6 - i));
           final key = _dateKey(d);
@@ -424,7 +399,6 @@ class TrafficStatsStore extends ChangeNotifier {
         });
 
       case TrafficStatsRange.month:
-        // Last 30 days
         return List.generate(30, (i) {
           final d = now.subtract(Duration(days: 29 - i));
           final key = _dateKey(d);
@@ -476,6 +450,12 @@ class TrafficStatsStore extends ChangeNotifier {
   }
 
   Future<void> clearAll() async {
+    _saveDebounceTimer?.cancel();
+    _saveDebounceTimer = null;
+    _uiThrottleTimer?.cancel();
+    _uiThrottleTimer = null;
+    _needsNotify = false;
+
     _dailySummaries.clear();
     _targetSiteUsages.clear();
     _requestIdToHost.clear();
@@ -489,3 +469,4 @@ class TrafficStatsStore extends ChangeNotifier {
     notifyListeners();
   }
 }
+

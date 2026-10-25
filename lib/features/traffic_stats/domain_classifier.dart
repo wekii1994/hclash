@@ -19,11 +19,11 @@ class AggregatedSiteGroup {
   final String iconText;
   final Color? brandColor;
   final List<TargetSiteData> subSites;
+  final int upload;
+  final int download;
+  final int count;
 
-  int get upload => subSites.fold(0, (sum, s) => sum + s.upload);
-  int get download => subSites.fold(0, (sum, s) => sum + s.download);
   int get total => upload + download;
-  int get count => subSites.fold(0, (sum, s) => sum + s.count);
 
   AggregatedSiteGroup({
     required this.key,
@@ -31,10 +31,14 @@ class AggregatedSiteGroup {
     required this.iconText,
     this.brandColor,
     required this.subSites,
-  });
+  })  : upload = subSites.fold(0, (sum, s) => sum + s.upload),
+        download = subSites.fold(0, (sum, s) => sum + s.download),
+        count = subSites.fold(0, (sum, s) => sum + s.count);
 }
 
 class DomainClassifier {
+  static final RegExp _ipv4Regex = RegExp(r'^\d{1,3}(\.\d{1,3}){3}$');
+
   static const Map<String, ServiceCategory> _knownRules = {
     // YouTube / Google Video
     'googlevideo.com': ServiceCategory(name: 'YouTube', iconText: 'YT', brandColor: Color(0xFFFF0000)),
@@ -145,11 +149,39 @@ class DomainClassifier {
     '.co.kr',
   ];
 
+  /// 剥离 Host 中的端口号，兼容 IPv4:port 与 [IPv6]:port
+  static String stripPort(String rawHost) {
+    var host = rawHost.trim().toLowerCase();
+    if (host.isEmpty) return '';
+
+    // 处理 [2001:db8::1]:443 格式
+    if (host.startsWith('[')) {
+      final closeIndex = host.indexOf(']');
+      if (closeIndex != -1) {
+        return host.substring(1, closeIndex);
+      }
+    }
+
+    // 处理单冒号 host:port 格式（排除未加括号的多冒号 IPv6）
+    final firstColon = host.indexOf(':');
+    final lastColon = host.lastIndexOf(':');
+    if (firstColon != -1 && firstColon == lastColon) {
+      final portPart = host.substring(lastColon + 1);
+      if (int.tryParse(portPart) != null) {
+        return host.substring(0, lastColon);
+      }
+    }
+
+    return host;
+  }
+
   static bool isIpAddress(String host) {
-    if (RegExp(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$').hasMatch(host)) {
+    final clean = stripPort(host);
+    if (_ipv4Regex.hasMatch(clean)) {
       return true;
     }
-    if (host.contains(':') && !host.contains('.')) {
+    // 包含冒号（已剥离单冒号端口后）即为 IPv6（含 ::ffff:192.168.1.1 等映射地址）
+    if (clean.contains(':')) {
       return true;
     }
     return false;
@@ -157,7 +189,11 @@ class DomainClassifier {
 
   static bool isPrivateIp(String ip) {
     if (ip == '127.0.0.1' || ip == 'localhost' || ip == '::1') return true;
-    final parts = ip.split('.');
+    if (ip.startsWith('fe80:') || ip.startsWith('fc00:') || ip.startsWith('fd00:')) {
+      return true;
+    }
+    final normalizedIp = ip.startsWith('::ffff:') ? ip.substring(7) : ip;
+    final parts = normalizedIp.split('.');
     if (parts.length != 4) return false;
     final o1 = int.tryParse(parts[0]);
     final o2 = int.tryParse(parts[1]);
@@ -167,6 +203,7 @@ class DomainClassifier {
     if (o1 == 192 && o2 == 168) return true;
     if (o1 == 172 && o2 >= 16 && o2 <= 31) return true;
     if (o1 == 169 && o2 == 254) return true;
+    if (o1 == 100 && o2 >= 64 && o2 <= 127) return true; // Carrier-grade NAT / Tailscale 等
     return false;
   }
 
@@ -178,13 +215,8 @@ class DomainClassifier {
     final o3 = int.tryParse(parts[2]);
     if (o1 == null || o2 == null || o3 == null) return false;
 
-    // 149.154.160.0/20 -> 149.154.160.0 - 149.154.175.255
     if (o1 == 149 && o2 == 154 && o3 >= 160 && o3 <= 175) return true;
-
-    // 91.108.4.0/22, 91.108.8.0/22, 91.108.12.0/22, 91.108.16.0/22, 91.108.20.0/22
     if (o1 == 91 && o2 == 108 && o3 >= 4 && o3 <= 23) return true;
-
-    // 91.108.56.0/22 -> 91.108.56.0 - 91.108.59.255
     if (o1 == 91 && o2 == 108 && o3 >= 56 && o3 <= 59) return true;
 
     return false;
@@ -212,7 +244,6 @@ class DomainClassifier {
         brandColor: Color(0xFF2AABEE),
       );
     }
-    // Public DNS
     if (ip == '1.1.1.1' || ip == '1.0.0.1') {
       return const ServiceCategory(
         name: 'Cloudflare DNS',
@@ -248,7 +279,6 @@ class DomainClassifier {
         brandColor: Color(0xFF12B7F5),
       );
     }
-    // Apple IP block: 17.0.0.0/8
     if (ip.startsWith('17.')) {
       return const ServiceCategory(
         name: 'Apple',
@@ -256,7 +286,6 @@ class DomainClassifier {
         brandColor: Color(0xFF888888),
       );
     }
-    // Cloudflare IP ranges: 104.16.0.0 - 104.31.255.255
     if (ip.startsWith('104.')) {
       final parts = ip.split('.');
       if (parts.length == 4) {
@@ -306,13 +335,7 @@ class DomainClassifier {
   }
 
   static ServiceCategory classify(String rawHost, {String? process}) {
-    var host = rawHost.trim().toLowerCase();
-    if (host.contains(':')) {
-      final parts = host.split(':');
-      if (parts.length == 2 && int.tryParse(parts[1]) != null) {
-        host = parts[0];
-      }
-    }
+    final host = stripPort(rawHost);
 
     if (host.isEmpty) {
       return const ServiceCategory(name: '未知服务', iconText: '?');
@@ -327,7 +350,7 @@ class DomainClassifier {
 
       final app = friendlyAppName(process);
       if (app != null && app.isNotEmpty) {
-        final initial = app.isNotEmpty ? app[0].toUpperCase() : 'IP';
+        final initial = app[0].toUpperCase();
         return ServiceCategory(
           name: '$app (IP直连)',
           iconText: initial.length > 2 ? initial.substring(0, 2) : initial,
@@ -335,7 +358,6 @@ class DomainClassifier {
         );
       }
 
-      // Group unidentified numeric IPs into one expandable card
       return const ServiceCategory(
         name: 'IP 直连访问',
         iconText: 'IP',
@@ -351,7 +373,7 @@ class DomainClassifier {
       }
     }
 
-    // Extract root domain
+    // 3. Extract root domain
     final root = extractRootDomain(host);
     final initial = root.isNotEmpty ? root[0].toUpperCase() : '?';
     return ServiceCategory(name: root, iconText: initial);
@@ -363,11 +385,13 @@ class DomainClassifier {
     }
 
     for (final tld in _twoPartTlds) {
-      if (host.endsWith(tld)) {
+      if (host.endsWith(tld) && host.length > tld.length) {
         final prefix = host.substring(0, host.length - tld.length);
         final parts = prefix.split('.');
         final last = parts.isNotEmpty ? parts.last : '';
-        return '$last$tld';
+        if (last.isNotEmpty) {
+          return '$last$tld';
+        }
       }
     }
 
@@ -390,7 +414,8 @@ class DomainClassifier {
 
     final list = groups.entries.map((e) {
       final cat = categories[e.key]!;
-      final subSites = e.value..sort((a, b) => b.total.compareTo(a.total));
+      final subSites = List<TargetSiteData>.from(e.value)
+        ..sort((a, b) => b.total.compareTo(a.total));
       return AggregatedSiteGroup(
         key: e.key,
         displayName: cat.name,
@@ -404,3 +429,4 @@ class DomainClassifier {
     return list;
   }
 }
+

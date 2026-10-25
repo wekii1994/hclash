@@ -179,13 +179,13 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
                         spacing: 8,
                         children: [
                           Text(
-                            '↑ ${store.todayUpload.traffic.show}',
+                            '↑ ${store.weekUpload.traffic.show}',
                             style: AppTextStyle.caption2
                                 .of(context)
                                 .copyWith(color: colorScheme.onSurfaceVariant),
                           ),
                           Text(
-                            '↓ ${store.todayDownload.traffic.show}',
+                            '↓ ${store.weekDownload.traffic.show}',
                             style: AppTextStyle.caption2
                                 .of(context)
                                 .copyWith(color: colorScheme.onSurfaceVariant),
