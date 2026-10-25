@@ -203,6 +203,7 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   @override
   void onRouteChanged(RouteSnapshot snapshot) {
     ref.read(routeTrackerProvider.notifier).applySnapshot(snapshot);
+    ref.read(proxiesActionProvider.notifier).updateGroupsDebounce();
     super.onRouteChanged(snapshot);
   }
 }

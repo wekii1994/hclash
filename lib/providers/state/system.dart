@@ -185,31 +185,47 @@ Group? _findPrimaryGroup(
       .toList();
   if (nonGlobalGroups.isEmpty) return groups.first;
 
-  // 优先在手动选择 (Selector) 策略组中匹配主分组，避免误中排在前面的自动测速组或业务分流组
   final selectorGroups = nonGlobalGroups
       .where((g) => g.type == GroupType.Selector)
       .toList();
   final searchPool = selectorGroups.isNotEmpty ? selectorGroups : nonGlobalGroups;
 
+  // 主入口策略组关键字（注意：绝对不要包含“手动选择”，因为“手动选择”通常是“默认代理/节点选择”的下属子分组）
   const primaryKeywords = [
+    '默认代理',
     '节点选择',
     '选择节点',
-    '手动选择',
-    '默认代理',
-    '代理',
+    '代理模式',
+    '科学上网',
     'proxy',
     'proxies',
-    'select',
     'default',
+    'select',
   ];
-  for (final keyword in primaryKeywords) {
-    for (final group in searchPool) {
-      if (group.name.toLowerCase().contains(keyword)) {
+
+  // 1. 优先按订阅中定义的策略组顺序，查找名称匹配主入口关键字的 Selector 组
+  for (final group in searchPool) {
+    final lowerName = group.name.toLowerCase();
+    if (lowerName.contains('手动') || lowerName.contains('manual')) {
+      continue;
+    }
+    for (final keyword in primaryKeywords) {
+      if (lowerName.contains(keyword)) {
         return group;
       }
     }
   }
 
+  // 2. 拓扑特征匹配：查找第一个“子项中包含其他策略组（如包含自动选择/手动选择）”的顶层 Selector 组
+  final groupNames = nonGlobalGroups.map((g) => g.name).toSet();
+  for (final group in searchPool) {
+    final hasSubGroup = group.all.any((proxy) => groupNames.contains(proxy.name));
+    if (hasSubGroup) {
+      return group;
+    }
+  }
+
+  // 3. 回退到用户当前聚焦的分组或第一个非 GLOBAL 分组
   if (currentGroupName != null && currentGroupName.isNotEmpty) {
     final currentGroup = groups.getGroup(currentGroupName);
     if (currentGroup != null && currentGroup.name.toUpperCase() != 'GLOBAL') {
@@ -242,15 +258,16 @@ String _resolveNotificationTitle({
       groups: groups,
       selectedMap: selectedMap,
     );
-    if (realState.proxyName.isNotEmpty &&
-        groups.getGroup(realState.proxyName) == null) {
-      return realState.proxyName;
-    }
-    final selectedName = primaryGroup.getCurrentSelectedName(
-      selectedMap[primaryGroup.name] ?? '',
-    );
-    if (selectedName.isNotEmpty && groups.getGroup(selectedName) == null) {
-      return selectedName;
+    final resolvedName = realState.proxyName.isNotEmpty
+        ? realState.proxyName
+        : primaryGroup.getCurrentSelectedName(
+            selectedMap[primaryGroup.name] ?? '',
+          );
+    if (resolvedName.isNotEmpty && groups.getGroup(resolvedName) == null) {
+      if (resolvedName.toUpperCase() == 'DIRECT') {
+        return directLabel;
+      }
+      return resolvedName;
     }
   }
   if (fallbackLabel.isNotEmpty) {

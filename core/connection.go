@@ -112,6 +112,7 @@ func handleResetNetwork() {
 				t.Touch()
 			}
 		}
+		changeRoute(routeMoved)
 	}(seq)
 }
 
