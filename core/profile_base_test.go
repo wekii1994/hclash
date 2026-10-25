@@ -416,7 +416,7 @@ func TestEncodeConfigMappingKeepsEveryKeyAfterAnOpenEndedScalar(t *testing.T) {
 func TestPatchHealthCheckTimeout(t *testing.T) {
 	yamlContent := `
 proxy-groups:
-  - {name: auto, type: url-test, proxies: [a, b]}
+  - {name: auto, type: url-test, proxies: [a, "到期时间: 2029", b]}
   - {name: select, type: select, proxies: [a, b]}
   - {name: fallback-grp, type: fallback, proxies: [a, b]}
 proxy-providers:
@@ -448,6 +448,18 @@ proxy-providers:
 			if timeout, ok := g["timeout"].(int); !ok || timeout != 1500 {
 				t.Errorf("group %v timeout = %v, want 1500", g["name"], g["timeout"])
 			}
+			if expected, ok := g["expected-status"].(string); !ok || expected != "200-204" {
+				t.Errorf("group %v expected-status = %v, want 200-204", g["name"], g["expected-status"])
+			}
+		}
+		if g["name"] == "auto" {
+			if tol, ok := g["tolerance"].(int); !ok || tol != 50 {
+				t.Errorf("group auto tolerance = %v, want 50", g["tolerance"])
+			}
+			proxies, ok := g["proxies"].([]any)
+			if !ok || len(proxies) != 2 {
+				t.Errorf("group auto proxies length = %v, want 2 (dummy node excluded)", len(proxies))
+			}
 		}
 	}
 	if p, ok := raw.ProxyProvider["provider1"]; ok {
@@ -455,8 +467,14 @@ proxy-providers:
 			if timeout, ok := hc["timeout"].(int); !ok || timeout != 1500 {
 				t.Errorf("provider1 health-check timeout = %v, want 1500", hc["timeout"])
 			}
+			if expected, ok := hc["expected-status"].(string); !ok || expected != "200-204" {
+				t.Errorf("provider1 expected-status = %v, want 200-204", hc["expected-status"])
+			}
 		} else {
 			t.Errorf("provider1 missing health-check map")
+		}
+		if filter, ok := p["exclude-filter"].(string); !ok || !strings.Contains(filter, "剩余") {
+			t.Errorf("provider1 exclude-filter = %v, want containing dummy filter pattern", p["exclude-filter"])
 		}
 	} else {
 		t.Errorf("missing provider1")

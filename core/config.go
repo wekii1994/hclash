@@ -127,18 +127,16 @@ func loadConfigWithTimeout(path string, healthCheckTimeout int) (*config.Config,
 	if err != nil {
 		return nil, err
 	}
-	if healthCheckTimeout > 0 {
-		var document yaml.Node
-		if err := yaml.Unmarshal(buf, &document); err == nil {
-			if root, err := documentMapping(&document); err == nil {
-				patchHealthCheckTimeoutNode(root, healthCheckTimeout)
-			}
-			raw := config.DefaultRawConfig()
-			if err := document.Decode(raw); err == nil {
-				patchHealthCheckTimeoutRaw(raw, healthCheckTimeout)
-				if cfg, err := config.ParseRawConfig(raw); err == nil {
-					return withPlatformLimits(cfg), nil
-				}
+	var document yaml.Node
+	if err := yaml.Unmarshal(buf, &document); err == nil {
+		if root, err := documentMapping(&document); err == nil {
+			patchHealthCheckTimeoutNode(root, healthCheckTimeout)
+		}
+		raw := config.DefaultRawConfig()
+		if err := document.Decode(raw); err == nil {
+			patchHealthCheckTimeoutRaw(raw, healthCheckTimeout)
+			if cfg, err := config.ParseRawConfig(raw); err == nil {
+				return withPlatformLimits(cfg), nil
 			}
 		}
 	}

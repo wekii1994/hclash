@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -99,6 +100,23 @@ func isMatchRule(rule string) bool {
 	return strings.EqualFold(strings.TrimSpace(kind), "MATCH")
 }
 
+const (
+	defaultExpectedStatus = "200-204"
+	defaultTolerance      = 50
+	defaultExcludeFilter  = "(?i)(剩余|到期|官网|提示|群|traffic|expire|website|notice|订阅)"
+)
+
+var dummyNodeRegex = regexp.MustCompile(defaultExcludeFilter)
+
+func isProtectedProxyName(name string) bool {
+	switch strings.ToUpper(name) {
+	case "DIRECT", "REJECT", "REJECT-DROP", "COMPATIBLE", "PASS", "GLOBAL":
+		return true
+	default:
+		return false
+	}
+}
+
 func loadConfigWithBase(base *SetupBase, configPath string) (*config.Config, error) {
 	return loadConfigWithBaseAndTimeout(base, configPath, 0)
 }
@@ -108,18 +126,14 @@ func loadConfigWithBaseAndTimeout(base *SetupBase, configPath string, healthChec
 	if err != nil {
 		return nil, err
 	}
-	if healthCheckTimeout > 0 {
-		if root, err := documentMapping(document); err == nil {
-			patchHealthCheckTimeoutNode(root, healthCheckTimeout)
-		}
+	if root, err := documentMapping(document); err == nil {
+		patchHealthCheckTimeoutNode(root, healthCheckTimeout)
 	}
 	raw := config.DefaultRawConfig()
 	if err := document.Decode(raw); err != nil {
 		return nil, err
 	}
-	if healthCheckTimeout > 0 {
-		patchHealthCheckTimeoutRaw(raw, healthCheckTimeout)
-	}
+	patchHealthCheckTimeoutRaw(raw, healthCheckTimeout)
 	if err := writeConfigDocument(configPath, document); err != nil {
 		return nil, err
 	}
@@ -131,10 +145,13 @@ func loadConfigWithBaseAndTimeout(base *SetupBase, configPath string, healthChec
 }
 
 func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
-	if timeout <= 0 || root == nil {
+	if root == nil {
 		return
 	}
-	timeoutStr := strconv.Itoa(timeout)
+	timeoutStr := ""
+	if timeout > 0 {
+		timeoutStr = strconv.Itoa(timeout)
+	}
 	groups := mappingValue(root, "proxy-groups")
 	if groups != nil && groups.Kind == yaml.SequenceNode {
 		for _, group := range groups.Content {
@@ -143,11 +160,65 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 			}
 			typeNode := mappingValue(group, "type")
 			if typeNode != nil && (typeNode.Value == "url-test" || typeNode.Value == "fallback" || typeNode.Value == "load-balance") {
-				setMappingValue(group, "timeout", &yaml.Node{
-					Kind:  yaml.ScalarNode,
-					Tag:   "!!int",
-					Value: timeoutStr,
-				})
+				if timeoutStr != "" {
+					setMappingValue(group, "timeout", &yaml.Node{
+						Kind:  yaml.ScalarNode,
+						Tag:   "!!int",
+						Value: timeoutStr,
+					})
+				}
+				if mappingValue(group, "expected-status") == nil {
+					setMappingValue(group, "expected-status", &yaml.Node{
+						Kind:  yaml.ScalarNode,
+						Tag:   "!!str",
+						Value: defaultExpectedStatus,
+					})
+				}
+				if typeNode.Value == "url-test" || typeNode.Value == "load-balance" {
+					tolNode := mappingValue(group, "tolerance")
+					needTol := false
+					if tolNode == nil {
+						needTol = true
+					} else if val, err := strconv.Atoi(strings.TrimSpace(tolNode.Value)); err == nil && val < defaultTolerance {
+						needTol = true
+					}
+					if needTol {
+						setMappingValue(group, "tolerance", &yaml.Node{
+							Kind:  yaml.ScalarNode,
+							Tag:   "!!int",
+							Value: strconv.Itoa(defaultTolerance),
+						})
+					}
+				}
+				useNode := mappingValue(group, "use")
+				if useNode != nil && useNode.Kind == yaml.SequenceNode && len(useNode.Content) > 0 {
+					filterNode := mappingValue(group, "exclude-filter")
+					if filterNode == nil {
+						setMappingValue(group, "exclude-filter", &yaml.Node{
+							Kind:  yaml.ScalarNode,
+							Tag:   "!!str",
+							Value: defaultExcludeFilter,
+						})
+					} else if !strings.Contains(filterNode.Value, "剩余") {
+						filterNode.Value = filterNode.Value + "|" + defaultExcludeFilter
+					}
+				}
+				proxiesNode := mappingValue(group, "proxies")
+				if proxiesNode != nil && proxiesNode.Kind == yaml.SequenceNode && len(proxiesNode.Content) > 0 {
+					var kept []*yaml.Node
+					for _, pNode := range proxiesNode.Content {
+						if pNode.Kind == yaml.ScalarNode {
+							if isProtectedProxyName(pNode.Value) || !dummyNodeRegex.MatchString(pNode.Value) {
+								kept = append(kept, pNode)
+							}
+						} else {
+							kept = append(kept, pNode)
+						}
+					}
+					if len(kept) > 0 {
+						proxiesNode.Content = kept
+					}
+				}
 			}
 		}
 	}
@@ -160,18 +231,37 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 			}
 			hc := mappingValue(provider, "health-check")
 			if hc != nil && hc.Kind == yaml.MappingNode {
-				setMappingValue(hc, "timeout", &yaml.Node{
+				if timeoutStr != "" {
+					setMappingValue(hc, "timeout", &yaml.Node{
+						Kind:  yaml.ScalarNode,
+						Tag:   "!!int",
+						Value: timeoutStr,
+					})
+				}
+				if mappingValue(hc, "expected-status") == nil {
+					setMappingValue(hc, "expected-status", &yaml.Node{
+						Kind:  yaml.ScalarNode,
+						Tag:   "!!str",
+						Value: defaultExpectedStatus,
+					})
+				}
+			}
+			filterNode := mappingValue(provider, "exclude-filter")
+			if filterNode == nil {
+				setMappingValue(provider, "exclude-filter", &yaml.Node{
 					Kind:  yaml.ScalarNode,
-					Tag:   "!!int",
-					Value: timeoutStr,
+					Tag:   "!!str",
+					Value: defaultExcludeFilter,
 				})
+			} else if !strings.Contains(filterNode.Value, "剩余") {
+				filterNode.Value = filterNode.Value + "|" + defaultExcludeFilter
 			}
 		}
 	}
 }
 
 func patchHealthCheckTimeoutRaw(raw *config.RawConfig, timeout int) {
-	if timeout <= 0 || raw == nil {
+	if raw == nil {
 		return
 	}
 	for _, group := range raw.ProxyGroup {
@@ -180,7 +270,44 @@ func patchHealthCheckTimeoutRaw(raw *config.RawConfig, timeout int) {
 		}
 		groupType, _ := group["type"].(string)
 		if groupType == "url-test" || groupType == "fallback" || groupType == "load-balance" {
-			group["timeout"] = timeout
+			if timeout > 0 {
+				group["timeout"] = timeout
+			}
+			if expected, ok := group["expected-status"].(string); !ok || expected == "" {
+				group["expected-status"] = defaultExpectedStatus
+			}
+			if groupType == "url-test" || groupType == "load-balance" {
+				tol := 0
+				switch t := group["tolerance"].(type) {
+				case int:
+					tol = t
+				case float64:
+					tol = int(t)
+				case string:
+					tol, _ = strconv.Atoi(t)
+				}
+				if tol < defaultTolerance {
+					group["tolerance"] = defaultTolerance
+				}
+			}
+			if use, ok := group["use"].([]any); ok && len(use) > 0 {
+				combineExcludeFilterRaw(group, defaultExcludeFilter)
+			}
+			if proxies, ok := group["proxies"].([]any); ok && len(proxies) > 0 {
+				var filtered []any
+				for _, p := range proxies {
+					if name, ok := p.(string); ok {
+						if isProtectedProxyName(name) || !dummyNodeRegex.MatchString(name) {
+							filtered = append(filtered, p)
+						}
+					} else {
+						filtered = append(filtered, p)
+					}
+				}
+				if len(filtered) > 0 {
+					group["proxies"] = filtered
+				}
+			}
 		}
 	}
 	for _, provider := range raw.ProxyProvider {
@@ -188,9 +315,25 @@ func patchHealthCheckTimeoutRaw(raw *config.RawConfig, timeout int) {
 			continue
 		}
 		if hc, ok := provider["health-check"].(map[string]any); ok {
-			hc["timeout"] = timeout
+			if timeout > 0 {
+				hc["timeout"] = timeout
+			}
+			if expected, ok := hc["expected-status"].(string); !ok || expected == "" {
+				hc["expected-status"] = defaultExpectedStatus
+			}
 		}
+		combineExcludeFilterRaw(provider, defaultExcludeFilter)
 	}
+}
+
+func combineExcludeFilterRaw(target map[string]any, filter string) {
+	if existing, ok := target["exclude-filter"].(string); ok && existing != "" {
+		if !strings.Contains(existing, "剩余") {
+			target["exclude-filter"] = existing + "|" + filter
+		}
+		return
+	}
+	target["exclude-filter"] = filter
 }
 
 func mergeProfileBase(base *SetupBase) (*yaml.Node, error) {

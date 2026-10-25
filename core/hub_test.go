@@ -577,17 +577,25 @@ func TestPatchSelectGroupSerialisesWithProxyChanges(t *testing.T) {
 // The hoisted constant has to keep meaning what the call meant, so a change to
 // mihomo's parser cannot silently narrow which HTTP statuses a delay test
 // accepts.
-func TestAnyDelayTestStatusMatchesTheEmptyRange(t *testing.T) {
-	built, err := utils.NewUnsignedRanges[uint16]("")
+// The delay test status filter must accept standard success HTTP statuses (200-204)
+// and reject redirect/error codes (302, 404, 503) so dead or hijacked proxies do
+// not report fake low latency.
+func TestDelayTestExpectedStatusRange(t *testing.T) {
+	built, err := utils.NewUnsignedRanges[uint16]("200-204")
 	if err != nil {
-		t.Fatalf("NewUnsignedRanges(\"\") error: %v", err)
+		t.Fatalf("NewUnsignedRanges(\"200-204\") error: %v", err)
 	}
-	if len(built) != len(anyDelayTestStatus) {
-		t.Fatalf("anyDelayTestStatus = %v, want %v", anyDelayTestStatus, built)
+	if len(built) != len(delayTestExpectedStatus) {
+		t.Fatalf("delayTestExpectedStatus = %v, want %v", delayTestExpectedStatus, built)
 	}
-	for _, status := range []uint16{0, 200, 204, 302, 404, 503} {
-		if !anyDelayTestStatus.Check(status) {
-			t.Errorf("status %d was rejected, so a reachable proxy reports as unreachable", status)
+	for _, status := range []uint16{200, 204} {
+		if !delayTestExpectedStatus.Check(status) {
+			t.Errorf("status %d was rejected, want accepted", status)
+		}
+	}
+	for _, status := range []uint16{0, 301, 302, 400, 403, 404, 500, 502, 503} {
+		if delayTestExpectedStatus.Check(status) {
+			t.Errorf("status %d was accepted, want rejected", status)
 		}
 	}
 }

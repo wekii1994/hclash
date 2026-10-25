@@ -16,12 +16,20 @@ const (
 )
 
 var (
-	delayTestSlots     = make(slots, delayTestConcurrency)
-	anyDelayTestStatus utils.IntRanges[uint16]
+	delayTestSlots          = make(slots, delayTestConcurrency)
+	delayTestExpectedStatus utils.IntRanges[uint16]
 
 	testURL                 atomic.Pointer[string]
 	missingDelayTestProxyAt atomic.Int64
 )
+
+func init() {
+	var err error
+	delayTestExpectedStatus, err = utils.NewUnsignedRanges[uint16]("200-204")
+	if err != nil {
+		panic(err)
+	}
+}
 
 func setTestURL(url string) {
 	if url == "" {
@@ -91,7 +99,7 @@ func handleTestDelay(params *TestDelayParams) *Delay {
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	delay, err := proxy.URLTest(ctx, url, anyDelayTestStatus)
+	delay, err := proxy.URLTest(ctx, url, delayTestExpectedStatus)
 	if err != nil {
 		delay = 0
 	}
