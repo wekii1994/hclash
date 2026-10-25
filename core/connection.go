@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/metacubex/mihomo/adapter"
@@ -11,6 +12,8 @@ import (
 	"github.com/metacubex/mihomo/tunnel"
 	"github.com/metacubex/mihomo/tunnel/statistic"
 )
+
+var resetNetworkSeq atomic.Uint64
 
 func handleGetTraffic(onlyStatisticsProxy bool) Traffic {
 	up, down := statistic.DefaultManager.NowTraffic(onlyStatisticsProxy)
@@ -66,29 +69,50 @@ func handleResetNetwork() {
 	handleCloseConnections()
 	handleClearDnsCache()
 
-	// 异步触发所有 Provider 与自动选路策略组重测，避免阻塞主控协程
-	go func() {
-		for _, pd := range tunnel.ProvidersSnapshot() {
-			go pd.HealthCheck()
+	seq := resetNetworkSeq.Add(1)
+	go func(currentSeq uint64) {
+		// 等待 1.5 秒让系统完成 Wi-Fi / 蜂窝网络路由切换，防止 0ms 抢跑导致全部报 network unreachable
+		time.Sleep(1500 * time.Millisecond)
+		if resetNetworkSeq.Load() != currentSeq {
+			return
 		}
 
-		url := currentTestURL()
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
+		// 1. 顺序触发外部 Provider 健康检查（内部自带并发限制）
+		for _, pd := range tunnel.ProvidersSnapshot() {
+			if resetNetworkSeq.Load() != currentSeq {
+				return
+			}
+			pd.HealthCheck()
+		}
 
+		// 2. 收集自动选路策略组，仅对第 1 个自动组执行一次 URLTest，其余组调用 Touch()，避免多组同时并发轰炸同一批节点
+		var autoGroups []*adapter.Proxy
 		for _, proxy := range tunnel.Proxies() {
 			p, ok := proxy.(*adapter.Proxy)
 			if !ok {
 				continue
 			}
 			switch p.Type() {
-			case C.URLTest, C.Fallback, C.LoadBalance:
-				go func(pr *adapter.Proxy) {
-					_, _ = pr.URLTest(ctx, url, delayTestExpectedStatus)
-				}(p)
+			case C.URLTest, C.Fallback:
+				autoGroups = append(autoGroups, p)
 			}
 		}
-	}()
+
+		if len(autoGroups) == 0 || resetNetworkSeq.Load() != currentSeq {
+			return
+		}
+
+		url := currentTestURL()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		_, _ = autoGroups[0].URLTest(ctx, url, delayTestExpectedStatus)
+		for i := 1; i < len(autoGroups); i++ {
+			if t, ok := autoGroups[i].ProxyAdapter.(interface{ Touch() }); ok {
+				t.Touch()
+			}
+		}
+	}(seq)
 }
 
 func handleCloseConnection(connectionId string) bool {

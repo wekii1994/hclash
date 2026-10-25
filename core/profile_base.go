@@ -100,7 +100,7 @@ func isMatchRule(rule string) bool {
 }
 
 const (
-	defaultHealthCheckTimeout  = 2000
+	defaultHealthCheckTimeout  = 3000
 	defaultExpectedStatus      = "200-204"
 	optimalTolerance           = 20  // 容差控制在 20ms，确保切换到最低延迟节点
 	maxAllowedTolerance        = 30  // 超过 30ms 的容差一律压低到 20ms

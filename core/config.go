@@ -40,7 +40,7 @@ func defaultSetupParams() *SetupParams {
 	return &SetupParams{
 		TestURL:            defaultTestURL,
 		SelectedMap:        map[string]string{},
-		HealthCheckTimeout: 2000,
+		HealthCheckTimeout: defaultHealthCheckTimeout,
 	}
 }
 

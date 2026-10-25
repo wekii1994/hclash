@@ -5,10 +5,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/common/utils"
 	"github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/tunnel"
 )
 
 const (
@@ -104,16 +102,6 @@ func handleTestDelay(params *TestDelayParams) *Delay {
 	delay, err := proxy.URLTest(ctx, url, delayTestExpectedStatus)
 	if err != nil {
 		delay = 0
-	}
-	// 激活自动选路策略组，使其感知最新节点延迟
-	for _, p := range tunnel.Proxies() {
-		if ap, ok := p.(*adapter.Proxy); ok {
-			if ap.Type() == constant.URLTest || ap.Type() == constant.Fallback {
-				if t, ok := ap.ProxyAdapter.(interface{ Touch() }); ok {
-					t.Touch()
-				}
-			}
-		}
 	}
 	result.Value = delayValue(delay, ctx.Err() != nil)
 	return result
