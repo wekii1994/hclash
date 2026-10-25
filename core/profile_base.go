@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -103,19 +102,7 @@ func isMatchRule(rule string) bool {
 const (
 	defaultExpectedStatus = "200-204"
 	defaultTolerance      = 50
-	defaultExcludeFilter  = "(?i)(剩余|到期|官网|提示|群|traffic|expire|website|notice|订阅)"
 )
-
-var dummyNodeRegex = regexp.MustCompile(defaultExcludeFilter)
-
-func isProtectedProxyName(name string) bool {
-	switch strings.ToUpper(name) {
-	case "DIRECT", "REJECT", "REJECT-DROP", "COMPATIBLE", "PASS", "GLOBAL":
-		return true
-	default:
-		return false
-	}
-}
 
 func loadConfigWithBase(base *SetupBase, configPath string) (*config.Config, error) {
 	return loadConfigWithBaseAndTimeout(base, configPath, 0)
@@ -190,35 +177,6 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 						})
 					}
 				}
-				useNode := mappingValue(group, "use")
-				if useNode != nil && useNode.Kind == yaml.SequenceNode && len(useNode.Content) > 0 {
-					filterNode := mappingValue(group, "exclude-filter")
-					if filterNode == nil {
-						setMappingValue(group, "exclude-filter", &yaml.Node{
-							Kind:  yaml.ScalarNode,
-							Tag:   "!!str",
-							Value: defaultExcludeFilter,
-						})
-					} else if !strings.Contains(filterNode.Value, "剩余") {
-						filterNode.Value = filterNode.Value + "|" + defaultExcludeFilter
-					}
-				}
-				proxiesNode := mappingValue(group, "proxies")
-				if proxiesNode != nil && proxiesNode.Kind == yaml.SequenceNode && len(proxiesNode.Content) > 0 {
-					var kept []*yaml.Node
-					for _, pNode := range proxiesNode.Content {
-						if pNode.Kind == yaml.ScalarNode {
-							if isProtectedProxyName(pNode.Value) || !dummyNodeRegex.MatchString(pNode.Value) {
-								kept = append(kept, pNode)
-							}
-						} else {
-							kept = append(kept, pNode)
-						}
-					}
-					if len(kept) > 0 {
-						proxiesNode.Content = kept
-					}
-				}
 			}
 		}
 	}
@@ -245,16 +203,6 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 						Value: defaultExpectedStatus,
 					})
 				}
-			}
-			filterNode := mappingValue(provider, "exclude-filter")
-			if filterNode == nil {
-				setMappingValue(provider, "exclude-filter", &yaml.Node{
-					Kind:  yaml.ScalarNode,
-					Tag:   "!!str",
-					Value: defaultExcludeFilter,
-				})
-			} else if !strings.Contains(filterNode.Value, "剩余") {
-				filterNode.Value = filterNode.Value + "|" + defaultExcludeFilter
 			}
 		}
 	}
@@ -290,24 +238,6 @@ func patchHealthCheckTimeoutRaw(raw *config.RawConfig, timeout int) {
 					group["tolerance"] = defaultTolerance
 				}
 			}
-			if use, ok := group["use"].([]any); ok && len(use) > 0 {
-				combineExcludeFilterRaw(group, defaultExcludeFilter)
-			}
-			if proxies, ok := group["proxies"].([]any); ok && len(proxies) > 0 {
-				var filtered []any
-				for _, p := range proxies {
-					if name, ok := p.(string); ok {
-						if isProtectedProxyName(name) || !dummyNodeRegex.MatchString(name) {
-							filtered = append(filtered, p)
-						}
-					} else {
-						filtered = append(filtered, p)
-					}
-				}
-				if len(filtered) > 0 {
-					group["proxies"] = filtered
-				}
-			}
 		}
 	}
 	for _, provider := range raw.ProxyProvider {
@@ -322,18 +252,7 @@ func patchHealthCheckTimeoutRaw(raw *config.RawConfig, timeout int) {
 				hc["expected-status"] = defaultExpectedStatus
 			}
 		}
-		combineExcludeFilterRaw(provider, defaultExcludeFilter)
 	}
-}
-
-func combineExcludeFilterRaw(target map[string]any, filter string) {
-	if existing, ok := target["exclude-filter"].(string); ok && existing != "" {
-		if !strings.Contains(existing, "剩余") {
-			target["exclude-filter"] = existing + "|" + filter
-		}
-		return
-	}
-	target["exclude-filter"] = filter
 }
 
 func mergeProfileBase(base *SetupBase) (*yaml.Node, error) {

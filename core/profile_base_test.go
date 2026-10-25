@@ -416,7 +416,7 @@ func TestEncodeConfigMappingKeepsEveryKeyAfterAnOpenEndedScalar(t *testing.T) {
 func TestPatchHealthCheckTimeout(t *testing.T) {
 	yamlContent := `
 proxy-groups:
-  - {name: auto, type: url-test, proxies: [a, "到期时间: 2029", b]}
+  - {name: auto, type: url-test, proxies: [a, b]}
   - {name: select, type: select, proxies: [a, b]}
   - {name: fallback-grp, type: fallback, proxies: [a, b]}
 proxy-providers:
@@ -456,10 +456,6 @@ proxy-providers:
 			if tol, ok := g["tolerance"].(int); !ok || tol != 50 {
 				t.Errorf("group auto tolerance = %v, want 50", g["tolerance"])
 			}
-			proxies, ok := g["proxies"].([]any)
-			if !ok || len(proxies) != 2 {
-				t.Errorf("group auto proxies length = %v, want 2 (dummy node excluded)", len(proxies))
-			}
 		}
 	}
 	if p, ok := raw.ProxyProvider["provider1"]; ok {
@@ -472,9 +468,6 @@ proxy-providers:
 			}
 		} else {
 			t.Errorf("provider1 missing health-check map")
-		}
-		if filter, ok := p["exclude-filter"].(string); !ok || !strings.Contains(filter, "剩余") {
-			t.Errorf("provider1 exclude-filter = %v, want containing dummy filter pattern", p["exclude-filter"])
 		}
 	} else {
 		t.Errorf("missing provider1")
