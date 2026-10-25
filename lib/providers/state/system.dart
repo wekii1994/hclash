@@ -179,32 +179,45 @@ Group? _findPrimaryGroup(
   if (mode == Mode.global) {
     return groups.getGroup('GLOBAL') ?? groups.first;
   }
+
+  final nonGlobalGroups = groups
+      .where((g) => g.name.toUpperCase() != 'GLOBAL')
+      .toList();
+  if (nonGlobalGroups.isEmpty) return groups.first;
+
+  // 优先在手动选择 (Selector) 策略组中匹配主分组，避免误中排在前面的自动测速组或业务分流组
+  final selectorGroups = nonGlobalGroups
+      .where((g) => g.type == GroupType.Selector)
+      .toList();
+  final searchPool = selectorGroups.isNotEmpty ? selectorGroups : nonGlobalGroups;
+
   const primaryKeywords = [
     '节点选择',
     '选择节点',
+    '手动选择',
+    '默认代理',
+    '代理',
     'proxy',
     'proxies',
     'select',
     'default',
   ];
   for (final keyword in primaryKeywords) {
-    for (final group in groups) {
-      if (group.name.toLowerCase().contains(keyword) &&
-          group.name.toUpperCase() != 'GLOBAL') {
+    for (final group in searchPool) {
+      if (group.name.toLowerCase().contains(keyword)) {
         return group;
       }
     }
   }
+
   if (currentGroupName != null && currentGroupName.isNotEmpty) {
     final currentGroup = groups.getGroup(currentGroupName);
-    if (currentGroup != null) return currentGroup;
-  }
-  for (final group in groups) {
-    if (group.name.toUpperCase() != 'GLOBAL') {
-      return group;
+    if (currentGroup != null && currentGroup.name.toUpperCase() != 'GLOBAL') {
+      return currentGroup;
     }
   }
-  return groups.first;
+
+  return searchPool.first;
 }
 
 String _resolveNotificationTitle({
@@ -260,7 +273,6 @@ SharedState sharedState(Ref ref) {
   final currentGroupName = ref.watch(
     currentProfileProvider.select((state) => state?.currentGroupName),
   );
-  final groups = ref.watch(groupsProvider);
   final mode = ref.watch(
     patchClashConfigProvider.select((state) => state.mode),
   );
@@ -273,15 +285,23 @@ SharedState sharedState(Ref ref) {
       ),
     ),
   );
-  final currentProfileName = _resolveNotificationTitle(
-    groups: groups,
-    selectedMap: currentProfile.selectedMap,
-    mode: mode,
-    currentGroupName: currentGroupName,
-    fallbackLabel: currentProfile.label,
-    directLabel: currentAppLocalizations.direct,
-  );
   final selectedMap = currentProfile.selectedMap;
+  final fallbackLabel = currentProfile.label;
+  final directLabel = currentAppLocalizations.direct;
+
+  // 仅当解析出的最终节点标题字符串发生变化时才触发重建，忽略测速时的 delay 变化
+  final currentProfileName = ref.watch(
+    groupsProvider.select(
+      (groups) => _resolveNotificationTitle(
+        groups: groups,
+        selectedMap: selectedMap,
+        mode: mode,
+        currentGroupName: currentGroupName,
+        fallbackLabel: fallbackLabel,
+        directLabel: directLabel,
+      ),
+    ),
+  );
   final onlyStatisticsProxy = appSetting.onlyStatisticsProxy;
   final testUrl = ref.watch(
     patchClashConfigProvider.select((state) => state.testUrl),

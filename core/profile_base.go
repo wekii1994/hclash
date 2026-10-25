@@ -100,15 +100,26 @@ func isMatchRule(rule string) bool {
 }
 
 const (
-	defaultExpectedStatus = "200-204"
-	defaultTolerance      = 50
+	defaultHealthCheckTimeout  = 2000
+	defaultExpectedStatus      = "200-204"
+	optimalTolerance           = 20  // 容差控制在 20ms，确保切换到最低延迟节点
+	maxAllowedTolerance        = 30  // 超过 30ms 的容差一律压低到 20ms
+	optimalHealthCheckInterval = 120 // 健康检查周期最高不超过 120 秒
 )
 
+func normalizeHealthCheckTimeout(timeout int) int {
+	if timeout <= 0 {
+		return defaultHealthCheckTimeout
+	}
+	return timeout
+}
+
 func loadConfigWithBase(base *SetupBase, configPath string) (*config.Config, error) {
-	return loadConfigWithBaseAndTimeout(base, configPath, 0)
+	return loadConfigWithBaseAndTimeout(base, configPath, defaultHealthCheckTimeout)
 }
 
 func loadConfigWithBaseAndTimeout(base *SetupBase, configPath string, healthCheckTimeout int) (*config.Config, error) {
+	healthCheckTimeout = normalizeHealthCheckTimeout(healthCheckTimeout)
 	document, err := mergeProfileBase(base)
 	if err != nil {
 		return nil, err
@@ -135,10 +146,11 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 	if root == nil {
 		return
 	}
-	timeoutStr := ""
-	if timeout > 0 {
-		timeoutStr = strconv.Itoa(timeout)
-	}
+	timeout = normalizeHealthCheckTimeout(timeout)
+	timeoutStr := strconv.Itoa(timeout)
+	intervalStr := strconv.Itoa(optimalHealthCheckInterval)
+	toleranceStr := strconv.Itoa(optimalTolerance)
+
 	groups := mappingValue(root, "proxy-groups")
 	if groups != nil && groups.Kind == yaml.SequenceNode {
 		for _, group := range groups.Content {
@@ -146,14 +158,19 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 				continue
 			}
 			typeNode := mappingValue(group, "type")
-			if typeNode != nil && (typeNode.Value == "url-test" || typeNode.Value == "fallback" || typeNode.Value == "load-balance") {
-				if timeoutStr != "" {
-					setMappingValue(group, "timeout", &yaml.Node{
-						Kind:  yaml.ScalarNode,
-						Tag:   "!!int",
-						Value: timeoutStr,
-					})
-				}
+			if typeNode == nil {
+				continue
+			}
+			groupType := strings.ToLower(strings.TrimSpace(typeNode.Value))
+			if groupType == "url-test" || groupType == "fallback" || groupType == "load-balance" {
+				// 1. 设置健康检查超时时间（默认 2000ms，快速淘汰假活/高丢包节点）
+				setMappingValue(group, "timeout", &yaml.Node{
+					Kind:  yaml.ScalarNode,
+					Tag:   "!!int",
+					Value: timeoutStr,
+				})
+
+				// 2. 注入严格的状态码校验，防止被劫持或错误页面误导
 				if mappingValue(group, "expected-status") == nil {
 					setMappingValue(group, "expected-status", &yaml.Node{
 						Kind:  yaml.ScalarNode,
@@ -161,25 +178,44 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 						Value: defaultExpectedStatus,
 					})
 				}
-				if typeNode.Value == "url-test" || typeNode.Value == "load-balance" {
+
+				// 3. 限制巡检周期上限为 120s，加快节点变差时的自动切换速度
+				intervalNode := mappingValue(group, "interval")
+				needPatchInterval := false
+				if intervalNode == nil {
+					needPatchInterval = true
+				} else if val, err := strconv.Atoi(strings.TrimSpace(intervalNode.Value)); err == nil && (val <= 0 || val > optimalHealthCheckInterval) {
+					needPatchInterval = true
+				}
+				if needPatchInterval {
+					setMappingValue(group, "interval", &yaml.Node{
+						Kind:  yaml.ScalarNode,
+						Tag:   "!!int",
+						Value: intervalStr,
+					})
+				}
+
+				// 4. 仅针对 url-test 压低 tolerance 上限：超过 30ms 或未设置时统一设为 20ms
+				if groupType == "url-test" {
 					tolNode := mappingValue(group, "tolerance")
-					needTol := false
+					needPatchTol := false
 					if tolNode == nil {
-						needTol = true
-					} else if val, err := strconv.Atoi(strings.TrimSpace(tolNode.Value)); err == nil && val < defaultTolerance {
-						needTol = true
+						needPatchTol = true
+					} else if val, err := strconv.Atoi(strings.TrimSpace(tolNode.Value)); err == nil && (val <= 0 || val > maxAllowedTolerance) {
+						needPatchTol = true
 					}
-					if needTol {
+					if needPatchTol {
 						setMappingValue(group, "tolerance", &yaml.Node{
 							Kind:  yaml.ScalarNode,
 							Tag:   "!!int",
-							Value: strconv.Itoa(defaultTolerance),
+							Value: toleranceStr,
 						})
 					}
 				}
 			}
 		}
 	}
+
 	providers := mappingValue(root, "proxy-providers")
 	if providers != nil && providers.Kind == yaml.MappingNode {
 		for i := 1; i < len(providers.Content); i += 2 {
@@ -189,19 +225,27 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 			}
 			hc := mappingValue(provider, "health-check")
 			if hc != nil && hc.Kind == yaml.MappingNode {
-				if timeoutStr != "" {
-					setMappingValue(hc, "timeout", &yaml.Node{
-						Kind:  yaml.ScalarNode,
-						Tag:   "!!int",
-						Value: timeoutStr,
-					})
-				}
+				setMappingValue(hc, "timeout", &yaml.Node{
+					Kind:  yaml.ScalarNode,
+					Tag:   "!!int",
+					Value: timeoutStr,
+				})
 				if mappingValue(hc, "expected-status") == nil {
 					setMappingValue(hc, "expected-status", &yaml.Node{
 						Kind:  yaml.ScalarNode,
 						Tag:   "!!str",
 						Value: defaultExpectedStatus,
 					})
+				}
+				intervalNode := mappingValue(hc, "interval")
+				if intervalNode != nil {
+					if val, err := strconv.Atoi(strings.TrimSpace(intervalNode.Value)); err == nil && (val <= 0 || val > optimalHealthCheckInterval) {
+						setMappingValue(hc, "interval", &yaml.Node{
+							Kind:  yaml.ScalarNode,
+							Tag:   "!!int",
+							Value: intervalStr,
+						})
+					}
 				}
 			}
 		}
@@ -212,30 +256,48 @@ func patchHealthCheckTimeoutRaw(raw *config.RawConfig, timeout int) {
 	if raw == nil {
 		return
 	}
+	timeout = normalizeHealthCheckTimeout(timeout)
+
 	for _, group := range raw.ProxyGroup {
 		if group == nil {
 			continue
 		}
 		groupType, _ := group["type"].(string)
+		groupType = strings.ToLower(strings.TrimSpace(groupType))
 		if groupType == "url-test" || groupType == "fallback" || groupType == "load-balance" {
-			if timeout > 0 {
-				group["timeout"] = timeout
-			}
+			group["timeout"] = timeout
 			if expected, ok := group["expected-status"].(string); !ok || expected == "" {
 				group["expected-status"] = defaultExpectedStatus
 			}
-			if groupType == "url-test" || groupType == "load-balance" {
+
+			interval := 0
+			switch iv := group["interval"].(type) {
+			case int:
+				interval = iv
+			case float64:
+				interval = int(iv)
+			case string:
+				interval, _ = strconv.Atoi(strings.TrimSpace(iv))
+			}
+			if interval <= 0 || interval > optimalHealthCheckInterval {
+				group["interval"] = optimalHealthCheckInterval
+			}
+
+			if groupType == "url-test" {
 				tol := 0
+				hasTol := false
 				switch t := group["tolerance"].(type) {
 				case int:
-					tol = t
+					tol, hasTol = t, true
 				case float64:
-					tol = int(t)
+					tol, hasTol = int(t), true
 				case string:
-					tol, _ = strconv.Atoi(t)
+					if parsed, err := strconv.Atoi(strings.TrimSpace(t)); err == nil {
+						tol, hasTol = parsed, true
+					}
 				}
-				if tol < defaultTolerance {
-					group["tolerance"] = defaultTolerance
+				if !hasTol || tol <= 0 || tol > maxAllowedTolerance {
+					group["tolerance"] = optimalTolerance
 				}
 			}
 		}
@@ -245,11 +307,21 @@ func patchHealthCheckTimeoutRaw(raw *config.RawConfig, timeout int) {
 			continue
 		}
 		if hc, ok := provider["health-check"].(map[string]any); ok {
-			if timeout > 0 {
-				hc["timeout"] = timeout
-			}
+			hc["timeout"] = timeout
 			if expected, ok := hc["expected-status"].(string); !ok || expected == "" {
 				hc["expected-status"] = defaultExpectedStatus
+			}
+			interval := 0
+			switch iv := hc["interval"].(type) {
+			case int:
+				interval = iv
+			case float64:
+				interval = int(iv)
+			case string:
+				interval, _ = strconv.Atoi(strings.TrimSpace(iv))
+			}
+			if interval > optimalHealthCheckInterval {
+				hc["interval"] = optimalHealthCheckInterval
 			}
 		}
 	}

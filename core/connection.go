@@ -1,7 +1,12 @@
 package core
 
 import (
+	"context"
+	"time"
+
+	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/component/resolver"
+	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/dns"
 	"github.com/metacubex/mihomo/tunnel"
 	"github.com/metacubex/mihomo/tunnel/statistic"
@@ -60,9 +65,30 @@ func handleClearDnsCache() {
 func handleResetNetwork() {
 	handleCloseConnections()
 	handleClearDnsCache()
-	for _, pd := range tunnel.ProvidersSnapshot() {
-		pd.HealthCheck()
-	}
+
+	// 异步触发所有 Provider 与自动选路策略组重测，避免阻塞主控协程
+	go func() {
+		for _, pd := range tunnel.ProvidersSnapshot() {
+			go pd.HealthCheck()
+		}
+
+		url := currentTestURL()
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		for _, proxy := range tunnel.Proxies() {
+			p, ok := proxy.(*adapter.Proxy)
+			if !ok {
+				continue
+			}
+			switch p.Type() {
+			case C.URLTest, C.Fallback, C.LoadBalance:
+				go func(pr *adapter.Proxy) {
+					_, _ = pr.URLTest(ctx, url, delayTestExpectedStatus)
+				}(p)
+			}
+		}
+	}()
 }
 
 func handleCloseConnection(connectionId string) bool {

@@ -453,8 +453,11 @@ proxy-providers:
 			}
 		}
 		if g["name"] == "auto" {
-			if tol, ok := g["tolerance"].(int); !ok || tol != 50 {
-				t.Errorf("group auto tolerance = %v, want 50", g["tolerance"])
+			if tol, ok := g["tolerance"].(int); !ok || tol != 20 {
+				t.Errorf("group auto tolerance = %v, want 20", g["tolerance"])
+			}
+			if interval, ok := g["interval"].(int); !ok || interval != 120 {
+				t.Errorf("group auto interval = %v, want 120", g["interval"])
 			}
 		}
 	}
@@ -465,6 +468,9 @@ proxy-providers:
 			}
 			if expected, ok := hc["expected-status"].(string); !ok || expected != "200-204" {
 				t.Errorf("provider1 expected-status = %v, want 200-204", hc["expected-status"])
+			}
+			if interval, ok := hc["interval"].(int); !ok || interval != 120 {
+				t.Errorf("provider1 interval = %v, want 120", hc["interval"])
 			}
 		} else {
 			t.Errorf("provider1 missing health-check map")

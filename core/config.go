@@ -119,7 +119,7 @@ func handleDecryptConfig(params DecryptConfigParams) (string, error) {
 var systemTimeWritable = runtime.GOOS != "android"
 
 func loadConfig(path string) (*config.Config, error) {
-	return loadConfigWithTimeout(path, 0)
+	return loadConfigWithTimeout(path, defaultHealthCheckTimeout)
 }
 
 func loadConfigWithTimeout(path string, healthCheckTimeout int) (*config.Config, error) {
