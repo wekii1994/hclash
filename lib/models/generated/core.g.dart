@@ -14,7 +14,7 @@ _SetupParams _$SetupParamsFromJson(Map<String, dynamic> json) => _SetupParams(
       ? null
       : SetupBase.fromJson(json['base'] as Map<String, dynamic>),
   healthCheckTimeout:
-      (json['health-check-timeout'] as num?)?.toInt() ?? 2000,
+      (json['health-check-timeout'] as num?)?.toInt() ?? 3000,
 );
 
 Map<String, dynamic> _$SetupParamsToJson(_SetupParams instance) =>

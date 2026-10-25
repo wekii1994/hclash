@@ -100,6 +100,7 @@ class _CoreContainerState extends ConsumerState<CoreManager>
 
   @override
   void dispose() {
+    TrafficStatsStore.instance.save();
     coreEventManager.removeListener(this);
     super.dispose();
   }

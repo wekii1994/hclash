@@ -230,7 +230,7 @@ return $default(_that.selectedMap,_that.testUrl,_that.skipCertVerify,_that.base)
 @JsonSerializable()
 
 class _SetupParams implements SetupParams {
-  const _SetupParams({@JsonKey(name: 'selected-map') required  Map<String, String> selectedMap, @JsonKey(name: 'test-url') required this.testUrl, @JsonKey(name: 'skip-cert-verify') this.skipCertVerify = false, @JsonKey(includeIfNull: false) this.base, @JsonKey(name: 'health-check-timeout') this.healthCheckTimeout = 2000}): _selectedMap = selectedMap;
+  const _SetupParams({@JsonKey(name: 'selected-map') required  Map<String, String> selectedMap, @JsonKey(name: 'test-url') required this.testUrl, @JsonKey(name: 'skip-cert-verify') this.skipCertVerify = false, @JsonKey(includeIfNull: false) this.base, @JsonKey(name: 'health-check-timeout') this.healthCheckTimeout = 3000}): _selectedMap = selectedMap;
   factory _SetupParams.fromJson(Map<String, dynamic> json) => _$SetupParamsFromJson(json);
 
  final  Map<String, String> _selectedMap;

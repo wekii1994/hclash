@@ -54,9 +54,9 @@ double systemTextScaleOf(BuildContext context) {
 /// How long, in milliseconds, the Core may spend on one manual delay test. It
 /// spends this twice in the worst case - once queueing for a slot, once on the
 /// probe itself - so the guard below has to outlast twice the longest option.
-const delayTestTimeoutOptions = [500, 1000, 2000, 5000, 8000];
+const delayTestTimeoutOptions = [500, 1000, 2000, 3000, 5000, 8000];
 
-const defaultDelayTestTimeout = 2000;
+const defaultDelayTestTimeout = 3000;
 
 const delayTestGuardDuration = Duration(seconds: 30);
 

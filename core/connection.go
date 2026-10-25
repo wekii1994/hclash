@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"sort"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -85,7 +87,7 @@ func handleResetNetwork() {
 			pd.HealthCheck()
 		}
 
-		// 2. 收集自动选路策略组，仅对第 1 个自动组执行一次 URLTest，其余组调用 Touch()，避免多组同时并发轰炸同一批节点
+		// 2. 收集自动选路策略组并按优先级排序（主自动组优先）
 		var autoGroups []*adapter.Proxy
 		for _, proxy := range tunnel.Proxies() {
 			p, ok := proxy.(*adapter.Proxy)
@@ -102,15 +104,31 @@ func handleResetNetwork() {
 			return
 		}
 
+		isPrimary := func(name string) bool {
+			lower := strings.ToLower(name)
+			return strings.Contains(lower, "自动") ||
+				strings.Contains(lower, "auto") ||
+				strings.Contains(lower, "url-test") ||
+				strings.Contains(lower, "best")
+		}
+		sort.SliceStable(autoGroups, func(i, j int) bool {
+			pi := isPrimary(autoGroups[i].Name())
+			pj := isPrimary(autoGroups[j].Name())
+			if pi != pj {
+				return pi
+			}
+			return autoGroups[i].Name() < autoGroups[j].Name()
+		})
+
 		url := currentTestURL()
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 		defer cancel()
 
-		_, _ = autoGroups[0].URLTest(ctx, url, delayTestExpectedStatus)
-		for i := 1; i < len(autoGroups); i++ {
-			if t, ok := autoGroups[i].ProxyAdapter.(interface{ Touch() }); ok {
-				t.Touch()
+		for _, group := range autoGroups {
+			if resetNetworkSeq.Load() != currentSeq || ctx.Err() != nil {
+				break
 			}
+			_, _ = group.URLTest(ctx, url, delayTestExpectedStatus)
 		}
 		changeRoute(routeMoved)
 	}(seq)

@@ -32,7 +32,11 @@ class _TargetSitesViewState extends State<TargetSitesView> {
   void didUpdateWidget(covariant TargetSitesView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.sites != widget.sites) {
-      _updateAggregatedGroups();
+      if (_isAggregated) {
+        _updateAggregatedGroups();
+      } else {
+        _cachedGroups = null;
+      }
     }
   }
 
@@ -60,6 +64,9 @@ class _TargetSitesViewState extends State<TargetSitesView> {
       );
     }
 
+    if (_isAggregated && _cachedGroups == null) {
+      _updateAggregatedGroups();
+    }
     final aggregatedGroups = _isAggregated ? _cachedGroups : null;
 
     final maxTotal = _isAggregated
@@ -82,7 +89,12 @@ class _TargetSitesViewState extends State<TargetSitesView> {
                 isSelected: _isAggregated,
                 onTap: () {
                   if (!_isAggregated) {
-                    setState(() => _isAggregated = true);
+                    setState(() {
+                      _isAggregated = true;
+                      if (_cachedGroups == null) {
+                        _updateAggregatedGroups();
+                      }
+                    });
                   }
                 },
               ),

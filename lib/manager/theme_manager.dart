@@ -220,20 +220,21 @@ class _AppMediaQuery extends StatelessWidget {
         top: padding.top > data.size.height * 0.3 ? 20.0 : padding.top,
       ),
     );
-    if (pageScale == 1.0) {
+    final effectiveScale = pageScale.clamp(minPageScale, maxPageScale);
+    if ((effectiveScale - 1.0).abs() < 0.001) {
       return MediaQuery(
         data: mediaQueryData,
         child: child,
       );
     }
     final originalSize = mediaQueryData.size;
-    final scaledSize = originalSize / pageScale;
+    final scaledSize = originalSize / effectiveScale;
     return MediaQuery(
       data: mediaQueryData.copyWith(
         size: scaledSize,
-        padding: mediaQueryData.padding / pageScale,
-        viewPadding: mediaQueryData.viewPadding / pageScale,
-        viewInsets: mediaQueryData.viewInsets / pageScale,
+        padding: mediaQueryData.padding / effectiveScale,
+        viewPadding: mediaQueryData.viewPadding / effectiveScale,
+        viewInsets: mediaQueryData.viewInsets / effectiveScale,
       ),
       child: SizedBox(
         width: originalSize.width,
@@ -245,7 +246,7 @@ class _AppMediaQuery extends StatelessWidget {
           maxHeight: scaledSize.height,
           alignment: Alignment.topLeft,
           child: Transform.scale(
-            scale: pageScale,
+            scale: effectiveScale,
             alignment: Alignment.topLeft,
             child: child,
           ),
