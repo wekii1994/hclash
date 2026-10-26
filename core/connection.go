@@ -97,7 +97,7 @@ func handleResetNetwork() {
 
 		// 1. 异步触发外部 Provider 健康检查，避免阻塞主自动组的切网测速
 		for _, pd := range tunnel.ProvidersSnapshot() {
-			go func(provider C.ProxyProvider) {
+			go func(provider interface{ HealthCheck() }) {
 				provider.HealthCheck()
 			}(pd)
 		}
