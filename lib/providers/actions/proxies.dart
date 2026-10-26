@@ -132,7 +132,7 @@ class ProxiesAction extends _$ProxiesAction {
     ) async {
       await changeProxy(groupName: groupName, proxyName: proxyName);
       updateGroupsDebounce();
-      ref.read(outboundIpProbeProvider.notifier).refresh(const [routedOutbound]);
+      ref.read(outboundIpProbeProvider.notifier).refresh([routedOutbound]);
     }, args: [groupName, proxyName]);
   }
 
@@ -143,7 +143,7 @@ class ProxiesAction extends _$ProxiesAction {
   Future<void> updateGroups() async {
     try {
       final oldGroups = ref.read(groupsProvider.notifier).value;
-      final newGroups = await retry(
+      final newGroups = await retry<List<Group>>(
         task: () async {
           final sortType = ref.read(
             proxiesStyleSettingProvider.select((state) => state.sortType),
@@ -167,7 +167,7 @@ class ProxiesAction extends _$ProxiesAction {
               'updateGroups error: $e',
               logLevel: coreFailureLogLevel(e),
             );
-            return [];
+            return <Group>[];
           }
         },
         retryIf: (res) => res.isEmpty,
@@ -179,7 +179,7 @@ class ProxiesAction extends _$ProxiesAction {
           return old != null && old.now != g.now;
         });
         if (changed) {
-          ref.read(outboundIpProbeProvider.notifier).refresh(const [routedOutbound]);
+          ref.read(outboundIpProbeProvider.notifier).refresh([routedOutbound]);
         }
       }
     } catch (e) {
