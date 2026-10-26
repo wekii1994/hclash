@@ -453,8 +453,8 @@ proxy-providers:
 			}
 		}
 		if g["name"] == "auto" {
-			if tol, ok := g["tolerance"].(int); !ok || tol != 20 {
-				t.Errorf("group auto tolerance = %v, want 20", g["tolerance"])
+			if tol, ok := g["tolerance"].(int); !ok || tol != 50 {
+				t.Errorf("group auto tolerance = %v, want 50", g["tolerance"])
 			}
 			if interval, ok := g["interval"].(int); !ok || interval != 120 {
 				t.Errorf("group auto interval = %v, want 120", g["interval"])

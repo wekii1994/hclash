@@ -23,11 +23,37 @@ class _DelayTestJob {
   bool cancelled = false;
 }
 
+class DelayTestRequestPool {
+  final Map<String, Future<Delay?>> _pendingRequests = {};
+
+  int get pendingCount => _pendingRequests.length;
+
+  Future<Delay?> run(String key, Future<Delay?> Function() action) {
+    final pendingRequest = _pendingRequests[key];
+    if (pendingRequest != null) {
+      return pendingRequest;
+    }
+
+    final request = action();
+    _pendingRequests[key] = request;
+    return request.whenComplete(() {
+      if (identical(_pendingRequests[key], request)) {
+        _pendingRequests.remove(key);
+      }
+    });
+  }
+
+  void clear() {
+    _pendingRequests.clear();
+  }
+}
+
 @Riverpod(keepAlive: true)
 class ProxiesAction extends _$ProxiesAction {
   CoreController get _core => ref.read(coreHandlerProvider);
 
   final TaskPool _delayTestPool = TaskPool(maxConcurrentDelayTests);
+  final DelayTestRequestPool _delayTestRequestPool = DelayTestRequestPool();
 
   final List<_DelayTestJob> _delayTestJobs = [];
 
@@ -52,6 +78,7 @@ class ProxiesAction extends _$ProxiesAction {
   }
 
   void cancelDelayTests() {
+    _delayTestRequestPool.clear();
     for (final job in _delayTestJobs) {
       job.cancelled = true;
       job.held.clear();
@@ -105,6 +132,7 @@ class ProxiesAction extends _$ProxiesAction {
     ) async {
       await changeProxy(groupName: groupName, proxyName: proxyName);
       updateGroupsDebounce();
+      ref.read(outboundIpProbeProvider.notifier).refresh(const [routedOutbound]);
     }, args: [groupName, proxyName]);
   }
 
@@ -114,7 +142,8 @@ class ProxiesAction extends _$ProxiesAction {
 
   Future<void> updateGroups() async {
     try {
-      ref.read(groupsProvider.notifier).value = await retry(
+      final oldGroups = ref.read(groupsProvider.notifier).value;
+      final newGroups = await retry(
         task: () async {
           final sortType = ref.read(
             proxiesStyleSettingProvider.select((state) => state.sortType),
@@ -143,6 +172,16 @@ class ProxiesAction extends _$ProxiesAction {
         },
         retryIf: (res) => res.isEmpty,
       );
+      ref.read(groupsProvider.notifier).value = newGroups;
+      if (oldGroups != null && newGroups.isNotEmpty) {
+        final changed = newGroups.any((g) {
+          final old = oldGroups.getGroup(g.name);
+          return old != null && old.now != g.now;
+        });
+        if (changed) {
+          ref.read(outboundIpProbeProvider.notifier).refresh(const [routedOutbound]);
+        }
+      }
     } catch (e) {
       // The Core failure path already runs inside the retry task above; a
       // throw here only means ref.read hit a disposed container or the
@@ -440,10 +479,13 @@ class ProxiesAction extends _$ProxiesAction {
       _scheduleDelayFlush();
     }
     try {
-      final delay = await _core.getDelay(
-        target.testUrl,
-        target.proxyName,
-        job.timeout,
+      final delay = await _delayTestRequestPool.run(
+        target.key,
+        () => _core.getDelay(
+          target.testUrl,
+          target.proxyName,
+          job.timeout,
+        ),
       );
       if (delay != null && !job.cancelled) {
         setDelay(delay);

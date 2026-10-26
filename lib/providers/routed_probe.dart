@@ -378,7 +378,8 @@ mixin RoutedProbe<K, V>
         previous != null &&
         (next.coreEpoch != previous.coreEpoch ||
             next.hostEpoch != previous.hostEpoch ||
-            next.proxied != previous.proxied);
+            next.proxied != previous.proxied ||
+            next.routeVersion != previous.routeVersion);
     for (final MapEntry(key: target, value: landed) in {..._landed}.entries) {
       if (next.hasMovedSince(landed.stamp!)) {
         _invalidate(target, entries);

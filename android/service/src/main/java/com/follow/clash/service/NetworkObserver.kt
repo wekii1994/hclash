@@ -39,6 +39,7 @@ object NetworkObserver {
     }
     private var currentDnsList = listOf<String>()
     private var currentNetwork: Network? = null
+    private var isInitialized = false
     private var started = false
 
     private val request = NetworkRequest.Builder().apply {
@@ -78,6 +79,13 @@ object NetworkObserver {
             networkInfos[network]?.dnsList = linkProperties.dnsServers
             scheduleUpdateDns()
         }
+
+        override fun onCapabilitiesChanged(
+            network: Network,
+            networkCapabilities: NetworkCapabilities
+        ) {
+            scheduleUpdateDns()
+        }
     }
 
     private val updateDnsTask = Runnable(::updateDns)
@@ -92,15 +100,21 @@ object NetworkObserver {
     @Synchronized
     fun start() {
         if (started) return
+        val active = connectivity?.activeNetwork
+        if (active != null) {
+            currentNetwork = active
+        }
+        isInitialized = true
         runCatching { requireNotNull(connectivity).registerNetworkCallback(request, callback) }
             .onSuccess { started = true }
             .onFailure { error -> GlobalState.log("Unable to observe networks: $error") }
     }
 
     private fun networkPriority(entry: Map.Entry<Network, NetworkInfo>): Int {
-        val capabilities = connectivity?.getNetworkCapabilities(entry.key)
-        return when {
-            capabilities == null -> 100
+        val capabilities = connectivity?.getNetworkCapabilities(entry.key) ?: return 1000
+        val internetPenalty = if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) 0 else 500
+        val validatedPenalty = if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) 0 else 50
+        val basePriority = when {
             capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> 90
             capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> 0
             capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> 1
@@ -113,7 +127,8 @@ object NetworkObserver {
                 capabilities.hasTransport(TRANSPORT_SATELLITE) -> 5
 
             else -> 20
-        } + entry.value.priorityPenalty
+        }
+        return basePriority + internetPenalty + validatedPenalty + entry.value.priorityPenalty
     }
 
     @Synchronized
@@ -129,10 +144,14 @@ object NetworkObserver {
             currentDnsList = dnsList
             Core.updateDNS(dnsList.joinToString(","))
         }
-        val network = preferred?.key ?: return
+        if (preferred == null) {
+            currentNetwork = null
+            return
+        }
+        val network = preferred.key
         // Sockets protected onto the network we left stay bound to it; closing
         // them makes apps reconnect now instead of after a TCP timeout.
-        if (currentNetwork != null && currentNetwork != network) {
+        if (isInitialized && currentNetwork != network) {
             Core.resetNetwork()
         }
         currentNetwork = network

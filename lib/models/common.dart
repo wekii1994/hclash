@@ -506,12 +506,19 @@ abstract class Group with _$Group {
 }
 
 final _groupsByName = Expando<Map<String, Group>>();
+final _rematchProxiesByName = Expando<Map<String, Proxy>>();
 
 extension GroupsExt on List<Group> {
   /// Indexed once per list, so a list must not change after its first lookup.
   Group? getGroup(String groupName) => (_groupsByName[this] ??= {
     for (final group in this) group.name: group,
   })[groupName];
+
+  Proxy? getRematchProxy(String proxyName) => (_rematchProxiesByName[this] ??= {
+    for (final group in this)
+      for (final proxy in group.all)
+        if (proxy.type.toUpperCase() == 'REMATCH') proxy.name: proxy,
+  })[proxyName];
 }
 
 extension GroupExt on Group {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -65,6 +66,21 @@ func handleClearDnsCache() {
 	dns.ClearAll()
 }
 
+type touchable interface {
+	Touch()
+}
+
+func touchGroup(group *adapter.Proxy) {
+	if group == nil {
+		return
+	}
+	if t, ok := group.ProxyAdapter.(touchable); ok {
+		t.Touch()
+		return
+	}
+	_ = group.Unwrap(nil, true)
+}
+
 // A connection that went out over a network the device has left hangs until
 // TCP gives up on it, and so do the DNS clients' pooled connections.
 func handleResetNetwork() {
@@ -79,30 +95,14 @@ func handleResetNetwork() {
 			return
 		}
 
-		// 1. 顺序触发外部 Provider 健康检查（内部自带并发限制）
+		// 1. 异步触发外部 Provider 健康检查，避免阻塞主自动组的切网测速
 		for _, pd := range tunnel.ProvidersSnapshot() {
-			if resetNetworkSeq.Load() != currentSeq {
-				return
-			}
-			pd.HealthCheck()
+			go pd.HealthCheck()
 		}
 
-		// 2. 收集自动选路策略组并按优先级排序（主自动组优先）
-		var autoGroups []*adapter.Proxy
-		for _, proxy := range tunnel.Proxies() {
-			p, ok := proxy.(*adapter.Proxy)
-			if !ok {
-				continue
-			}
-			switch p.Type() {
-			case C.URLTest, C.Fallback:
-				autoGroups = append(autoGroups, p)
-			}
-		}
-
-		if len(autoGroups) == 0 || resetNetworkSeq.Load() != currentSeq {
-			return
-		}
+		// 2. 收集自动选路策略组并区分主自动组与次级自动组
+		var primaryGroups []*adapter.Proxy
+		var secondaryGroups []*adapter.Proxy
 
 		isPrimary := func(name string) bool {
 			lower := strings.ToLower(name)
@@ -111,26 +111,73 @@ func handleResetNetwork() {
 				strings.Contains(lower, "url-test") ||
 				strings.Contains(lower, "best")
 		}
-		sort.SliceStable(autoGroups, func(i, j int) bool {
-			pi := isPrimary(autoGroups[i].Name())
-			pj := isPrimary(autoGroups[j].Name())
-			if pi != pj {
-				return pi
-			}
-			return autoGroups[i].Name() < autoGroups[j].Name()
-		})
 
-		url := currentTestURL()
-		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
-		defer cancel()
-
-		for _, group := range autoGroups {
-			if resetNetworkSeq.Load() != currentSeq || ctx.Err() != nil {
-				break
+		for _, proxy := range tunnel.Proxies() {
+			p, ok := proxy.(*adapter.Proxy)
+			if !ok {
+				continue
 			}
-			_, _ = group.URLTest(ctx, url, delayTestExpectedStatus)
+			switch p.Type() {
+			case C.URLTest, C.Fallback:
+				if isPrimary(p.Name()) {
+					primaryGroups = append(primaryGroups, p)
+				} else {
+					secondaryGroups = append(secondaryGroups, p)
+				}
+			}
 		}
-		changeRoute(routeMoved)
+
+		if len(primaryGroups) == 0 && len(secondaryGroups) == 0 {
+			return
+		}
+		if resetNetworkSeq.Load() != currentSeq {
+			return
+		}
+
+		// 3. 对次级自动组：执行轻量级 Touch() 唤醒懒加载健康检查，不耗费大量网络并发
+		for _, sec := range secondaryGroups {
+			touchGroup(sec)
+		}
+
+		// 4. 对主自动组：使用带限流（最大并发 3）的协程池并发测速，每个组享受独立的 3500ms 超时
+		if len(primaryGroups) > 0 {
+			sort.SliceStable(primaryGroups, func(i, j int) bool {
+				return primaryGroups[i].Name() < primaryGroups[j].Name()
+			})
+
+			url := currentTestURL()
+			maxConcurrent := 3
+			if len(primaryGroups) < maxConcurrent {
+				maxConcurrent = len(primaryGroups)
+			}
+			sem := make(chan struct{}, maxConcurrent)
+			var wg sync.WaitGroup
+
+			for _, group := range primaryGroups {
+				if resetNetworkSeq.Load() != currentSeq {
+					break
+				}
+				wg.Add(1)
+				sem <- struct{}{}
+				go func(g *adapter.Proxy) {
+					defer func() {
+						<-sem
+						wg.Done()
+					}()
+					if resetNetworkSeq.Load() != currentSeq {
+						return
+					}
+					ctx, cancel := context.WithTimeout(context.Background(), 3500*time.Millisecond)
+					defer cancel()
+					_, _ = g.URLTest(ctx, url, delayTestExpectedStatus)
+				}(group)
+			}
+			wg.Wait()
+		}
+
+		if resetNetworkSeq.Load() == currentSeq {
+			changeRoute(routeMoved)
+		}
 	}(seq)
 }
 

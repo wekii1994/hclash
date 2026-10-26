@@ -110,21 +110,43 @@ SelectedProxyState getRealSelectedProxyState(
   SelectedProxyState state, {
   required List<Group> groups,
   required Map<String, String> selectedMap,
+  Set<String>? visited,
 }) {
-  if (state.proxyName.isEmpty) return state;
-  final group = groups.getGroup(state.proxyName);
-  final newState = state.copyWith(group: true);
-  if (group == null) return newState;
+  final seen = visited ?? <String>{};
+  final proxyName = state.proxyName;
+  if (proxyName.isEmpty || !seen.add(proxyName)) {
+    return state;
+  }
+  final group = groups.getGroup(proxyName);
+  if (group == null) {
+    final now = groups.getRematchProxy(proxyName)?.now;
+    if (now != null && now.isNotEmpty && now != proxyName) {
+      return getRealSelectedProxyState(
+        state.copyWith(proxyName: now, group: true),
+        groups: groups,
+        selectedMap: selectedMap,
+        visited: seen,
+      );
+    }
+    return state;
+  }
   final currentSelectedName = group.getCurrentSelectedName(
-    selectedMap[newState.proxyName] ?? '',
+    selectedMap[proxyName] ?? '',
   );
   if (currentSelectedName.isEmpty) {
-    return newState;
+    return state.copyWith(group: true);
   }
   return getRealSelectedProxyState(
-    newState.copyWith(proxyName: currentSelectedName, testUrl: group.testUrl),
+    state.copyWith(
+      proxyName: currentSelectedName,
+      group: true,
+      testUrl: (group.testUrl != null && group.testUrl!.isNotEmpty)
+          ? group.testUrl
+          : state.testUrl,
+    ),
     groups: groups,
     selectedMap: selectedMap,
+    visited: seen,
   );
 }
 

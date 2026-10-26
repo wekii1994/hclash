@@ -102,8 +102,8 @@ func isMatchRule(rule string) bool {
 const (
 	defaultHealthCheckTimeout  = 3000
 	defaultExpectedStatus      = "200-204"
-	optimalTolerance           = 20  // 容差控制在 20ms，确保切换到最低延迟节点
-	maxAllowedTolerance        = 30  // 超过 30ms 的容差一律压低到 20ms
+	optimalTolerance           = 50  // 容差控制在 50ms，避免基站延迟波动时频繁横跳
+	maxAllowedTolerance        = 80  // 超过 80ms 的容差一律压低到 50ms
 	optimalHealthCheckInterval = 120 // 健康检查周期最高不超过 120 秒
 )
 
@@ -195,7 +195,7 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 					})
 				}
 
-				// 4. 仅针对 url-test 压低 tolerance 上限：超过 30ms 或未设置时统一设为 20ms
+				// 4. 仅针对 url-test 压低 tolerance 上限：超过 80ms 或未设置时统一设为 50ms
 				if groupType == "url-test" {
 					tolNode := mappingValue(group, "tolerance")
 					needPatchTol := false

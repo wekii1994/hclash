@@ -62,7 +62,8 @@ class RouteState {
   bool hasMovedSince(RouteStamp stamp) =>
       stamp.coreEpoch != coreEpoch ||
       stamp.hostEpoch != hostEpoch ||
-      stamp.proxied != proxied;
+      stamp.proxied != proxied ||
+      stamp.routeVersion != routeVersion;
 
   bool isBehind(RouteStamp stamp) =>
       stamp.coreEpoch > coreEpoch || stamp.routeVersion > routeVersion;

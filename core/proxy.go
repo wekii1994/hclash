@@ -171,8 +171,12 @@ func handleChangeProxy(params *ChangeProxyParams) *ChangeProxyResult {
 	} else if err := selector.Set(params.ProxyName); err != nil {
 		return &ChangeProxyResult{Message: err.Error()}
 	}
-	changed := selector.Now() != before
-	refreshRouteLocked(routeUnchanged)
+	changed := params.ProxyName == "" || selector.Now() != before
+	if changed {
+		refreshRouteLocked(routeMoved)
+	} else {
+		refreshRouteLocked(routeUnchanged)
+	}
 	return &ChangeProxyResult{Changed: changed}
 }
 
