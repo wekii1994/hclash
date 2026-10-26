@@ -132,7 +132,6 @@ class ProxiesAction extends _$ProxiesAction {
     ) async {
       await changeProxy(groupName: groupName, proxyName: proxyName);
       updateGroupsDebounce();
-      ref.read(outboundIpProbeProvider.notifier).refresh([routedOutbound]);
     }, args: [groupName, proxyName]);
   }
 
@@ -142,8 +141,7 @@ class ProxiesAction extends _$ProxiesAction {
 
   Future<void> updateGroups() async {
     try {
-      final oldGroups = ref.read(groupsProvider.notifier).value;
-      final newGroups = await retry<List<Group>>(
+      ref.read(groupsProvider.notifier).value = await retry<List<Group>>(
         task: () async {
           final sortType = ref.read(
             proxiesStyleSettingProvider.select((state) => state.sortType),
@@ -172,16 +170,6 @@ class ProxiesAction extends _$ProxiesAction {
         },
         retryIf: (res) => res.isEmpty,
       );
-      ref.read(groupsProvider.notifier).value = newGroups;
-      if (oldGroups != null && newGroups.isNotEmpty) {
-        final changed = newGroups.any((g) {
-          final old = oldGroups.getGroup(g.name);
-          return old != null && old.now != g.now;
-        });
-        if (changed) {
-          ref.read(outboundIpProbeProvider.notifier).refresh([routedOutbound]);
-        }
-      }
     } catch (e) {
       // The Core failure path already runs inside the retry task above; a
       // throw here only means ref.read hit a disposed container or the

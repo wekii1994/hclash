@@ -97,7 +97,9 @@ func handleResetNetwork() {
 
 		// 1. 异步触发外部 Provider 健康检查，避免阻塞主自动组的切网测速
 		for _, pd := range tunnel.ProvidersSnapshot() {
-			go pd.HealthCheck()
+			go func(provider C.ProxyProvider) {
+				provider.HealthCheck()
+			}(pd)
 		}
 
 		// 2. 收集自动选路策略组并区分主自动组与次级自动组
@@ -127,7 +129,13 @@ func handleResetNetwork() {
 			}
 		}
 
-		if len(primaryGroups) == 0 && len(secondaryGroups) == 0 {
+		// 兜底保护：若未命中任何关键字，所有自动策略组均作为主自动组享受立即测速
+		if len(primaryGroups) == 0 && len(secondaryGroups) > 0 {
+			primaryGroups = secondaryGroups
+			secondaryGroups = nil
+		}
+
+		if len(primaryGroups) == 0 {
 			return
 		}
 		if resetNetworkSeq.Load() != currentSeq {
