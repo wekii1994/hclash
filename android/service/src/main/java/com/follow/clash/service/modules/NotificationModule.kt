@@ -71,8 +71,8 @@ internal class NotificationModule(
                 combine(
                     flow {
                         while (true) {
-                            delay(1_000)
                             emit(Unit)
+                            delay(1_000)
                         }
                     },
                     ServiceConfig.notificationParams,

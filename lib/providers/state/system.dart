@@ -190,7 +190,7 @@ Group? _findPrimaryGroup(
       .toList();
   final searchPool = selectorGroups.isNotEmpty ? selectorGroups : nonGlobalGroups;
 
-  // 主入口策略组关键字（注意：绝对不要包含“手动选择”，因为“手动选择”通常是“默认代理/节点选择”的下属子分组）
+  // 主入口策略组关键字（注意：排除了子服务分流关键字与手动选择）
   const primaryKeywords = [
     '默认代理',
     '节点选择',
@@ -201,28 +201,91 @@ Group? _findPrimaryGroup(
     'proxies',
     'default',
     'select',
+    '节点',
+    '代理',
+    '全球',
+    '主',
+    '🚀',
+    '🔰',
   ];
 
-  // 1. 优先按订阅中定义的策略组顺序，查找名称匹配主入口关键字的 Selector 组
+  // 典型子分流/媒体策略组关键字（避免类似“🎬 奈飞节点”、“🤖 OpenAI代理”被误判为主入口）
+  const subServiceKeywords = [
+    '手动',
+    'manual',
+    '奈飞',
+    'netflix',
+    'bili',
+    '哔哩',
+    'openai',
+    'chatgpt',
+    'telegram',
+    '电报',
+    'youtube',
+    '油管',
+    'spotify',
+    'disney',
+    'steam',
+    'game',
+    '游戏',
+    'apple',
+    '微软',
+    'microsoft',
+    '漏网之鱼',
+  ];
+
+  // 1. 优先按订阅中定义的策略组顺序，查找名称匹配主入口关键字且非特定子分流的 Selector 组
   for (final group in searchPool) {
     final lowerName = group.name.toLowerCase();
-    if (lowerName.contains('手动') || lowerName.contains('manual')) {
+    if (subServiceKeywords.any((k) => lowerName.contains(k))) {
       continue;
     }
     for (final keyword in primaryKeywords) {
-      if (lowerName.contains(keyword)) {
+      if (lowerName.contains(keyword.toLowerCase())) {
         return group;
       }
     }
   }
 
-  // 2. 拓扑特征匹配：查找第一个“子项中包含其他策略组（如包含自动选择/手动选择）”的顶层 Selector 组
+  // 2. 拓扑特征匹配：优先选择未被其他非 GLOBAL 策略组引用（入度为 0）且包含子项最多的 Selector 组
   final groupNames = nonGlobalGroups.map((g) => g.name).toSet();
-  for (final group in searchPool) {
-    final hasSubGroup = group.all.any((proxy) => groupNames.contains(proxy.name));
-    if (hasSubGroup) {
-      return group;
+  final referencedGroupNames = <String>{};
+  for (final g in nonGlobalGroups) {
+    for (final proxy in g.all) {
+      if (groupNames.contains(proxy.name)) {
+        referencedGroupNames.add(proxy.name);
+      }
     }
+  }
+
+  // 2.1 优先查找入度为 0 且包含子策略组的根 Selector 组（按子项数量降序排列）
+  final rootGroupsWithSub = searchPool.where((g) {
+    final isRoot = !referencedGroupNames.contains(g.name);
+    final hasSubGroup = g.all.any((p) => groupNames.contains(p.name));
+    return isRoot && hasSubGroup;
+  }).toList();
+
+  if (rootGroupsWithSub.isNotEmpty) {
+    rootGroupsWithSub.sort((a, b) => b.all.length.compareTo(a.all.length));
+    return rootGroupsWithSub.first;
+  }
+
+  // 2.2 查找入度为 0 的根 Selector 组（按子项数量降序排列）
+  final rootGroups = searchPool
+      .where((g) => !referencedGroupNames.contains(g.name))
+      .toList();
+  if (rootGroups.isNotEmpty) {
+    rootGroups.sort((a, b) => b.all.length.compareTo(a.all.length));
+    return rootGroups.first;
+  }
+
+  // 2.3 兜底查找任意包含子策略组的 Selector 组（按子项数量降序排列）
+  final anyGroupsWithSub = searchPool
+      .where((g) => g.all.any((p) => groupNames.contains(p.name)))
+      .toList();
+  if (anyGroupsWithSub.isNotEmpty) {
+    anyGroupsWithSub.sort((a, b) => b.all.length.compareTo(a.all.length));
+    return anyGroupsWithSub.first;
   }
 
   // 3. 回退到用户当前聚焦的分组或第一个非 GLOBAL 分组

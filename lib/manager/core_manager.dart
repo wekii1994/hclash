@@ -79,6 +79,14 @@ class _CoreContainerState extends ConsumerState<CoreManager>
         _syncLogStream();
       }
     });
+    ref.listenManual(
+      routeTrackerProvider.select((state) => state.routeVersion),
+      (prev, next) {
+        if (prev != null && prev != next) {
+          ref.read(proxiesActionProvider.notifier).updateGroupsDebounce();
+        }
+      },
+    );
     // Every Core process starts without a log stream.
     ref.listenManual(coreStatusProvider, (prev, next) {
       if (next == CoreStatus.connected && prev != CoreStatus.connected) {
