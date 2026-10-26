@@ -16,9 +16,9 @@ void selectGroupProxy(
 }) {
   final isComputedSelected = groupType.isComputedSelected;
   if (isComputedSelected || groupType == GroupType.Selector) {
-    final currentProxyName = ref.read(proxyNameProvider(groupName));
+    final pinnedProxyName = ref.read(selectedMapProvider)[groupName] ?? '';
     final nextProxyName = switch (isComputedSelected) {
-      true => currentProxyName == proxyName ? '' : proxyName,
+      true => pinnedProxyName == proxyName ? '' : proxyName,
       false => proxyName,
     };
     ref

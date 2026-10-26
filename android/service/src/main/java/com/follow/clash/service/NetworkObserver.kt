@@ -100,11 +100,6 @@ object NetworkObserver {
     @Synchronized
     fun start() {
         if (started) return
-        val active = connectivity?.activeNetwork
-        if (active != null) {
-            currentNetwork = active
-        }
-        isInitialized = true
         runCatching { requireNotNull(connectivity).registerNetworkCallback(request, callback) }
             .onSuccess { started = true }
             .onFailure { error -> GlobalState.log("Unable to observe networks: $error") }
@@ -149,9 +144,14 @@ object NetworkObserver {
             return
         }
         val network = preferred.key
+        if (!isInitialized) {
+            isInitialized = true
+            currentNetwork = network
+            return
+        }
         // Sockets protected onto the network we left stay bound to it; closing
         // them makes apps reconnect now instead of after a TCP timeout.
-        if (isInitialized && currentNetwork != network) {
+        if (currentNetwork != network) {
             Core.resetNetwork()
         }
         currentNetwork = network

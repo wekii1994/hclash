@@ -56,8 +56,7 @@ class RouteState {
     );
   }
 
-  bool isFresh(RouteStamp stamp) =>
-      synced && !hasMovedSince(stamp) && stamp.routeVersion == routeVersion;
+  bool isFresh(RouteStamp stamp) => synced && !hasMovedSince(stamp);
 
   bool hasMovedSince(RouteStamp stamp) =>
       stamp.coreEpoch != coreEpoch ||
