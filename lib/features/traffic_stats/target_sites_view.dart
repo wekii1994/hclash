@@ -31,12 +31,10 @@ class _TargetSitesViewState extends State<TargetSitesView> {
   @override
   void didUpdateWidget(covariant TargetSitesView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.sites != widget.sites) {
-      if (_isAggregated) {
-        _updateAggregatedGroups();
-      } else {
-        _cachedGroups = null;
-      }
+    if (_isAggregated) {
+      _updateAggregatedGroups();
+    } else {
+      _cachedGroups = null;
     }
   }
 

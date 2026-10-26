@@ -136,13 +136,15 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        diff >= 0
-                            ? '+${diff.traffic.show}'
-                            : '-${(-diff).traffic.show}',
+                        diff == 0
+                            ? '0 B'
+                            : '${diff > 0 ? '+' : '-'}${diff.abs().traffic.show}',
                         style: AppTextStyle.caption2.of(context).copyWith(
-                              color: diff >= 0
+                              color: diff > 0
                                   ? colorScheme.error
-                                  : colorScheme.primary,
+                                  : (diff < 0
+                                      ? colorScheme.primary
+                                      : colorScheme.onSurfaceVariant),
                             ),
                       ),
                     ],
@@ -247,13 +249,21 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
                 ),
                 const SizedBox(height: 16),
                 // The Chart
-                TrafficBarChart(
-                  points: chartPoints,
-                  selectedIndex: _selectedBarIndex,
-                  onSelectIndex: (index) {
-                    setState(() {
-                      _selectedBarIndex = index;
-                    });
+                Builder(
+                  builder: (context) {
+                    final defaultIndex = chartPoints.indexWhere((p) => p.isCurrent);
+                    final effectiveIndex = _selectedBarIndex >= 0 && _selectedBarIndex < chartPoints.length
+                        ? _selectedBarIndex
+                        : (defaultIndex != -1 ? defaultIndex : (chartPoints.isNotEmpty ? chartPoints.length - 1 : -1));
+                    return TrafficBarChart(
+                      points: chartPoints,
+                      selectedIndex: effectiveIndex,
+                      onSelectIndex: (index) {
+                        setState(() {
+                          _selectedBarIndex = index;
+                        });
+                      },
+                    );
                   },
                 ),
               ],

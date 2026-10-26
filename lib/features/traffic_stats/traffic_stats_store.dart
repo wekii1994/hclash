@@ -24,6 +24,7 @@ class TrafficStatsStore extends ChangeNotifier {
 
   bool _isLoaded = false;
   Future<void>? _initFuture;
+  Future<void>? _activeSaveFuture;
   Timer? _saveDebounceTimer;
   DateTime? _lastSaveTime;
   Timer? _uiThrottleTimer;
@@ -148,11 +149,15 @@ class TrafficStatsStore extends ChangeNotifier {
     });
   }
 
-  Future<void> save() async {
+  Future<void> save() {
     _saveDebounceTimer?.cancel();
     _saveDebounceTimer = null;
     _lastSaveTime = DateTime.now();
     _pruneOldData();
+    return _activeSaveFuture = _doSave();
+  }
+
+  Future<void> _doSave() async {
     try {
       final file = await _getFile();
       final data = {
@@ -162,6 +167,8 @@ class TrafficStatsStore extends ChangeNotifier {
       await file.writeAsString(json.encode(data), flush: true);
     } catch (e) {
       commonPrint.log('TrafficStatsStore save error: $e');
+    } finally {
+      _activeSaveFuture = null;
     }
   }
 
@@ -203,28 +210,42 @@ class TrafficStatsStore extends ChangeNotifier {
     hourly.download += downloadDelta;
   }
 
+  /// [recordTraffic] 保持空实现，确保 [_dailySummaries]
+  /// 仅由连接级事件 ([recordRequest] 与 [recordRequestTraffic]) 唯一驱动，杜绝双重累计
   void recordTraffic({required int uploadDelta, required int downloadDelta}) {
-    if (uploadDelta <= 0 && downloadDelta <= 0) return;
-    _accumulate(uploadDelta: uploadDelta, downloadDelta: downloadDelta);
-    scheduleSave();
-    _scheduleNotify();
+    // Intentionally no-op to prevent dual-accumulation
   }
 
   void recordRequest(TrackerInfo info) {
     final host = DomainClassifier.stripPort(info.title);
     if (host.isEmpty) return;
 
+    final prev = _requestIdToTraffic[info.id];
+    final int deltaUp;
+    final int deltaDown;
+
+    if (prev != null) {
+      deltaUp = math.max(0, info.upload - prev.upload);
+      deltaDown = math.max(0, info.download - prev.download);
+      _requestIdToTraffic[info.id] = (
+        upload: math.max(prev.upload, info.upload),
+        download: math.max(prev.download, info.download),
+      );
+    } else {
+      deltaUp = math.max(0, info.upload);
+      deltaDown = math.max(0, info.download);
+      _requestIdToTraffic[info.id] = (
+        upload: deltaUp,
+        download: deltaDown,
+      );
+    }
+
     _requestIdToHost[info.id] = host;
-    _requestIdToTraffic[info.id] = (
-      upload: math.max(0, info.upload),
-      download: math.max(0, info.download),
-    );
 
     if (_requestIdToHost.length > 3000) {
       final toRemove = _requestIdToHost.keys.take(500).toList();
       for (final k in toRemove) {
         _requestIdToHost.remove(k);
-        // 注意：保留 _requestIdToTraffic[k] 或交由 recordRequestTraffic 按活跃集清理，防止长连接被重复计费
       }
     }
 
@@ -240,18 +261,18 @@ class TrafficStatsStore extends ChangeNotifier {
         process: process.isNotEmpty ? process : null,
       ),
     );
-    if (info.upload > 0) site.upload += info.upload;
-    if (info.download > 0) site.download += info.download;
+    if (deltaUp > 0) site.upload += deltaUp;
+    if (deltaDown > 0) site.download += deltaDown;
     site.count++;
     site.lastSeen = DateTime.now().millisecondsSinceEpoch;
     if ((site.process == null || site.process!.isEmpty) && process.isNotEmpty) {
       site.process = process;
     }
 
-    if (info.upload > 0 || info.download > 0) {
+    if (deltaUp > 0 || deltaDown > 0) {
       _accumulate(
-        uploadDelta: info.upload > 0 ? info.upload : 0,
-        downloadDelta: info.download > 0 ? info.download : 0,
+        uploadDelta: deltaUp,
+        downloadDelta: deltaDown,
       );
     }
 
@@ -264,6 +285,12 @@ class TrafficStatsStore extends ChangeNotifier {
     var hasUpdates = false;
 
     trafficMap.forEach((id, traffic) {
+      // LRU 保活：如果已有该连接的 host 映射，重新插入至 LinkedHashMap 尾部
+      final host = _requestIdToHost.remove(id);
+      if (host != null) {
+        _requestIdToHost[id] = host;
+      }
+
       final last = _requestIdToTraffic[id];
       // 若之前未见过该连接（例如启动前已存在的连接），仅记录当前基准值，避免把历史累计当成增量
       if (last == null) {
@@ -283,9 +310,9 @@ class TrafficStatsStore extends ChangeNotifier {
       );
 
       if (deltaUp > 0 || deltaDown > 0) {
-        final host = _requestIdToHost[id];
-        if (host != null && host.isNotEmpty) {
-          final site = _targetSiteUsages[host];
+        final currentHost = host ?? _requestIdToHost[id];
+        if (currentHost != null && currentHost.isNotEmpty) {
+          final site = _targetSiteUsages[currentHost];
           if (site != null) {
             if (deltaUp > 0) site.upload += deltaUp;
             if (deltaDown > 0) site.download += deltaDown;
@@ -301,11 +328,29 @@ class TrafficStatsStore extends ChangeNotifier {
       }
     });
 
-    // 定期清理已不在当前活跃连接列表中的历史流量缓存，避免内存泄漏
+    // 优化长连接 Host 映射与流量缓存淘汰：当数量超出阈值时，优先淘汰非活跃连接
+    if (_requestIdToHost.length > 3000) {
+      _requestIdToHost.removeWhere(
+        (id, _) => !trafficMap.containsKey(id),
+      );
+      if (_requestIdToHost.length > 3000) {
+        final toRemove = _requestIdToHost.keys.take(_requestIdToHost.length - 2500).toList();
+        for (final k in toRemove) {
+          _requestIdToHost.remove(k);
+        }
+      }
+    }
+
     if (_requestIdToTraffic.length > 3000) {
       _requestIdToTraffic.removeWhere(
         (id, _) => !trafficMap.containsKey(id) && !_requestIdToHost.containsKey(id),
       );
+      if (_requestIdToTraffic.length > 3000) {
+        final toRemove = _requestIdToTraffic.keys.take(_requestIdToTraffic.length - 2500).toList();
+        for (final k in toRemove) {
+          _requestIdToTraffic.remove(k);
+        }
+      }
     }
 
     if (hasUpdates) {
@@ -455,6 +500,13 @@ class TrafficStatsStore extends ChangeNotifier {
     _uiThrottleTimer?.cancel();
     _uiThrottleTimer = null;
     _needsNotify = false;
+    _lastSaveTime = null;
+
+    if (_activeSaveFuture != null) {
+      try {
+        await _activeSaveFuture;
+      } catch (_) {}
+    }
 
     _dailySummaries.clear();
     _targetSiteUsages.clear();
