@@ -179,7 +179,7 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 				}
 
 				// 2. 注入严格的状态码校验，防止被劫持或错误页面误导
-				if mappingValue(group, "expected-status") == nil {
+				if expectedNode := mappingValue(group, "expected-status"); expectedNode == nil || strings.TrimSpace(expectedNode.Value) == "" {
 					setMappingValue(group, "expected-status", &yaml.Node{
 						Kind:  yaml.ScalarNode,
 						Tag:   "!!str",
@@ -247,22 +247,27 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 						Value: timeoutStr,
 					})
 				}
-				if mappingValue(hc, "expected-status") == nil {
+				if expectedNode := mappingValue(hc, "expected-status"); expectedNode == nil || strings.TrimSpace(expectedNode.Value) == "" {
 					setMappingValue(hc, "expected-status", &yaml.Node{
 						Kind:  yaml.ScalarNode,
 						Tag:   "!!str",
 						Value: defaultExpectedStatus,
 					})
 				}
+
 				intervalNode := mappingValue(hc, "interval")
-				if intervalNode != nil {
-					if val, err := strconv.Atoi(strings.TrimSpace(intervalNode.Value)); err == nil && (val <= 0 || val > optimalHealthCheckInterval) {
-						setMappingValue(hc, "interval", &yaml.Node{
-							Kind:  yaml.ScalarNode,
-							Tag:   "!!int",
-							Value: intervalStr,
-						})
-					}
+				if intervalNode == nil {
+					setMappingValue(hc, "interval", &yaml.Node{
+						Kind:  yaml.ScalarNode,
+						Tag:   "!!int",
+						Value: intervalStr,
+					})
+				} else if val, err := strconv.Atoi(strings.TrimSpace(intervalNode.Value)); err != nil || val <= 0 || val > optimalHealthCheckInterval {
+					setMappingValue(hc, "interval", &yaml.Node{
+						Kind:  yaml.ScalarNode,
+						Tag:   "!!int",
+						Value: intervalStr,
+					})
 				}
 			}
 		}
