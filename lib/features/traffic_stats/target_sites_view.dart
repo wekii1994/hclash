@@ -28,6 +28,7 @@ class _TargetSitesViewState extends State<TargetSitesView> {
   bool _isAggregated = true;
   final Set<String> _expandedKeys = <String>{};
   List<AggregatedSiteGroup>? _cachedGroups;
+  int? _lastNotifiedCount;
 
   @override
   void initState() {
@@ -52,6 +53,8 @@ class _TargetSitesViewState extends State<TargetSitesView> {
     final count = _isAggregated
         ? min(50, _cachedGroups?.length ?? 0)
         : min(50, widget.sites.length);
+    if (_lastNotifiedCount == count) return;
+    _lastNotifiedCount = count;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) widget.onCountChanged!(count);
     });

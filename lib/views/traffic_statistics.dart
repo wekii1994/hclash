@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/features/traffic_stats/traffic_stats.dart';
 import 'package:fl_clash/models/models.dart';
@@ -93,6 +95,7 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
               destructive: true,
             );
             if (confirmed == true) {
+              setState(() => _siteCount = null);
               await store.clearAll();
             }
           },

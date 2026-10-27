@@ -107,6 +107,7 @@ object NetworkObserver {
 
     @Synchronized
     fun reset() {
+        handler.removeCallbacks(updateDnsTask)
         isInitialized = false
         currentNetwork = null
         currentDnsList = emptyList()

@@ -523,7 +523,13 @@ class TrafficStatsStore extends ChangeNotifier {
     _uiThrottleTimer?.cancel();
     _uiThrottleTimer = null;
     _needsNotify = false;
+    _hasPendingSave = false;
     _lastSaveTime = null;
+
+    _dailySummaries.clear();
+    _targetSiteUsages.clear();
+    _requestIdToHost.clear();
+    _requestIdToTraffic.clear();
 
     if (_activeSaveFuture != null) {
       try {
@@ -531,12 +537,18 @@ class TrafficStatsStore extends ChangeNotifier {
       } catch (_) {}
     }
 
+    _hasPendingSave = false;
     _dailySummaries.clear();
     _targetSiteUsages.clear();
     _requestIdToHost.clear();
     _requestIdToTraffic.clear();
+
     try {
       final file = await _getFile();
+      final tmpFile = File('${file.path}.tmp');
+      if (await tmpFile.exists()) {
+        await tmpFile.delete();
+      }
       if (await file.exists()) {
         await file.delete();
       }

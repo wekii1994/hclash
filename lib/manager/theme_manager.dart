@@ -115,7 +115,10 @@ class ThemeManager extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
-    final textScale = ref.read(
+    final pageScale = ref.watch(
+      themeSettingProvider.select((state) => state.pageScale),
+    );
+    final textScale = ref.watch(
       themeSettingProvider.select((state) => state.textScale),
     );
     final double textScaleFactor = max(
@@ -131,16 +134,20 @@ class ThemeManager extends ConsumerWidget {
     return MeasureScope(
       measure: measure,
       child: AppViewScope(
-        child: _LiquidGlassSetting(
-          child: LayoutBuilder(
-            builder: (_, constraints) {
-              ref
-                  .read(themeActionProvider.notifier)
-                  .updateViewSize(
-                    Size(constraints.maxWidth, constraints.maxHeight),
-                  );
-              return _buildSystemUi(child);
-            },
+        child: _AppMediaQuery(
+          textScaler: TextScaler.linear(textScaleFactor),
+          pageScale: pageScale,
+          child: _LiquidGlassSetting(
+            child: LayoutBuilder(
+              builder: (_, constraints) {
+                ref
+                    .read(themeActionProvider.notifier)
+                    .updateViewSize(
+                      Size(constraints.maxWidth, constraints.maxHeight),
+                    );
+                return _buildSystemUi(child);
+              },
+            ),
           ),
         ),
       ),
@@ -192,34 +199,23 @@ class _LiquidGlassSetting extends ConsumerWidget {
   }
 }
 
-class AppMediaQuery extends ConsumerWidget {
-  const AppMediaQuery({
-    super.key,
+class _AppMediaQuery extends StatelessWidget {
+  const _AppMediaQuery({
+    required this.textScaler,
+    required this.pageScale,
     required this.child,
   });
 
+  final TextScaler textScaler;
+  final double pageScale;
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final textScale = ref.watch(
-      themeSettingProvider.select((state) => state.textScale),
-    );
-    final double textScaleFactor = max(
-      min(
-        textScale.enable ? textScale.scale : systemTextScaleOf(context),
-        maxTextScale,
-      ),
-      minTextScale,
-    );
-    final pageScale = ref.watch(
-      themeSettingProvider.select((state) => state.pageScale),
-    );
-
+  Widget build(BuildContext context) {
     final data = MediaQuery.of(context);
     final padding = data.padding;
     final mediaQueryData = data.copyWith(
-      textScaler: TextScaler.linear(textScaleFactor),
+      textScaler: textScaler,
       padding: padding.copyWith(
         top: padding.top > data.size.height * 0.3 ? 20.0 : padding.top,
       ),
