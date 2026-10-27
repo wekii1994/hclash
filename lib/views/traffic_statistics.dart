@@ -19,6 +19,7 @@ class TrafficStatisticsView extends StatefulWidget {
 class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
   TrafficStatsRange _selectedRange = TrafficStatsRange.today;
   int _selectedBarIndex = -1;
+  int? _siteCount;
 
   @override
   void initState() {
@@ -72,7 +73,7 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
     final todayTotal = store.todayTotal;
     final weekTotal = store.weekTotal;
     final diff = store.differenceFromYesterday;
-    final topSites = store.getTopSites();
+    final allTopSites = store.getTopSites(limit: TrafficStatsStore.maxSitesToKeep);
     final chartPoints = store.getChartPoints(_selectedRange);
 
     final uploadColor = DashboardColors.of(context).series2;
@@ -290,12 +291,21 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
                       glyph: AppGlyphs.target,
                       title: l.target,
                     ),
-                    if (topSites.isNotEmpty)
-                      DashboardChip(label: '${topSites.length}'),
+                    if (allTopSites.isNotEmpty)
+                      DashboardChip(
+                        label: '${_siteCount ?? min(50, allTopSites.length)}',
+                      ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                TargetSitesView(sites: topSites),
+                TargetSitesView(
+                  sites: allTopSites,
+                  onCountChanged: (count) {
+                    if (_siteCount != count) {
+                      setState(() => _siteCount = count);
+                    }
+                  },
+                ),
               ],
             ),
           ),

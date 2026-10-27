@@ -441,7 +441,6 @@ proxy-providers:
 	if err := doc.Decode(raw); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	patchHealthCheckTimeoutRaw(raw, 1500)
 
 	for _, g := range raw.ProxyGroup {
 		if g["name"] == "auto" || g["name"] == "fallback-grp" {

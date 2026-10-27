@@ -229,8 +229,6 @@ class Bootstrap {
       final file = File(await appPath.sharedPreferencesPath);
       await file.safeDelete();
     }
-    // Saving here would rewrite the preferences file the user just chose to delete.
-    await TrafficStatsStore.instance.save();
     await _container.read(systemActionProvider.notifier).handleExit(false);
   }
 

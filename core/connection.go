@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/metacubex/mihomo/adapter"
@@ -16,7 +15,10 @@ import (
 	"github.com/metacubex/mihomo/tunnel/statistic"
 )
 
-var resetNetworkSeq atomic.Uint64
+var (
+	resetNetworkMu     sync.Mutex
+	resetNetworkCancel context.CancelFunc
+)
 
 func handleGetTraffic(onlyStatisticsProxy bool) Traffic {
 	up, down := statistic.DefaultManager.NowTraffic(onlyStatisticsProxy)
@@ -87,19 +89,24 @@ func handleResetNetwork() {
 	handleCloseConnections()
 	handleClearDnsCache()
 
-	seq := resetNetworkSeq.Add(1)
-	go func(currentSeq uint64) {
-		// 等待 1.5 秒让系统完成 Wi-Fi / 蜂窝网络路由切换，防止 0ms 抢跑导致全部报 network unreachable
-		time.Sleep(1500 * time.Millisecond)
-		if resetNetworkSeq.Load() != currentSeq {
-			return
-		}
+	resetNetworkMu.Lock()
+	if resetNetworkCancel != nil {
+		resetNetworkCancel() // 立即中止上一轮未完成的等待或 URLTest 请求
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	resetNetworkCancel = cancel
+	resetNetworkMu.Unlock()
 
-		// 1. 异步触发外部 Provider 健康检查，避免阻塞主自动组的切网测速
-		for _, pd := range tunnel.ProvidersSnapshot() {
-			go func(provider interface{ HealthCheck() }) {
-				provider.HealthCheck()
-			}(pd)
+	go func(resetCtx context.Context) {
+		defer cancel()
+
+		// 1. 使用 select 替代 time.Sleep，支持切网抖动时立即中断退出
+		timer := time.NewTimer(1500 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case <-resetCtx.Done():
+			return
+		case <-timer.C:
 		}
 
 		// 2. 收集自动选路策略组并区分主自动组与次级自动组
@@ -129,25 +136,17 @@ func handleResetNetwork() {
 			}
 		}
 
-		// 兜底保护：若未命中任何关键字，所有自动策略组均作为主自动组享受立即测速
 		if len(primaryGroups) == 0 && len(secondaryGroups) > 0 {
 			primaryGroups = secondaryGroups
 			secondaryGroups = nil
 		}
 
-		if len(primaryGroups) == 0 {
-			return
-		}
-		if resetNetworkSeq.Load() != currentSeq {
-			return
-		}
-
-		// 3. 对次级自动组：执行轻量级 Touch() 唤醒懒加载健康检查，不耗费大量网络并发
+		// 3. 次级自动组仅做轻量级 Touch 唤醒懒加载，不抢占切网初期的并发带宽
 		for _, sec := range secondaryGroups {
 			touchGroup(sec)
 		}
 
-		// 4. 对主自动组：使用带限流（最大并发 3）的协程池并发测速，每个组享受独立的 3500ms 超时
+		// 4. 主自动组限流并发测速（底层会自动刷新所引用 Provider 节点的延迟，无需重复调用 provider.HealthCheck）
 		if len(primaryGroups) > 0 {
 			sort.SliceStable(primaryGroups, func(i, j int) bool {
 				return primaryGroups[i].Name() < primaryGroups[j].Name()
@@ -162,7 +161,7 @@ func handleResetNetwork() {
 			var wg sync.WaitGroup
 
 			for _, group := range primaryGroups {
-				if resetNetworkSeq.Load() != currentSeq {
+				if resetCtx.Err() != nil {
 					break
 				}
 				wg.Add(1)
@@ -172,21 +171,28 @@ func handleResetNetwork() {
 						<-sem
 						wg.Done()
 					}()
-					if resetNetworkSeq.Load() != currentSeq {
+					if resetCtx.Err() != nil {
 						return
 					}
-					ctx, cancel := context.WithTimeout(context.Background(), 3500*time.Millisecond)
-					defer cancel()
-					_, _ = g.URLTest(ctx, url, delayTestExpectedStatus)
+					testCtx, testCancel := context.WithTimeout(resetCtx, 3500*time.Millisecond)
+					defer testCancel()
+					_, _ = g.URLTest(testCtx, url, delayTestExpectedStatus)
 				}(group)
 			}
 			wg.Wait()
+		} else {
+			// 仅当不存在任何 URLTest/Fallback 策略组时，才触发外部 Provider 健康检查兜底
+			for _, pd := range tunnel.ProvidersSnapshot() {
+				go func(provider interface{ HealthCheck() }) {
+					provider.HealthCheck()
+				}(pd)
+			}
 		}
 
-		if resetNetworkSeq.Load() == currentSeq {
+		if resetCtx.Err() == nil {
 			changeRoute(routeMoved)
 		}
-	}(seq)
+	}(ctx)
 }
 
 func handleCloseConnection(connectionId string) bool {

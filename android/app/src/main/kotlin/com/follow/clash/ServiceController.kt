@@ -117,6 +117,7 @@ object ServiceController {
     suspend fun stop() = lock.withLock {
         tearDownServices()
         release()
+        NetworkObserver.reset()
     }
 
     private suspend fun tearDownServices() {

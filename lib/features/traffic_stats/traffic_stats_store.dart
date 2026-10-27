@@ -25,6 +25,8 @@ class TrafficStatsStore extends ChangeNotifier {
   bool _isLoaded = false;
   Future<void>? _initFuture;
   Future<void>? _activeSaveFuture;
+  bool _isSaving = false;
+  bool _hasPendingSave = false;
   Timer? _saveDebounceTimer;
   DateTime? _lastSaveTime;
   Timer? _uiThrottleTimer;
@@ -149,25 +151,41 @@ class TrafficStatsStore extends ChangeNotifier {
     });
   }
 
-  Future<void> save() {
+  Future<void> save() async {
     _saveDebounceTimer?.cancel();
     _saveDebounceTimer = null;
     _lastSaveTime = DateTime.now();
     _pruneOldData();
-    return _activeSaveFuture = _doSave();
+
+    if (_isSaving) {
+      _hasPendingSave = true;
+      return _activeSaveFuture ?? Future.value();
+    }
+
+    _isSaving = true;
+    _activeSaveFuture = _doSaveLoop();
+    return _activeSaveFuture!;
   }
 
-  Future<void> _doSave() async {
+  Future<void> _doSaveLoop() async {
     try {
-      final file = await _getFile();
-      final data = {
-        'daily': _dailySummaries.map((k, v) => MapEntry(k, v.toJson())),
-        'sites': _targetSiteUsages.map((k, v) => MapEntry(k, v.toJson())),
-      };
-      await file.writeAsString(json.encode(data), flush: true);
+      do {
+        _hasPendingSave = false;
+        final file = await _getFile();
+        final tmpFile = File('${file.path}.tmp');
+        final data = {
+          'daily': _dailySummaries.map((k, v) => MapEntry(k, v.toJson())),
+          'sites': _targetSiteUsages.map((k, v) => MapEntry(k, v.toJson())),
+        };
+        await tmpFile.writeAsString(json.encode(data), flush: true);
+        if (await tmpFile.exists()) {
+          await tmpFile.rename(file.path);
+        }
+      } while (_hasPendingSave);
     } catch (e) {
       commonPrint.log('TrafficStatsStore save error: $e');
     } finally {
+      _isSaving = false;
       _activeSaveFuture = null;
     }
   }
@@ -221,6 +239,7 @@ class TrafficStatsStore extends ChangeNotifier {
     if (host.isEmpty) return;
 
     final prev = _requestIdToTraffic[info.id];
+    final isNewConnection = prev == null;
     final int deltaUp;
     final int deltaDown;
 
@@ -240,12 +259,14 @@ class TrafficStatsStore extends ChangeNotifier {
       );
     }
 
+    _requestIdToHost.remove(info.id);
     _requestIdToHost[info.id] = host;
 
     if (_requestIdToHost.length > 3000) {
       final toRemove = _requestIdToHost.keys.take(500).toList();
       for (final k in toRemove) {
         _requestIdToHost.remove(k);
+        _requestIdToTraffic.remove(k);
       }
     }
 
@@ -263,7 +284,9 @@ class TrafficStatsStore extends ChangeNotifier {
     );
     if (deltaUp > 0) site.upload += deltaUp;
     if (deltaDown > 0) site.download += deltaDown;
-    site.count++;
+    if (isNewConnection) {
+      site.count++;
+    }
     site.lastSeen = DateTime.now().millisecondsSinceEpoch;
     if ((site.process == null || site.process!.isEmpty) && process.isNotEmpty) {
       site.process = process;

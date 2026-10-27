@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/ui/ui.dart';
@@ -10,8 +12,13 @@ import 'traffic_stats_models.dart';
 
 class TargetSitesView extends StatefulWidget {
   final List<TargetSiteData> sites;
+  final ValueChanged<int>? onCountChanged;
 
-  const TargetSitesView({super.key, required this.sites});
+  const TargetSitesView({
+    super.key,
+    required this.sites,
+    this.onCountChanged,
+  });
 
   @override
   State<TargetSitesView> createState() => _TargetSitesViewState();
@@ -26,6 +33,7 @@ class _TargetSitesViewState extends State<TargetSitesView> {
   void initState() {
     super.initState();
     _updateAggregatedGroups();
+    _notifyCount();
   }
 
   @override
@@ -36,6 +44,17 @@ class _TargetSitesViewState extends State<TargetSitesView> {
     } else {
       _cachedGroups = null;
     }
+    _notifyCount();
+  }
+
+  void _notifyCount() {
+    if (widget.onCountChanged == null) return;
+    final count = _isAggregated
+        ? min(50, _cachedGroups?.length ?? 0)
+        : min(50, widget.sites.length);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onCountChanged!(count);
+    });
   }
 
   void _updateAggregatedGroups() {
@@ -66,12 +85,18 @@ class _TargetSitesViewState extends State<TargetSitesView> {
       _updateAggregatedGroups();
     }
     final aggregatedGroups = _isAggregated ? _cachedGroups : null;
+    final displayGroups = aggregatedGroups != null
+        ? aggregatedGroups.take(50).toList()
+        : null;
+    final displaySites = widget.sites.take(50).toList();
 
     final maxTotal = _isAggregated
-        ? ((aggregatedGroups?.isNotEmpty ?? false) && aggregatedGroups!.first.total > 0
-            ? aggregatedGroups.first.total
+        ? ((displayGroups?.isNotEmpty ?? false) && displayGroups!.first.total > 0
+            ? displayGroups.first.total
             : 1)
-        : (widget.sites.first.total > 0 ? widget.sites.first.total : 1);
+        : (displaySites.isNotEmpty && displaySites.first.total > 0
+            ? displaySites.first.total
+            : 1);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -93,6 +118,7 @@ class _TargetSitesViewState extends State<TargetSitesView> {
                         _updateAggregatedGroups();
                       }
                     });
+                    _notifyCount();
                   }
                 },
               ),
@@ -103,6 +129,7 @@ class _TargetSitesViewState extends State<TargetSitesView> {
                 onTap: () {
                   if (_isAggregated) {
                     setState(() => _isAggregated = false);
+                    _notifyCount();
                   }
                 },
               ),
@@ -111,14 +138,14 @@ class _TargetSitesViewState extends State<TargetSitesView> {
         ),
 
         // List view
-        if (_isAggregated && aggregatedGroups != null)
+        if (_isAggregated && displayGroups != null)
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: aggregatedGroups.length,
+            itemCount: displayGroups.length,
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
-              final group = aggregatedGroups[index];
+              final group = displayGroups[index];
               final rank = index + 1;
               final isExpanded = _expandedKeys.contains(group.key);
               return _AggregatedGroupTile(
@@ -142,10 +169,10 @@ class _TargetSitesViewState extends State<TargetSitesView> {
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: widget.sites.length,
+            itemCount: displaySites.length,
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
-              final site = widget.sites[index];
+              final site = displaySites[index];
               final rank = index + 1;
               return _SiteTile(
                 site: site,

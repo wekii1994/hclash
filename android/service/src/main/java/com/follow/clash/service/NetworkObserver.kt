@@ -105,6 +105,13 @@ object NetworkObserver {
             .onFailure { error -> GlobalState.log("Unable to observe networks: $error") }
     }
 
+    @Synchronized
+    fun reset() {
+        isInitialized = false
+        currentNetwork = null
+        currentDnsList = emptyList()
+    }
+
     private fun networkPriority(entry: Map.Entry<Network, NetworkInfo>): Int {
         val capabilities = connectivity?.getNetworkCapabilities(entry.key) ?: return 1000
         val internetPenalty = if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) 0 else 500

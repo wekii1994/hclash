@@ -134,7 +134,6 @@ func loadConfigWithTimeout(path string, healthCheckTimeout int) (*config.Config,
 		}
 		raw := config.DefaultRawConfig()
 		if err := document.Decode(raw); err == nil {
-			patchHealthCheckTimeoutRaw(raw, healthCheckTimeout)
 			if cfg, err := config.ParseRawConfig(raw); err == nil {
 				return withPlatformLimits(cfg), nil
 			}

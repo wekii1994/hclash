@@ -190,64 +190,7 @@ Group? _findPrimaryGroup(
       .toList();
   final searchPool = selectorGroups.isNotEmpty ? selectorGroups : nonGlobalGroups;
 
-  // 主入口策略组关键字（注意：排除了子服务分流关键字与手动选择）
-  const primaryKeywords = [
-    '默认代理',
-    '节点选择',
-    '选择节点',
-    '代理模式',
-    '科学上网',
-    'proxy',
-    'proxies',
-    'default',
-    'select',
-    '节点',
-    '代理',
-    '全球',
-    '主',
-    '🚀',
-    '🔰',
-  ];
-
-  // 典型子分流/媒体策略组关键字（避免类似“🎬 奈飞节点”、“🤖 OpenAI代理”被误判为主入口）
-  const subServiceKeywords = [
-    '手动',
-    'manual',
-    '奈飞',
-    'netflix',
-    'bili',
-    '哔哩',
-    'openai',
-    'chatgpt',
-    'telegram',
-    '电报',
-    'youtube',
-    '油管',
-    'spotify',
-    'disney',
-    'steam',
-    'game',
-    '游戏',
-    'apple',
-    '微软',
-    'microsoft',
-    '漏网之鱼',
-  ];
-
-  // 1. 优先按订阅中定义的策略组顺序，查找名称匹配主入口关键字且非特定子分流的 Selector 组
-  for (final group in searchPool) {
-    final lowerName = group.name.toLowerCase();
-    if (subServiceKeywords.any((k) => lowerName.contains(k))) {
-      continue;
-    }
-    for (final keyword in primaryKeywords) {
-      if (lowerName.contains(keyword.toLowerCase())) {
-        return group;
-      }
-    }
-  }
-
-  // 2. 拓扑特征匹配：优先选择未被其他非 GLOBAL 策略组引用（入度为 0）且包含子项最多的 Selector 组
+  // 1. 计算拓扑结构：找出入度为 0（未被其他非 GLOBAL 组引用）的根策略组
   final groupNames = nonGlobalGroups.map((g) => g.name).toSet();
   final referencedGroupNames = <String>{};
   for (final g in nonGlobalGroups) {
@@ -257,38 +200,64 @@ Group? _findPrimaryGroup(
       }
     }
   }
-
-  // 2.1 优先查找入度为 0 且包含子策略组的根 Selector 组（按子项数量降序排列）
-  final rootGroupsWithSub = searchPool.where((g) {
-    final isRoot = !referencedGroupNames.contains(g.name);
-    final hasSubGroup = g.all.any((p) => groupNames.contains(p.name));
-    return isRoot && hasSubGroup;
-  }).toList();
-
-  if (rootGroupsWithSub.isNotEmpty) {
-    rootGroupsWithSub.sort((a, b) => b.all.length.compareTo(a.all.length));
-    return rootGroupsWithSub.first;
-  }
-
-  // 2.2 查找入度为 0 的根 Selector 组（按子项数量降序排列）
   final rootGroups = searchPool
       .where((g) => !referencedGroupNames.contains(g.name))
       .toList();
-  if (rootGroups.isNotEmpty) {
-    rootGroups.sort((a, b) => b.all.length.compareTo(a.all.length));
-    return rootGroups.first;
+
+  // 优先在根策略组中搜索；若所有组相互引用导致无根组，再退回全量 searchPool
+  final candidatePool = rootGroups.isNotEmpty ? rootGroups : searchPool;
+
+  // 强入口特征词（高优先级）
+  const strongPrimaryKeywords = [
+    '节点选择', '选择节点', '默认代理', '代理模式', '科学上网',
+    'proxy', 'proxies', 'default', 'select', '🚀', '🔰',
+  ];
+
+  // 宽泛特征词（低优先级）
+  const broadPrimaryKeywords = ['全球', '代理', '节点', '主'];
+
+  // 子分流与地区策略组排除词（防止分流组或地区组被误判为主入口）
+  const excludeKeywords = [
+    '手动', 'manual', '奈飞', 'netflix', 'bili', '哔哩', 'openai', 'chatgpt',
+    'telegram', '电报', 'youtube', '油管', 'spotify', 'disney', 'steam',
+    'game', '游戏', 'apple', '微软', 'microsoft', '漏网之鱼', '直连', '拒绝',
+    '香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '狮城',
+    'hk', 'tw', 'jp', 'sg', 'us', 'kr',
+  ];
+
+  bool isExcluded(String lowerName) =>
+      excludeKeywords.any((k) => lowerName.contains(k));
+
+  // 2. 外层按关键字优先级、内层按候选组顺序匹配强特征词
+  for (final keyword in strongPrimaryKeywords) {
+    for (final group in candidatePool) {
+      final lowerName = group.name.toLowerCase();
+      if (!isExcluded(lowerName) && lowerName.contains(keyword)) {
+        return group;
+      }
+    }
   }
 
-  // 2.3 兜底查找任意包含子策略组的 Selector 组（按子项数量降序排列）
-  final anyGroupsWithSub = searchPool
+  // 3. 拓扑特征匹配：在根策略组中，优先选包含子策略组且总节点/子项最多的组
+  final rootWithSub = rootGroups
       .where((g) => g.all.any((p) => groupNames.contains(p.name)))
       .toList();
-  if (anyGroupsWithSub.isNotEmpty) {
-    anyGroupsWithSub.sort((a, b) => b.all.length.compareTo(a.all.length));
-    return anyGroupsWithSub.first;
+  if (rootWithSub.isNotEmpty) {
+    rootWithSub.sort((a, b) => b.all.length.compareTo(a.all.length));
+    return rootWithSub.first;
   }
 
-  // 3. 回退到用户当前聚焦的分组或第一个非 GLOBAL 分组
+  // 4. 宽泛关键字兜底匹配
+  for (final keyword in broadPrimaryKeywords) {
+    for (final group in candidatePool) {
+      final lowerName = group.name.toLowerCase();
+      if (!isExcluded(lowerName) && lowerName.contains(keyword)) {
+        return group;
+      }
+    }
+  }
+
+  // 5. 回退到用户当前聚焦的分组
   if (currentGroupName != null && currentGroupName.isNotEmpty) {
     final currentGroup = groups.getGroup(currentGroupName);
     if (currentGroup != null && currentGroup.name.toUpperCase() != 'GLOBAL') {
@@ -296,6 +265,11 @@ Group? _findPrimaryGroup(
     }
   }
 
+  // 6. 最终回退
+  if (rootGroups.isNotEmpty) {
+    rootGroups.sort((a, b) => b.all.length.compareTo(a.all.length));
+    return rootGroups.first;
+  }
   return searchPool.first;
 }
 
