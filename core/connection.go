@@ -234,8 +234,8 @@ func probeGroupsConcurrently(ctx context.Context, groups []*adapter.Proxy, url s
 			}
 			testCtx, cancel := context.WithTimeout(ctx, groupProbeTimeout)
 			defer cancel()
-			delays, err := g.URLTest(testCtx, url, delayTestExpectedStatus)
-			if err == nil && len(delays) > 0 {
+			delay, err := g.URLTest(testCtx, url, delayTestExpectedStatus)
+			if err == nil && delay > 0 {
 				mu.Lock()
 				anySuccess = true
 				mu.Unlock()
