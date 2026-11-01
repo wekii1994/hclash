@@ -19,7 +19,6 @@ import (
 	"github.com/metacubex/mihomo/config"
 	"github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/hub"
-	"github.com/metacubex/mihomo/hub/executor"
 	"github.com/metacubex/mihomo/hub/route"
 	authStore "github.com/metacubex/mihomo/listener/auth"
 	LC "github.com/metacubex/mihomo/listener/config"
@@ -128,22 +127,10 @@ func loadConfigWithTimeout(path string, healthCheckTimeout int) (*config.Config,
 		return nil, err
 	}
 	var document yaml.Node
-	if err := yaml.Unmarshal(buf, &document); err == nil {
-		if root, err := documentMapping(&document); err == nil {
-			patchHealthCheckTimeoutNode(root, healthCheckTimeout)
-		}
-		raw := config.DefaultRawConfig()
-		if err := document.Decode(raw); err == nil {
-			if cfg, err := config.ParseRawConfig(raw); err == nil {
-				return withPlatformLimits(cfg), nil
-			}
-		}
-	}
-	cfg, err := executor.ParseWithBytes(buf)
-	if err != nil {
+	if err := yaml.Unmarshal(buf, &document); err != nil {
 		return nil, err
 	}
-	return withPlatformLimits(cfg), nil
+	return decodeAndBuildConfig(&document, "", healthCheckTimeout)
 }
 
 func withPlatformLimits(cfg *config.Config) *config.Config {

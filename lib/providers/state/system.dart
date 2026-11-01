@@ -170,6 +170,31 @@ bool shouldPatchSystemDns(Ref ref) {
       authorizationState == TunAuthorizationState.authorized;
 }
 
+final _regionCodeRegex = RegExp(
+  r'(^|[^a-z0-9])(hk|tw|jp|sg|us|kr|uk|de|fr)($|[^a-z0-9])',
+);
+
+const _strongEntryKeywords = [
+  '节点选择', '选择节点', '默认代理', '代理模式', '科学上网',
+  'proxy', 'proxies', 'default', 'select', '🚀', '🔰',
+];
+
+const _broadEntryKeywords = ['全球', '代理', '节点', '主', '自动', 'auto'];
+
+const _subRuleExcludeKeywords = [
+  '手动', 'manual', '奈飞', 'netflix', 'bili', '哔哩', 'openai', 'chatgpt',
+  'telegram', '电报', 'youtube', '油管', 'spotify', 'disney', 'steam',
+  'game', '游戏', 'apple', '微软', 'microsoft', '漏网之鱼', '直连', '拒绝',
+  '香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '狮城',
+];
+
+bool _isExcludedSubGroup(String lowerName) {
+  if (_subRuleExcludeKeywords.any(lowerName.contains)) {
+    return true;
+  }
+  return _regionCodeRegex.hasMatch(lowerName);
+}
+
 Group? _findPrimaryGroup(
   List<Group> groups,
   Mode mode, {
@@ -180,97 +205,70 @@ Group? _findPrimaryGroup(
     return groups.getGroup('GLOBAL') ?? groups.first;
   }
 
-  final nonGlobalGroups = groups
-      .where((g) => g.name.toUpperCase() != 'GLOBAL')
+  final visibleGroups = groups
+      .where((g) => g.name.toUpperCase() != 'GLOBAL' && g.hidden != true)
       .toList();
-  if (nonGlobalGroups.isEmpty) return groups.first;
+  final candidates = visibleGroups.isNotEmpty
+      ? visibleGroups
+      : groups.where((g) => g.name.toUpperCase() != 'GLOBAL').toList();
+  if (candidates.isEmpty) return groups.first;
 
-  final selectorGroups = nonGlobalGroups
-      .where((g) => g.type == GroupType.Selector)
-      .toList();
-  final searchPool = selectorGroups.isNotEmpty ? selectorGroups : nonGlobalGroups;
+  // 统计拓扑引用关系：入度（被其他组引用次数）与子策略组出度（包含多少个子策略组）
+  final groupNames = candidates.map((g) => g.name).toSet();
+  final inDegree = <String, int>{for (final g in candidates) g.name: 0};
+  final subGroupCount = <String, int>{for (final g in candidates) g.name: 0};
 
-  // 1. 计算拓扑结构：找出入度为 0（未被其他非 GLOBAL 组引用）的根策略组
-  final groupNames = nonGlobalGroups.map((g) => g.name).toSet();
-  final referencedGroupNames = <String>{};
-  for (final g in nonGlobalGroups) {
+  for (final g in candidates) {
+    var subCount = 0;
     for (final proxy in g.all) {
-      if (groupNames.contains(proxy.name)) {
-        referencedGroupNames.add(proxy.name);
+      if (groupNames.contains(proxy.name) && proxy.name != g.name) {
+        inDegree[proxy.name] = (inDegree[proxy.name] ?? 0) + 1;
+        subCount++;
       }
     }
+    subGroupCount[g.name] = subCount;
   }
-  final rootGroups = searchPool
-      .where((g) => !referencedGroupNames.contains(g.name))
-      .toList();
 
-  // 优先在根策略组中搜索；若所有组相互引用导致无根组，再退回全量 searchPool
-  final candidatePool = rootGroups.isNotEmpty ? rootGroups : searchPool;
+  int scoreGroup(Group g) {
+    var score = 0;
+    final lowerName = g.name.toLowerCase();
+    final isRoot = (inDegree[g.name] ?? 0) == 0;
+    final hasSubGroups = (subGroupCount[g.name] ?? 0) > 0;
+    final excluded = _isExcludedSubGroup(lowerName);
 
-  // 强入口特征词（高优先级）
-  const strongPrimaryKeywords = [
-    '节点选择', '选择节点', '默认代理', '代理模式', '科学上网',
-    'proxy', 'proxies', 'default', 'select', '🚀', '🔰',
-  ];
+    if (isRoot) score += 400;
+    if (g.type == GroupType.Selector) score += 200;
+    if (hasSubGroups) score += 150 + (subGroupCount[g.name]!.clamp(0, 20) * 5);
 
-  // 宽泛特征词（低优先级）
-  const broadPrimaryKeywords = ['全球', '代理', '节点', '主'];
-
-  // 子分流与地区策略组排除词（防止分流组或地区组被误判为主入口）
-  const excludeKeywords = [
-    '手动', 'manual', '奈飞', 'netflix', 'bili', '哔哩', 'openai', 'chatgpt',
-    'telegram', '电报', 'youtube', '油管', 'spotify', 'disney', 'steam',
-    'game', '游戏', 'apple', '微软', 'microsoft', '漏网之鱼', '直连', '拒绝',
-    '香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '狮城',
-    'hk', 'tw', 'jp', 'sg', 'us', 'kr',
-  ];
-
-  bool isExcluded(String lowerName) =>
-      excludeKeywords.any((k) => lowerName.contains(k));
-
-  // 2. 外层按关键字优先级、内层按候选组顺序匹配强特征词
-  for (final keyword in strongPrimaryKeywords) {
-    for (final group in candidatePool) {
-      final lowerName = group.name.toLowerCase();
-      if (!isExcluded(lowerName) && lowerName.contains(keyword)) {
-        return group;
+    if (!excluded) {
+      final strongIdx = _strongEntryKeywords.indexWhere(lowerName.contains);
+      if (strongIdx != -1) {
+        score += 500 - strongIdx * 10;
+      } else if (_broadEntryKeywords.any(lowerName.contains)) {
+        score += 180;
       }
+    } else {
+      score -= 350;
+    }
+
+    if (currentGroupName != null && g.name == currentGroupName) {
+      score += 80;
+    }
+    score += g.all.length.clamp(0, 50);
+    return score;
+  }
+
+  var bestGroup = candidates.first;
+  var bestScore = scoreGroup(bestGroup);
+  for (var i = 1; i < candidates.length; i++) {
+    final g = candidates[i];
+    final s = scoreGroup(g);
+    if (s > bestScore) {
+      bestScore = s;
+      bestGroup = g;
     }
   }
-
-  // 3. 拓扑特征匹配：在根策略组中，优先选包含子策略组且总节点/子项最多的组
-  final rootWithSub = rootGroups
-      .where((g) => g.all.any((p) => groupNames.contains(p.name)))
-      .toList();
-  if (rootWithSub.isNotEmpty) {
-    rootWithSub.sort((a, b) => b.all.length.compareTo(a.all.length));
-    return rootWithSub.first;
-  }
-
-  // 4. 宽泛关键字兜底匹配
-  for (final keyword in broadPrimaryKeywords) {
-    for (final group in candidatePool) {
-      final lowerName = group.name.toLowerCase();
-      if (!isExcluded(lowerName) && lowerName.contains(keyword)) {
-        return group;
-      }
-    }
-  }
-
-  // 5. 回退到用户当前聚焦的分组
-  if (currentGroupName != null && currentGroupName.isNotEmpty) {
-    final currentGroup = groups.getGroup(currentGroupName);
-    if (currentGroup != null && currentGroup.name.toUpperCase() != 'GLOBAL') {
-      return currentGroup;
-    }
-  }
-
-  // 6. 最终回退
-  if (rootGroups.isNotEmpty) {
-    rootGroups.sort((a, b) => b.all.length.compareTo(a.all.length));
-    return rootGroups.first;
-  }
-  return searchPool.first;
+  return bestGroup;
 }
 
 String _resolveNotificationTitle({
@@ -307,10 +305,7 @@ String _resolveNotificationTitle({
       return resolvedName;
     }
   }
-  if (fallbackLabel.isNotEmpty) {
-    return fallbackLabel;
-  }
-  return 'hclash';
+  return fallbackLabel.isNotEmpty ? fallbackLabel : 'hclash';
 }
 
 @riverpod

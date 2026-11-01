@@ -80,7 +80,9 @@ class _CoreContainerState extends ConsumerState<CoreManager>
       }
     });
     ref.listenManual(
-      routeTrackerProvider.select((state) => state.routeVersion),
+      routeTrackerProvider.select(
+        (state) => (state.coreEpoch, state.routeVersion),
+      ),
       (prev, next) {
         if (prev != null && prev != next) {
           ref.read(proxiesActionProvider.notifier).updateGroupsDebounce();
@@ -212,7 +214,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   @override
   void onRouteChanged(RouteSnapshot snapshot) {
     ref.read(routeTrackerProvider.notifier).applySnapshot(snapshot);
-    ref.read(proxiesActionProvider.notifier).updateGroupsDebounce();
     super.onRouteChanged(snapshot);
   }
 }

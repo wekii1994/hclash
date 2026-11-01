@@ -468,7 +468,7 @@ class ProxiesAction extends _$ProxiesAction {
     }
     try {
       final delay = await _delayTestRequestPool.run(
-        target.key,
+        '#',
         () => _core.getDelay(
           target.testUrl,
           target.proxyName,

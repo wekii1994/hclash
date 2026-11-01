@@ -110,43 +110,46 @@ SelectedProxyState getRealSelectedProxyState(
   SelectedProxyState state, {
   required List<Group> groups,
   required Map<String, String> selectedMap,
-  Set<String>? visited,
 }) {
-  final seen = visited ?? <String>{};
-  final proxyName = state.proxyName;
-  if (proxyName.isEmpty || !seen.add(proxyName)) {
-    return state;
-  }
-  final group = groups.getGroup(proxyName);
-  if (group == null) {
-    final now = groups.getRematchProxy(proxyName)?.now;
-    if (now != null && now.isNotEmpty && now != proxyName) {
-      return getRealSelectedProxyState(
-        state.copyWith(proxyName: now, group: true),
-        groups: groups,
-        selectedMap: selectedMap,
-        visited: seen,
-      );
+  if (state.proxyName.isEmpty) return state;
+
+  final visited = <String>{};
+  var currentName = state.proxyName;
+  var currentTestUrl = state.testUrl;
+  var isGroup = state.group;
+
+  while (currentName.isNotEmpty && visited.add(currentName)) {
+    final group = groups.getGroup(currentName);
+    if (group == null) {
+      final rematchTarget = groups.getRematchProxy(currentName)?.now;
+      if (rematchTarget != null &&
+          rematchTarget.isNotEmpty &&
+          rematchTarget != currentName) {
+        currentName = rematchTarget;
+        isGroup = true;
+        continue;
+      }
+      break;
     }
-    return state;
+
+    isGroup = true;
+    if (group.testUrl != null && group.testUrl!.isNotEmpty) {
+      currentTestUrl = group.testUrl;
+    }
+
+    final nextName = group.getCurrentSelectedName(
+      selectedMap[currentName] ?? '',
+    );
+    if (nextName.isEmpty) {
+      break;
+    }
+    currentName = nextName;
   }
-  final currentSelectedName = group.getCurrentSelectedName(
-    selectedMap[proxyName] ?? '',
-  );
-  if (currentSelectedName.isEmpty) {
-    return state.copyWith(group: true);
-  }
-  return getRealSelectedProxyState(
-    state.copyWith(
-      proxyName: currentSelectedName,
-      group: true,
-      testUrl: (group.testUrl != null && group.testUrl!.isNotEmpty)
-          ? group.testUrl
-          : state.testUrl,
-    ),
-    groups: groups,
-    selectedMap: selectedMap,
-    visited: seen,
+
+  return state.copyWith(
+    proxyName: currentName,
+    group: isGroup,
+    testUrl: currentTestUrl,
   );
 }
 

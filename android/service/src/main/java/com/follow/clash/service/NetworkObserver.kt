@@ -18,16 +18,21 @@ import java.net.Inet6Address
 import java.net.InetAddress
 import java.util.concurrent.ConcurrentHashMap
 
+private data class CapabilitySnapshot(
+    val basePriority: Int = 100,
+    val hasInternet: Boolean = false,
+    val isValidated: Boolean = false,
+)
+
 private data class NetworkInfo(
     @Volatile var losingUntilMillis: Long = 0,
     @Volatile var dnsList: List<InetAddress> = emptyList(),
+    @Volatile var capabilitySnapshot: CapabilitySnapshot? = null,
 ) {
     val priorityPenalty: Int
         get() = if (losingUntilMillis > System.currentTimeMillis()) 10 else 0
 }
 
-// Outlives every service run: the Core also tests delays and updates providers
-// while stopped, and a `system` nameserver has no upstream until DNS arrives here.
 object NetworkObserver {
 
     private val networkInfos = ConcurrentHashMap<Network, NetworkInfo>()
@@ -37,9 +42,14 @@ object NetworkObserver {
     private val handler by lazy {
         Handler(HandlerThread("NetworkObserve").apply { start() }.looper)
     }
+
+    @Volatile
     private var currentDnsList = listOf<String>()
+
+    @Volatile
     private var currentNetwork: Network? = null
-    private var isInitialized = false
+
+    @Volatile
     private var started = false
 
     private val request = NetworkRequest.Builder().apply {
@@ -53,7 +63,9 @@ object NetworkObserver {
 
     private val callback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
-            networkInfos[network] = NetworkInfo()
+            networkInfos[network] = NetworkInfo(
+                capabilitySnapshot = connectivity?.getNetworkCapabilities(network)?.toSnapshot(),
+            )
             scheduleUpdateDns()
         }
 
@@ -76,22 +88,30 @@ object NetworkObserver {
         }
 
         override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
-            networkInfos[network]?.dnsList = linkProperties.dnsServers
-            scheduleUpdateDns()
+            val info = networkInfos[network] ?: return
+            val nextDns = linkProperties.dnsServers
+            if (info.dnsList != nextDns) {
+                info.dnsList = nextDns
+                scheduleUpdateDns()
+            }
         }
 
         override fun onCapabilitiesChanged(
             network: Network,
-            networkCapabilities: NetworkCapabilities
+            networkCapabilities: NetworkCapabilities,
         ) {
-            scheduleUpdateDns()
+            val info = networkInfos[network] ?: return
+            val nextSnapshot = networkCapabilities.toSnapshot()
+            // 仅当传输类型或联网校验状态发生实质改变时才调度，忽略信号强度 RSSI 波动
+            if (info.capabilitySnapshot != nextSnapshot) {
+                info.capabilitySnapshot = nextSnapshot
+                scheduleUpdateDns()
+            }
         }
     }
 
     private val updateDnsTask = Runnable(::updateDns)
 
-    // A switch arrives as a burst, and a network that just came up has no DNS
-    // until its link properties follow; the Core flushes its cache per list.
     private fun scheduleUpdateDns() {
         handler.removeCallbacks(updateDnsTask)
         handler.postDelayed(updateDnsTask, DNS_UPDATE_DELAY_MILLIS)
@@ -99,7 +119,10 @@ object NetworkObserver {
 
     @Synchronized
     fun start() {
-        if (started) return
+        if (started) {
+            handler.post(::updateDns)
+            return
+        }
         runCatching { requireNotNull(connectivity).registerNetworkCallback(request, callback) }
             .onSuccess { started = true }
             .onFailure { error -> GlobalState.log("Unable to observe networks: $error") }
@@ -107,31 +130,37 @@ object NetworkObserver {
 
     @Synchronized
     fun reset() {
+        // 仅移除待执行的延时任务，保留已注册网络的拓扑与 DNS 缓存
         handler.removeCallbacks(updateDnsTask)
-        isInitialized = false
-        currentNetwork = null
-        currentDnsList = emptyList()
+    }
+
+    private fun NetworkCapabilities.toSnapshot(): CapabilitySnapshot {
+        val base = when {
+            hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> 90
+            hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> 0
+            hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> 1
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                hasTransport(TRANSPORT_USB) -> 2
+            hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH) -> 3
+            hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> 4
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM &&
+                hasTransport(TRANSPORT_SATELLITE) -> 5
+            else -> 20
+        }
+        return CapabilitySnapshot(
+            basePriority = base,
+            hasInternet = hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET),
+            isValidated = hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
+        )
     }
 
     private fun networkPriority(entry: Map.Entry<Network, NetworkInfo>): Int {
-        val capabilities = connectivity?.getNetworkCapabilities(entry.key) ?: return 1000
-        val internetPenalty = if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) 0 else 500
-        val validatedPenalty = if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) 0 else 50
-        val basePriority = when {
-            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> 90
-            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> 0
-            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> 1
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                capabilities.hasTransport(TRANSPORT_USB) -> 2
-
-            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH) -> 3
-            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> 4
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM &&
-                capabilities.hasTransport(TRANSPORT_SATELLITE) -> 5
-
-            else -> 20
-        }
-        return basePriority + internetPenalty + validatedPenalty + entry.value.priorityPenalty
+        val snapshot = entry.value.capabilitySnapshot
+            ?: connectivity?.getNetworkCapabilities(entry.key)?.toSnapshot()
+            ?: return 1000
+        val internetPenalty = if (snapshot.hasInternet) 0 else 500
+        val validatedPenalty = if (snapshot.isValidated) 0 else 50
+        return snapshot.basePriority + internetPenalty + validatedPenalty + entry.value.priorityPenalty
     }
 
     @Synchronized
@@ -147,22 +176,16 @@ object NetworkObserver {
             currentDnsList = dnsList
             Core.updateDNS(dnsList.joinToString(","))
         }
-        if (preferred == null) {
+        val network = preferred?.key
+        if (network == null) {
             currentNetwork = null
             return
         }
-        val network = preferred.key
-        if (!isInitialized) {
-            isInitialized = true
-            currentNetwork = network
-            return
-        }
-        // Sockets protected onto the network we left stay bound to it; closing
-        // them makes apps reconnect now instead of after a TCP timeout.
-        if (currentNetwork != network) {
+        val previous = currentNetwork
+        currentNetwork = network
+        if (previous != null && previous != network) {
             Core.resetNetwork()
         }
-        currentNetwork = network
     }
 }
 

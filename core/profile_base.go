@@ -119,11 +119,15 @@ func loadConfigWithBase(base *SetupBase, configPath string) (*config.Config, err
 }
 
 func loadConfigWithBaseAndTimeout(base *SetupBase, configPath string, healthCheckTimeout int) (*config.Config, error) {
-	healthCheckTimeout = normalizeHealthCheckTimeout(healthCheckTimeout)
 	document, err := mergeProfileBase(base)
 	if err != nil {
 		return nil, err
 	}
+	return decodeAndBuildConfig(document, configPath, healthCheckTimeout)
+}
+
+func decodeAndBuildConfig(document *yaml.Node, writePath string, healthCheckTimeout int) (*config.Config, error) {
+	healthCheckTimeout = normalizeHealthCheckTimeout(healthCheckTimeout)
 	if root, err := documentMapping(document); err == nil {
 		patchHealthCheckTimeoutNode(root, healthCheckTimeout)
 	}
@@ -131,8 +135,10 @@ func loadConfigWithBaseAndTimeout(base *SetupBase, configPath string, healthChec
 	if err := document.Decode(raw); err != nil {
 		return nil, err
 	}
-	if err := writeConfigDocument(configPath, document); err != nil {
-		return nil, err
+	if writePath != "" {
+		if err := writeConfigDocument(writePath, document); err != nil {
+			return nil, err
+		}
 	}
 	cfg, err := config.ParseRawConfig(raw)
 	if err != nil {
@@ -141,17 +147,39 @@ func loadConfigWithBaseAndTimeout(base *SetupBase, configPath string, healthChec
 	return withPlatformLimits(cfg), nil
 }
 
+// clampYAMLInt 确保整型字段在 (0, maxVal] 范围内；若缺失、格式非法或超限则设为 defaultVal。
+func clampYAMLInt(mapping *yaml.Node, key string, defaultVal, maxVal int) {
+	if node := mappingValue(mapping, key); node != nil {
+		if val, err := strconv.Atoi(strings.TrimSpace(node.Value)); err == nil && val > 0 && val <= maxVal {
+			return
+		}
+	}
+	setMappingValue(mapping, key, &yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Tag:   "!!int",
+		Value: strconv.Itoa(defaultVal),
+	})
+}
+
+// ensureYAMLString 确保字符串字段非空；若缺失或为空白则设为 defaultVal。
+func ensureYAMLString(mapping *yaml.Node, key, defaultVal string) {
+	if node := mappingValue(mapping, key); node != nil && strings.TrimSpace(node.Value) != "" {
+		return
+	}
+	setMappingValue(mapping, key, &yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Tag:   "!!str",
+		Value: defaultVal,
+	})
+}
+
 func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 	if root == nil {
 		return
 	}
 	timeout = normalizeHealthCheckTimeout(timeout)
-	timeoutStr := strconv.Itoa(timeout)
-	intervalStr := strconv.Itoa(optimalHealthCheckInterval)
-	toleranceStr := strconv.Itoa(optimalTolerance)
 
-	groups := mappingValue(root, "proxy-groups")
-	if groups != nil && groups.Kind == yaml.SequenceNode {
+	if groups := mappingValue(root, "proxy-groups"); groups != nil && groups.Kind == yaml.SequenceNode {
 		for _, group := range groups.Content {
 			if group.Kind != yaml.MappingNode {
 				continue
@@ -160,115 +188,30 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 			if typeNode == nil {
 				continue
 			}
-			groupType := strings.ToLower(strings.TrimSpace(typeNode.Value))
-			if groupType == "url-test" || groupType == "fallback" || groupType == "load-balance" {
-				// 1. 限制健康检查超时上限（若原订阅设置了更短且合理的超时如 1500ms 则保留，否则限制为 timeout）
-				timeoutNode := mappingValue(group, "timeout")
-				needPatchTimeout := false
-				if timeoutNode == nil {
-					needPatchTimeout = true
-				} else if val, err := strconv.Atoi(strings.TrimSpace(timeoutNode.Value)); err != nil || val <= 0 || val > timeout {
-					needPatchTimeout = true
-				}
-				if needPatchTimeout {
-					setMappingValue(group, "timeout", &yaml.Node{
-						Kind:  yaml.ScalarNode,
-						Tag:   "!!int",
-						Value: timeoutStr,
-					})
-				}
-
-				// 2. 注入严格的状态码校验，防止被劫持或错误页面误导
-				if expectedNode := mappingValue(group, "expected-status"); expectedNode == nil || strings.TrimSpace(expectedNode.Value) == "" {
-					setMappingValue(group, "expected-status", &yaml.Node{
-						Kind:  yaml.ScalarNode,
-						Tag:   "!!str",
-						Value: defaultExpectedStatus,
-					})
-				}
-
-				// 3. 限制巡检周期上限为 120s，加快节点变差时的自动切换速度
-				intervalNode := mappingValue(group, "interval")
-				needPatchInterval := false
-				if intervalNode == nil {
-					needPatchInterval = true
-				} else if val, err := strconv.Atoi(strings.TrimSpace(intervalNode.Value)); err == nil && (val <= 0 || val > optimalHealthCheckInterval) {
-					needPatchInterval = true
-				}
-				if needPatchInterval {
-					setMappingValue(group, "interval", &yaml.Node{
-						Kind:  yaml.ScalarNode,
-						Tag:   "!!int",
-						Value: intervalStr,
-					})
-				}
-
-				// 4. 仅针对 url-test 压低 tolerance 上限：超过 80ms 或未设置时统一设为 50ms
-				if groupType == "url-test" {
-					tolNode := mappingValue(group, "tolerance")
-					needPatchTol := false
-					if tolNode == nil {
-						needPatchTol = true
-					} else if val, err := strconv.Atoi(strings.TrimSpace(tolNode.Value)); err == nil && (val <= 0 || val > maxAllowedTolerance) {
-						needPatchTol = true
-					}
-					if needPatchTol {
-						setMappingValue(group, "tolerance", &yaml.Node{
-							Kind:  yaml.ScalarNode,
-							Tag:   "!!int",
-							Value: toleranceStr,
-						})
-					}
-				}
+			switch strings.ToLower(strings.TrimSpace(typeNode.Value)) {
+			case "url-test":
+				clampYAMLInt(group, "timeout", timeout, timeout)
+				ensureYAMLString(group, "expected-status", defaultExpectedStatus)
+				clampYAMLInt(group, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
+				clampYAMLInt(group, "tolerance", optimalTolerance, maxAllowedTolerance)
+			case "fallback", "load-balance":
+				clampYAMLInt(group, "timeout", timeout, timeout)
+				ensureYAMLString(group, "expected-status", defaultExpectedStatus)
+				clampYAMLInt(group, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
 			}
 		}
 	}
 
-	providers := mappingValue(root, "proxy-providers")
-	if providers != nil && providers.Kind == yaml.MappingNode {
+	if providers := mappingValue(root, "proxy-providers"); providers != nil && providers.Kind == yaml.MappingNode {
 		for i := 1; i < len(providers.Content); i += 2 {
 			provider := providers.Content[i]
 			if provider.Kind != yaml.MappingNode {
 				continue
 			}
-			hc := mappingValue(provider, "health-check")
-			if hc != nil && hc.Kind == yaml.MappingNode {
-				hcTimeoutNode := mappingValue(hc, "timeout")
-				needPatchHcTimeout := false
-				if hcTimeoutNode == nil {
-					needPatchHcTimeout = true
-				} else if val, err := strconv.Atoi(strings.TrimSpace(hcTimeoutNode.Value)); err != nil || val <= 0 || val > timeout {
-					needPatchHcTimeout = true
-				}
-				if needPatchHcTimeout {
-					setMappingValue(hc, "timeout", &yaml.Node{
-						Kind:  yaml.ScalarNode,
-						Tag:   "!!int",
-						Value: timeoutStr,
-					})
-				}
-				if expectedNode := mappingValue(hc, "expected-status"); expectedNode == nil || strings.TrimSpace(expectedNode.Value) == "" {
-					setMappingValue(hc, "expected-status", &yaml.Node{
-						Kind:  yaml.ScalarNode,
-						Tag:   "!!str",
-						Value: defaultExpectedStatus,
-					})
-				}
-
-				intervalNode := mappingValue(hc, "interval")
-				if intervalNode == nil {
-					setMappingValue(hc, "interval", &yaml.Node{
-						Kind:  yaml.ScalarNode,
-						Tag:   "!!int",
-						Value: intervalStr,
-					})
-				} else if val, err := strconv.Atoi(strings.TrimSpace(intervalNode.Value)); err != nil || val <= 0 || val > optimalHealthCheckInterval {
-					setMappingValue(hc, "interval", &yaml.Node{
-						Kind:  yaml.ScalarNode,
-						Tag:   "!!int",
-						Value: intervalStr,
-					})
-				}
+			if hc := mappingValue(provider, "health-check"); hc != nil && hc.Kind == yaml.MappingNode {
+				clampYAMLInt(hc, "timeout", timeout, timeout)
+				ensureYAMLString(hc, "expected-status", defaultExpectedStatus)
+				clampYAMLInt(hc, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
 			}
 		}
 	}

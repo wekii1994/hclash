@@ -8,11 +8,19 @@ import (
 	"time"
 
 	"github.com/metacubex/mihomo/adapter"
+	"github.com/metacubex/mihomo/adapter/outboundgroup"
 	"github.com/metacubex/mihomo/component/resolver"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/dns"
 	"github.com/metacubex/mihomo/tunnel"
 	"github.com/metacubex/mihomo/tunnel/statistic"
+)
+
+const (
+	networkSettleDelay      = 300 * time.Millisecond
+	networkRetryBackoff     = 1200 * time.Millisecond
+	groupProbeTimeout       = 2800 * time.Millisecond
+	primaryProbeConcurrency = 3
 )
 
 var (
@@ -60,8 +68,6 @@ func handleResetConnections() bool {
 	return true
 }
 
-// A network change clears rather than waits out the TTLs: mihomo serves an
-// expired entry once more before it refreshes it.
 func handleClearDnsCache() {
 	configMu.Lock()
 	defer configMu.Unlock()
@@ -83,15 +89,181 @@ func touchGroup(group *adapter.Proxy) {
 	_ = group.Unwrap(nil, true)
 }
 
-// A connection that went out over a network the device has left hangs until
-// TCP gives up on it, and so do the DNS clients' pooled connections.
+func isAutoGroup(p *adapter.Proxy) bool {
+	if p == nil {
+		return false
+	}
+	switch p.Type() {
+	case C.URLTest, C.Fallback:
+		return true
+	default:
+		return false
+	}
+}
+
+func hasPrimaryAutoKeyword(name string) bool {
+	lower := strings.ToLower(name)
+	for _, kw := range []string{"自动", "auto", "url-test", "best", "优选", "极速", "主力"} {
+		if strings.Contains(lower, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+// classifyAutoGroups 结合当前活跃路由拓扑（Selector -> Now 引用链）与名称特征，划分主次自动策略组。
+func classifyAutoGroups() (primary []*adapter.Proxy, secondary []*adapter.Proxy) {
+	allProxies := tunnel.Proxies()
+	activeNames := make(map[string]struct{})
+
+	// 沿着所有 Selector 的当前选中项向下展开，标记正在承载流量的策略组
+	for _, raw := range allProxies {
+		p, ok := raw.(*adapter.Proxy)
+		if !ok || p.Type() != C.Selector {
+			continue
+		}
+		curr := p
+		for depth := 0; depth < 6 && curr != nil; depth++ {
+			pg, ok := curr.ProxyAdapter.(outboundgroup.ProxyGroup)
+			if !ok {
+				break
+			}
+			nowName := pg.Now()
+			if nowName == "" {
+				break
+			}
+			if _, visited := activeNames[nowName]; visited {
+				break
+			}
+			activeNames[nowName] = struct{}{}
+			nextRaw, exists := allProxies[nowName]
+			if !exists {
+				break
+			}
+			nextProxy, ok := nextRaw.(*adapter.Proxy)
+			if !ok {
+				break
+			}
+			curr = nextProxy
+		}
+	}
+
+	for _, raw := range allProxies {
+		p, ok := raw.(*adapter.Proxy)
+		if !ok || !isAutoGroup(p) {
+			continue
+		}
+		_, isActive := activeNames[p.Name()]
+		if isActive || hasPrimaryAutoKeyword(p.Name()) {
+			primary = append(primary, p)
+		} else {
+			secondary = append(secondary, p)
+		}
+	}
+
+	if len(primary) == 0 && len(secondary) > 0 {
+		primary = secondary
+		secondary = nil
+	}
+
+	sort.SliceStable(primary, func(i, j int) bool {
+		_, aActive := activeNames[primary[i].Name()]
+		_, bActive := activeNames[primary[j].Name()]
+		if aActive != bActive {
+			return aActive
+		}
+		return primary[i].Name() < primary[j].Name()
+	})
+	return primary, secondary
+}
+
+func snapshotGroupSelections(groups []*adapter.Proxy) map[string]string {
+	res := make(map[string]string, len(groups))
+	for _, g := range groups {
+		if pg, ok := g.ProxyAdapter.(outboundgroup.ProxyGroup); ok {
+			res[g.Name()] = pg.Now()
+		}
+	}
+	return res
+}
+
+func hasSelectionChanged(before map[string]string, groups []*adapter.Proxy) bool {
+	for _, g := range groups {
+		if pg, ok := g.ProxyAdapter.(outboundgroup.ProxyGroup); ok {
+			if before[g.Name()] != pg.Now() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func probeGroupsConcurrently(ctx context.Context, groups []*adapter.Proxy, url string) bool {
+	if len(groups) == 0 {
+		return false
+	}
+	maxConcurrent := primaryProbeConcurrency
+	if len(groups) < maxConcurrent {
+		maxConcurrent = len(groups)
+	}
+	sem := make(chan struct{}, maxConcurrent)
+	var (
+		wg         sync.WaitGroup
+		mu         sync.Mutex
+		anySuccess bool
+	)
+
+	for _, group := range groups {
+		if ctx.Err() != nil {
+			break
+		}
+		wg.Add(1)
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			wg.Done()
+			break
+		}
+		go func(g *adapter.Proxy) {
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
+			if ctx.Err() != nil {
+				return
+			}
+			testCtx, cancel := context.WithTimeout(ctx, groupProbeTimeout)
+			defer cancel()
+			delays, err := g.URLTest(testCtx, url, delayTestExpectedStatus)
+			if err == nil && len(delays) > 0 {
+				mu.Lock()
+				anySuccess = true
+				mu.Unlock()
+			}
+		}(group)
+	}
+	wg.Wait()
+	return anySuccess
+}
+
+func waitOrCancel(ctx context.Context, d time.Duration) bool {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
 func handleResetNetwork() {
 	handleCloseConnections()
 	handleClearDnsCache()
 
 	resetNetworkMu.Lock()
 	if resetNetworkCancel != nil {
-		resetNetworkCancel() // 立即中止上一轮未完成的等待或 URLTest 请求
+		resetNetworkCancel()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	resetNetworkCancel = cancel
@@ -100,88 +272,25 @@ func handleResetNetwork() {
 	go func(resetCtx context.Context) {
 		defer cancel()
 
-		// 1. 使用 select 替代 time.Sleep，支持切网抖动时立即中断退出
-		timer := time.NewTimer(1500 * time.Millisecond)
-		defer timer.Stop()
-		select {
-		case <-resetCtx.Done():
+		if !waitOrCancel(resetCtx, networkSettleDelay) {
 			return
-		case <-timer.C:
 		}
 
-		// 2. 收集自动选路策略组并区分主自动组与次级自动组
-		var primaryGroups []*adapter.Proxy
-		var secondaryGroups []*adapter.Proxy
+		primaryGroups, secondaryGroups := classifyAutoGroups()
+		beforeSelections := snapshotGroupSelections(primaryGroups)
 
-		isPrimary := func(name string) bool {
-			lower := strings.ToLower(name)
-			return strings.Contains(lower, "自动") ||
-				strings.Contains(lower, "auto") ||
-				strings.Contains(lower, "url-test") ||
-				strings.Contains(lower, "best")
-		}
-
-		for _, proxy := range tunnel.Proxies() {
-			p, ok := proxy.(*adapter.Proxy)
-			if !ok {
-				continue
-			}
-			switch p.Type() {
-			case C.URLTest, C.Fallback:
-				if isPrimary(p.Name()) {
-					primaryGroups = append(primaryGroups, p)
-				} else {
-					secondaryGroups = append(secondaryGroups, p)
-				}
-			}
-		}
-
-		if len(primaryGroups) == 0 && len(secondaryGroups) > 0 {
-			primaryGroups = secondaryGroups
-			secondaryGroups = nil
-		}
-
-		// 3. 次级自动组仅做轻量级 Touch 唤醒懒加载，不抢占切网初期的并发带宽
 		for _, sec := range secondaryGroups {
 			touchGroup(sec)
 		}
 
-		// 4. 主自动组限流并发测速（底层会自动刷新所引用 Provider 节点的延迟，无需重复调用 provider.HealthCheck）
 		if len(primaryGroups) > 0 {
-			sort.SliceStable(primaryGroups, func(i, j int) bool {
-				return primaryGroups[i].Name() < primaryGroups[j].Name()
-			})
-
 			url := currentTestURL()
-			maxConcurrent := 3
-			if len(primaryGroups) < maxConcurrent {
-				maxConcurrent = len(primaryGroups)
+			ok := probeGroupsConcurrently(resetCtx, primaryGroups, url)
+			if !ok && waitOrCancel(resetCtx, networkRetryBackoff) {
+				handleClearDnsCache()
+				_ = probeGroupsConcurrently(resetCtx, primaryGroups, url)
 			}
-			sem := make(chan struct{}, maxConcurrent)
-			var wg sync.WaitGroup
-
-			for _, group := range primaryGroups {
-				if resetCtx.Err() != nil {
-					break
-				}
-				wg.Add(1)
-				sem <- struct{}{}
-				go func(g *adapter.Proxy) {
-					defer func() {
-						<-sem
-						wg.Done()
-					}()
-					if resetCtx.Err() != nil {
-						return
-					}
-					testCtx, testCancel := context.WithTimeout(resetCtx, 3500*time.Millisecond)
-					defer testCancel()
-					_, _ = g.URLTest(testCtx, url, delayTestExpectedStatus)
-				}(group)
-			}
-			wg.Wait()
 		} else {
-			// 仅当不存在任何 URLTest/Fallback 策略组时，才触发外部 Provider 健康检查兜底
 			for _, pd := range tunnel.ProvidersSnapshot() {
 				go func(provider interface{ HealthCheck() }) {
 					provider.HealthCheck()
@@ -189,9 +298,14 @@ func handleResetNetwork() {
 			}
 		}
 
-		if resetCtx.Err() == nil {
-			changeRoute(routeMoved)
+		if resetCtx.Err() != nil {
+			return
 		}
+
+		if hasSelectionChanged(beforeSelections, primaryGroups) {
+			handleCloseConnections()
+		}
+		changeRoute(routeMoved)
 	}(ctx)
 }
 
