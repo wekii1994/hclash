@@ -225,8 +225,44 @@ abstract class UnpackJniLibs : DefaultTask() {
     }
 }
 
+val ensureMihomoPatch =
+    tasks.register("ensureMihomoPatch") {
+        val patchFile = File(goModule, "patches/mihomo-fixes.patch")
+        val submoduleDir = File(goModule, "Clash.Meta")
+        inputs.file(patchFile)
+        doLast {
+            if (!submoduleDir.exists()) {
+                throw GradleException("Mihomo submodule directory $submoduleDir does not exist")
+            }
+            if (!patchFile.exists()) {
+                throw GradleException("Mihomo companion patch file $patchFile not found")
+            }
+            val isApplied = execOperations.exec {
+                workingDir(submoduleDir)
+                commandLine("git", "apply", "--reverse", "--check", patchFile.absolutePath)
+                isIgnoreExitValue = true
+            }.exitValue == 0
+            if (!isApplied) {
+                val canApply = execOperations.exec {
+                    workingDir(submoduleDir)
+                    commandLine("git", "apply", "--check", patchFile.absolutePath)
+                    isIgnoreExitValue = true
+                }.exitValue == 0
+                if (canApply) {
+                    execOperations.exec {
+                        workingDir(submoduleDir)
+                        commandLine("git", "apply", patchFile.absolutePath)
+                    }
+                } else {
+                    throw GradleException("Mihomo submodule cannot apply companion patch cleanly")
+                }
+            }
+        }
+    }
+
 val bindCore =
     tasks.register<GomobileBind>("bindCore") {
+        dependsOn(ensureMihomoPatch)
         sources.from(
             fileTree(goModule) {
                 exclude("**/*_test.go", "**/testdata/**", "cmd/**", "Clash.Meta/.github/**")

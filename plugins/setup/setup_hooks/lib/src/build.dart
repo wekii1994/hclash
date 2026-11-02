@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 
 import 'build_cache.dart';
+import 'error.dart';
 import 'fingerprint.dart';
 import 'go_builder.dart';
 import 'options.dart';
@@ -10,6 +13,43 @@ import 'target.dart';
 import 'util.dart';
 
 final _log = Logger('setup_hooks');
+
+void ensureMihomoPatch(String rootDir) {
+  final patchFile = File(p.join(rootDir, 'core', 'patches', 'mihomo-fixes.patch'));
+  final submoduleDir = Directory(p.join(rootDir, 'core', 'Clash.Meta'));
+  if (!submoduleDir.existsSync()) {
+    throw BuildException(
+      'Mihomo submodule directory ${submoduleDir.path} does not exist.',
+    );
+  }
+  if (!patchFile.existsSync()) {
+    throw BuildException('Patch file ${patchFile.path} not found.');
+  }
+  final checkResult = Process.runSync(
+    'git',
+    ['-C', submoduleDir.path, 'apply', '--check', patchFile.path],
+  );
+  if (checkResult.exitCode == 0) {
+    _log.info('Applying Mihomo companion patch to ${submoduleDir.path}...');
+    final applyResult = Process.runSync(
+      'git',
+      ['-C', submoduleDir.path, 'apply', patchFile.path],
+    );
+    if (applyResult.exitCode != 0) {
+      throw BuildException('Failed to apply Mihomo patch: ${applyResult.stderr}');
+    }
+  } else {
+    final reverseCheck = Process.runSync(
+      'git',
+      ['-C', submoduleDir.path, 'apply', '--reverse', '--check', patchFile.path],
+    );
+    if (reverseCheck.exitCode != 0) {
+      throw BuildException(
+        'Mihomo submodule has conflicts or cannot apply companion patch cleanly.',
+      );
+    }
+  }
+}
 
 class BuildRequest {
   const BuildRequest({
@@ -53,6 +93,8 @@ Future<BuildReport> buildPlatform(BuildRequest request) async {
     null => const <String>[],
     final dir => collectPackageInputs(dir),
   };
+
+  ensureMihomoPatch(rootDir);
 
   final core = await GoBuilder(
     rootDir: rootDir,

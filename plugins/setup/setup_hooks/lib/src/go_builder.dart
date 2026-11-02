@@ -175,7 +175,7 @@ class GoBuilder {
       }
     }
 
-    for (final name in const ['go.mod', 'go.sum']) {
+    for (final name in const ['go.mod', 'go.sum', 'patches/mihomo-fixes.patch']) {
       final filePath = p.join(_corePath, name);
       if (File(filePath).existsSync()) inputs.add(filePath);
     }

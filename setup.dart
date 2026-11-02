@@ -411,8 +411,15 @@ Future<int> _runLinuxDependencyCommand(List<String> command) async {
 void _ensureMihomoPatch(String rootDir) {
   final patchFile = File(p.join(rootDir, 'core', 'patches', 'mihomo-fixes.patch'));
   final submoduleDir = Directory(p.join(rootDir, 'core', 'Clash.Meta'));
-  if (!patchFile.existsSync() || !submoduleDir.existsSync()) {
-    return;
+  if (!submoduleDir.existsSync()) {
+    stderr.writeln(
+      'Error: Mihomo submodule directory ${submoduleDir.path} does not exist.',
+    );
+    exit(1);
+  }
+  if (!patchFile.existsSync()) {
+    stderr.writeln('Error: Patch file ${patchFile.path} not found.');
+    exit(1);
   }
   final checkResult = Process.runSync(
     'git',
