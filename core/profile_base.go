@@ -177,6 +177,74 @@ func ensureYAMLString(mapping *yaml.Node, key, defaultVal string) {
 	})
 }
 
+func cloneYAMLNode(node *yaml.Node, depth ...int) *yaml.Node {
+	if node == nil {
+		return nil
+	}
+	d := 0
+	if len(depth) > 0 {
+		d = depth[0]
+	}
+	if d > 64 {
+		return nil
+	}
+	node = resolveAlias(node)
+	clone := *node
+	if len(node.Content) > 0 {
+		clone.Content = make([]*yaml.Node, len(node.Content))
+		for i, child := range node.Content {
+			clone.Content[i] = cloneYAMLNode(child, d+1)
+		}
+	}
+	return &clone
+}
+
+func forEachMappingEntry(mapping *yaml.Node, fn func(key string, value *yaml.Node)) {
+	mapping = resolveAlias(mapping)
+	if mapping == nil || mapping.Kind != yaml.MappingNode {
+		return
+	}
+	seenKeys := make(map[string]bool)
+	var visit func(m *yaml.Node, depth int)
+	visit = func(m *yaml.Node, depth int) {
+		if depth > 64 {
+			return
+		}
+		m = resolveAlias(m)
+		if m == nil || m.Kind != yaml.MappingNode {
+			return
+		}
+		// First pass: direct non-<< keys
+		for i := 0; i+1 < len(m.Content); i += 2 {
+			k := m.Content[i]
+			if k.Kind == yaml.ScalarNode && k.Value != "<<" {
+				if !seenKeys[k.Value] {
+					seenKeys[k.Value] = true
+					fn(k.Value, m.Content[i+1])
+				}
+			}
+		}
+		// Second pass: merge keys (<<)
+		for i := 0; i+1 < len(m.Content); i += 2 {
+			k := m.Content[i]
+			if k.Kind == yaml.ScalarNode && k.Value == "<<" {
+				source := resolveAlias(m.Content[i+1])
+				if source == nil {
+					continue
+				}
+				if source.Kind == yaml.SequenceNode {
+					for _, item := range source.Content {
+						visit(item, depth+1)
+					}
+				} else if source.Kind == yaml.MappingNode {
+					visit(source, depth+1)
+				}
+			}
+		}
+	}
+	visit(mapping, 0)
+}
+
 func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 	if root == nil {
 		return
@@ -212,23 +280,22 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 	}
 
 	if providers := mappingValue(root, "proxy-providers"); providers != nil {
-		providers = resolveAlias(providers)
-		if providers.Kind == yaml.MappingNode {
-			for i := 1; i < len(providers.Content); i += 2 {
-				provider := resolveAlias(providers.Content[i])
-				if provider.Kind != yaml.MappingNode {
-					continue
-				}
-				if hc := mappingValue(provider, "health-check"); hc != nil {
-					hc = resolveAlias(hc)
-					if hc.Kind == yaml.MappingNode {
-						clampYAMLInt(hc, "timeout", timeout, timeout)
-						ensureYAMLString(hc, "expected-status", defaultExpectedStatus)
-						clampYAMLInt(hc, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
-					}
+		forEachMappingEntry(providers, func(name string, value *yaml.Node) {
+			provider := resolveAlias(value)
+			if provider.Kind != yaml.MappingNode {
+				return
+			}
+			if hcNode := mappingValue(provider, "health-check"); hcNode != nil {
+				// Detach/clone to prevent mutating shared alias targets (such as common policy anchors)
+				hc := cloneYAMLNode(hcNode)
+				if hc.Kind == yaml.MappingNode {
+					setMappingValue(provider, "health-check", hc)
+					clampYAMLInt(hc, "timeout", timeout, timeout)
+					ensureYAMLString(hc, "expected-status", defaultExpectedStatus)
+					clampYAMLInt(hc, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
 				}
 			}
-		}
+		})
 	}
 }
 

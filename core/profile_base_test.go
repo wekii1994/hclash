@@ -528,3 +528,80 @@ proxy-groups: *groups
 		}
 	}
 }
+
+func TestPatchHealthCheckSharedAnchorNotMutated(t *testing.T) {
+	yamlContent := `
+x-policy: &common {interval: 3600, timeout: 9000}
+proxy-providers:
+  p:
+    <<: *common
+    type: http
+    url: https://example.com/sub
+    path: ./p.yaml
+    health-check: *common
+`
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(yamlContent), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	root, err := documentMapping(&doc)
+	if err != nil {
+		t.Fatalf("documentMapping: %v", err)
+	}
+
+	patchHealthCheckTimeoutNode(root, 1500)
+
+	var out map[string]any
+	if err := doc.Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	providers := out["proxy-providers"].(map[string]any)
+	p := providers["p"].(map[string]any)
+	if fetchInterval := p["interval"]; fetchInterval != 3600 {
+		t.Fatalf("subscription fetch interval mutated to %v via shared anchor, want 3600", fetchInterval)
+	}
+	hc := p["health-check"].(map[string]any)
+	if hcInterval := hc["interval"]; hcInterval != 120 {
+		t.Fatalf("health-check interval = %v, want 120", hcInterval)
+	}
+	if hcTimeout := hc["timeout"]; hcTimeout != 1500 {
+		t.Fatalf("health-check timeout = %v, want 1500", hcTimeout)
+	}
+}
+
+func TestPatchHealthCheckMergedProvidersNormalized(t *testing.T) {
+	yamlContent := `
+x-providers: &providers
+  p:
+    type: http
+    url: https://example.com/sub
+    path: ./p.yaml
+    health-check: {enable: true, timeout: 9000}
+proxy-providers:
+  <<: *providers
+`
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(yamlContent), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	root, err := documentMapping(&doc)
+	if err != nil {
+		t.Fatalf("documentMapping: %v", err)
+	}
+
+	patchHealthCheckTimeoutNode(root, 1500)
+
+	var out map[string]any
+	if err := doc.Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	providers := out["proxy-providers"].(map[string]any)
+	p := providers["p"].(map[string]any)
+	hc := p["health-check"].(map[string]any)
+	if hcTimeout := hc["timeout"]; hcTimeout != 1500 {
+		t.Fatalf("merged provider health-check timeout = %v, want 1500", hcTimeout)
+	}
+}
+
