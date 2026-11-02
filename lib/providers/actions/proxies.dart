@@ -46,6 +46,7 @@ class ProxiesAction extends _$ProxiesAction {
 
   final Map<String, String> _pendingSelectedRollback = {};
   int _activeGeneration = 0;
+  int get activeGeneration => _activeGeneration;
 
   @override
   void build() {

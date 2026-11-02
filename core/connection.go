@@ -231,6 +231,15 @@ func waitOrCancel(ctx context.Context, d time.Duration) bool {
 	}
 }
 
+func cancelResetNetwork() {
+	resetNetworkMu.Lock()
+	if resetNetworkCancel != nil {
+		resetNetworkCancel()
+		resetNetworkCancel = nil
+	}
+	resetNetworkMu.Unlock()
+}
+
 func handleResetNetwork() {
 	handleCloseConnections()
 	handleClearDnsCache()
@@ -243,10 +252,15 @@ func handleResetNetwork() {
 	resetNetworkCancel = cancel
 	resetNetworkMu.Unlock()
 
+	startEpoch, _ := routeStamp()
+
 	go func(resetCtx context.Context) {
 		defer cancel()
 
 		if !waitOrCancel(resetCtx, networkSettleDelay) {
+			return
+		}
+		if endEpoch, _ := routeStamp(); endEpoch != startEpoch {
 			return
 		}
 
@@ -261,10 +275,18 @@ func handleResetNetwork() {
 			ok := probeGroupsConcurrently(resetCtx, primaryGroups)
 			if !ok && waitOrCancel(resetCtx, networkRetryBackoff) {
 				handleClearDnsCache()
-				_ = probeGroupsConcurrently(resetCtx, primaryGroups)
+				if endEpoch, _ := routeStamp(); endEpoch == startEpoch {
+					_ = probeGroupsConcurrently(resetCtx, primaryGroups)
+				}
 			}
 		} else {
 			for _, pd := range tunnel.ProvidersSnapshot() {
+				if resetCtx.Err() != nil {
+					break
+				}
+				if endEpoch, _ := routeStamp(); endEpoch != startEpoch {
+					break
+				}
 				go func(provider interface{ HealthCheck() }) {
 					provider.HealthCheck()
 				}(pd)
@@ -272,6 +294,9 @@ func handleResetNetwork() {
 		}
 
 		if resetCtx.Err() != nil {
+			return
+		}
+		if endEpoch, _ := routeStamp(); endEpoch != startEpoch {
 			return
 		}
 

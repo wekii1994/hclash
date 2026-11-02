@@ -22,6 +22,16 @@ func init() {
 		if lookupProxy(name) == nil {
 			return
 		}
+		bumpTime := lastEpochBumpNano.Load()
+		if bumpTime > 0 {
+			duration := time.Duration(delay) * time.Millisecond
+			if timedOut || delay == 0 {
+				duration = defaultDelayTestTimeout
+			}
+			if time.Now().Add(-duration).UnixNano() < bumpTime {
+				return
+			}
+		}
 		sendMessage(DelayMessage, &Delay{Url: url, Name: name, Value: delayValue(delay, timedOut)})
 	}
 	statistic.DefaultRequestNotify = func(c statistic.Tracker) {

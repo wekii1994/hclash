@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/metacubex/mihomo/constant"
@@ -39,6 +40,7 @@ type routeTracker struct {
 
 var (
 	currentRoute routeTracker
+	lastEpochBumpNano atomic.Int64
 
 	publishRoute = func(state RouteState) {
 		sendMessage(RouteChangedMessage, state)
@@ -131,6 +133,8 @@ func refreshRoute() {
 }
 
 func bumpRouteEpoch() {
+	lastEpochBumpNano.Store(time.Now().UnixNano())
+	cancelResetNetwork()
 	changeRoute(routeReset)
 }
 

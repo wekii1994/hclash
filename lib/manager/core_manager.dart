@@ -130,7 +130,7 @@ class _CoreContainerState extends ConsumerState<CoreManager>
       return;
     }
     final proxiesAction = ref.read(proxiesActionProvider.notifier);
-    proxiesAction.setDelay(delay);
+    proxiesAction.setDelay(delay, proxiesAction.activeGeneration);
     debouncer.call(FunctionTag.updateDelay, () async {
       proxiesAction.updateGroupsDebounce();
     }, duration: const Duration(milliseconds: 5000));
