@@ -479,8 +479,8 @@ Future<void> main() async {
         final aggregated = e.getAggregatedSites(limit: 10);
         check(
           aggregated.isNotEmpty &&
-              aggregated.first.service.name == 'YouTube' &&
-              aggregated.first.totalUsage == 201 * 9,
+              aggregated.first.displayName == 'YouTube' &&
+              aggregated.first.total == 201 * 9,
           'YouTube should be ranked #1 with 1809 total units in aggregated view',
         );
       } finally {
