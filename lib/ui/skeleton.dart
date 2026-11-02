@@ -24,9 +24,8 @@ class SkeletonText extends StatelessWidget {
               child: Center(
                 child: SkeletonPill(
                   width: double.infinity,
-                  height: MediaQuery.textScalerOf(
-                    context,
-                  ).scale(style.fontSize ?? 14),
+                  height: MediaQuery.textScalerOf(context)
+                      .scale(style.fontSize ?? 14),
                 ),
               ),
             ),

@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'card.dart';
+
 import 'package:fl_clash/views/traffic_statistics.dart';
 
 const _minSpeedScale = 8 * 1024.0;

@@ -281,10 +281,8 @@ class Profiles extends _$Profiles {
           }),
         );
       } catch (e, s) {
-        if (applied case (
-          final previous,
-          final next,
-        ) when identical(state, next)) {
+        if (applied case (final previous, final next)
+            when identical(state, next)) {
           state = previous;
         }
         Error.throwWithStackTrace(e, s);

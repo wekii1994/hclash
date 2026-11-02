@@ -8,13 +8,14 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 
 typedef CloseContainerActionCallback<S> = void Function({S? returnValue});
-typedef OpenContainerBuilder<S> =
-    Widget Function(
-      BuildContext context,
-      CloseContainerActionCallback<S> action,
-    );
-typedef CloseContainerBuilder =
-    Widget Function(BuildContext context, VoidCallback action);
+typedef OpenContainerBuilder<S> = Widget Function(
+  BuildContext context,
+  CloseContainerActionCallback<S> action,
+);
+typedef CloseContainerBuilder = Widget Function(
+  BuildContext context,
+  VoidCallback action,
+);
 
 typedef ClosedCallback<S> = void Function(S data);
 

@@ -274,9 +274,8 @@ void main() {
 
     test('a legacy custom user agent joins the presets', () {
       expect(
-        AppSettingProps.fromJson({
-          'customUserAgent': ' CustomUA/1.0 ',
-        }).userAgents,
+        AppSettingProps.fromJson({'customUserAgent': ' CustomUA/1.0 '})
+            .userAgents,
         [...defaultUserAgents, 'CustomUA/1.0'],
       );
       expect(
@@ -316,10 +315,8 @@ void main() {
         false,
       );
       expect(
-        AppSettingProps.fromJson({
-          'showLabel': false,
-          'sidebarExpanded': true,
-        }).sidebarExpanded,
+        AppSettingProps.fromJson({'showLabel': false, 'sidebarExpanded': true})
+            .sidebarExpanded,
         true,
       );
       expect(AppSettingProps.fromJson({}).sidebarExpanded, true);
@@ -625,9 +622,10 @@ void main() {
       );
 
       final defaults = defaultClashConfig.toJson();
-      final liveKeys = liveParams(
-        defaultClashConfig,
-      ).toJson().keys.where(defaults.containsKey);
+      final liveKeys = liveParams(defaultClashConfig)
+          .toJson()
+          .keys
+          .where(defaults.containsKey);
       expect(liveKeys, isNotEmpty);
       for (final key in liveKeys) {
         expect(live.toJson()[key], isNot(defaults[key]), reason: key);

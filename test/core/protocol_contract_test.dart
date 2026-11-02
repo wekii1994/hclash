@@ -172,11 +172,9 @@ class _EmptyConfigCoreHandler extends _RecordingCoreHandler {
 
 void main() {
   test('method call keeps structured arguments', () async {
-    final fixture =
-        json.decode(
-              await File('test/fixtures/core_protocol.json').readAsString(),
-            )
-            as Map<String, dynamic>;
+    final fixture = json.decode(
+      await File('test/fixtures/core_protocol.json').readAsString(),
+    ) as Map<String, dynamic>;
     final call = CoreMethodCall.fromJson(
       Map<String, Object?>.from(fixture['methodCall'] as Map),
     );
@@ -308,11 +306,9 @@ void main() {
   );
 
   test('event contract accepts batches and legacy single events', () async {
-    final fixture =
-        json.decode(
-              await File('test/fixtures/core_protocol.json').readAsString(),
-            )
-            as Map<String, dynamic>;
+    final fixture = json.decode(
+      await File('test/fixtures/core_protocol.json').readAsString(),
+    ) as Map<String, dynamic>;
     final call = CoreMethodCall.fromJson(
       Map<String, Object?>.from(fixture['eventCall'] as Map),
     );
@@ -534,11 +530,9 @@ void main() {
   });
 
   test('method response separates result and structured errors', () async {
-    final fixture =
-        json.decode(
-              await File('test/fixtures/core_protocol.json').readAsString(),
-            )
-            as Map<String, dynamic>;
+    final fixture = json.decode(
+      await File('test/fixtures/core_protocol.json').readAsString(),
+    ) as Map<String, dynamic>;
     final success = CoreMethodResponse.fromJson(
       Map<String, Object?>.from(fixture['successResponse'] as Map),
     );

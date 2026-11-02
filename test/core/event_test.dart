@@ -68,10 +68,8 @@ void main() {
     coreEventManager.addListener(listener);
     addTearDown(() => coreEventManager.removeListener(listener));
 
-    coreEventsFromData({
-      'type': 'dialerLoop',
-      'data': 'Front',
-    }).forEach(coreEventManager.sendEvent);
+    coreEventsFromData({'type': 'dialerLoop', 'data': 'Front'})
+        .forEach(coreEventManager.sendEvent);
     await pumpEventQueue();
 
     expect(listener.dialerLoops, ['Front']);

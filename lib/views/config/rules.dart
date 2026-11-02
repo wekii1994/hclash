@@ -60,9 +60,9 @@ class _AddedRulesViewState extends ConsumerState<AddedRulesView> {
   }
 
   void _handleSelectAll() {
-    final ids = _visibleRules(
-      ref.read(globalRulesProvider).value ?? [],
-    ).map((item) => item.id).toSet();
+    final ids = _visibleRules(ref.read(globalRulesProvider).value ?? [])
+        .map((item) => item.id)
+        .toSet();
     ref.read(itemsProvider(_key).notifier).update((selected) {
       return selected.containsAll(ids) ? {} : ids;
     });
@@ -82,9 +82,10 @@ class _AddedRulesViewState extends ConsumerState<AddedRulesView> {
       return;
     }
     final selectedRules = ref.read(itemsProvider(_key));
-    final deletedIds = _visibleRules(
-      ref.read(globalRulesProvider).value ?? [],
-    ).map((item) => item.id).where(selectedRules.contains).toSet();
+    final deletedIds = _visibleRules(ref.read(globalRulesProvider).value ?? [])
+        .map((item) => item.id)
+        .where(selectedRules.contains)
+        .toSet();
     ref.read(globalRulesProvider.notifier).delAll(deletedIds);
     ref.read(itemsProvider(_key).notifier).value = selectedRules.difference(
       deletedIds,

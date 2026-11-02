@@ -63,16 +63,19 @@ void main() {
     expect(unlabelled, isEmpty, reason: unlabelled.join('\n'));
   });
 
-  test('the exempted button still gets its label from an enclosing Tooltip', () {
-    final source = File(_wrappedInTooltip).readAsStringSync();
+  test(
+    'the exempted button still gets its label from an enclosing Tooltip',
+    () {
+      final source = File(_wrappedInTooltip).readAsStringSync();
 
-    expect(
-      source,
-      contains('Tooltip('),
-      reason:
-          '$_wrappedInTooltip is exempted from the tooltip rule because an '
-          'enclosing Tooltip labels it. That wrapper is gone; either restore it '
-          'or give the button its own tooltip and drop the exemption.',
-    );
-  });
+      expect(
+        source,
+        contains('Tooltip('),
+        reason:
+            '$_wrappedInTooltip is exempted from the tooltip rule because an '
+            'enclosing Tooltip labels it. That wrapper is gone; either restore it '
+            'or give the button its own tooltip and drop the exemption.',
+      );
+    },
+  );
 }

@@ -96,11 +96,9 @@ matrix:
   });
 
   test('writes non-finite doubles as YAML floats', () {
-    final read =
-        loadYaml(
-              writeYaml([double.nan, double.infinity, double.negativeInfinity]),
-            )
-            as List;
+    final read = loadYaml(
+      writeYaml([double.nan, double.infinity, double.negativeInfinity]),
+    ) as List;
 
     expect((read[0] as double).isNaN, isTrue);
     expect(read.sublist(1), [double.infinity, double.negativeInfinity]);

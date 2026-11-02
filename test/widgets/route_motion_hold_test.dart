@@ -152,9 +152,10 @@ void main() {
           ),
         ),
       );
-      ProviderScope.containerOf(
-        tester.element(find.text('open')),
-      ).read(viewSizeProvider.notifier).value = view;
+      ProviderScope.containerOf(tester.element(find.text('open')))
+              .read(viewSizeProvider.notifier)
+              .value =
+          view;
       await tester.pumpAndSettle();
       await tester.tap(find.text('open'));
       await tester.pump();

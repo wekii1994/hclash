@@ -497,19 +497,16 @@ void main() {
       _provider('rule-a', type: 'Rule'),
     ]);
     final completer = Completer<String>();
-    when(
-      () => core.updateExternalProvider('proxy-a'),
-    ).thenAnswer((_) => completer.future);
-    when(
-      () => core.updateExternalProvider('rule-a'),
-    ).thenAnswer((_) async => '');
+    when(() => core.updateExternalProvider('proxy-a'))
+        .thenAnswer((_) => completer.future);
+    when(() => core.updateExternalProvider('rule-a'))
+        .thenAnswer((_) async => '');
     when(() => core.getExternalProvider(any())).thenAnswer(
       (invocation) async =>
           _provider(invocation.positionalArguments.first as String),
     );
-    when(
-      () => core.getProxies(),
-    ).thenAnswer((_) async => const ProxiesData(proxies: {}, all: []));
+    when(() => core.getProxies())
+        .thenAnswer((_) async => const ProxiesData(proxies: {}, all: []));
     await pump(tester, container);
 
     await tester.tap(find.byGlyph(AppGlyphs.sync));
@@ -552,9 +549,8 @@ void main() {
         message: '503 Service Unavailable',
       ),
     );
-    when(
-      () => core.getProxies(),
-    ).thenAnswer((_) async => const ProxiesData(proxies: {}, all: []));
+    when(() => core.getProxies())
+        .thenAnswer((_) async => const ProxiesData(proxies: {}, all: []));
     await pump(tester, container, withStatusManager: true);
 
     await tester.tap(find.byGlyph(AppGlyphs.sync));
@@ -614,12 +610,10 @@ void main() {
         data: any(named: 'data'),
       ),
     ).thenAnswer((_) async => '');
-    when(
-      () => core.getExternalProvider('editable'),
-    ).thenAnswer((_) async => provider);
-    when(
-      () => core.getProxies(),
-    ).thenAnswer((_) async => const ProxiesData(proxies: {}, all: []));
+    when(() => core.getExternalProvider('editable'))
+        .thenAnswer((_) async => provider);
+    when(() => core.getProxies())
+        .thenAnswer((_) async => const ProxiesData(proxies: {}, all: []));
 
     final container = containerFor(tester, [provider]);
     await pump(tester, container);
@@ -764,15 +758,12 @@ void main() {
   ) async {
     final provider = _provider('http-one');
     final completer = Completer<String>();
-    when(
-      () => core.updateExternalProvider('http-one'),
-    ).thenAnswer((_) => completer.future);
-    when(
-      () => core.getExternalProvider('http-one'),
-    ).thenAnswer((_) async => provider);
-    when(
-      () => core.getProxies(),
-    ).thenAnswer((_) async => const ProxiesData(proxies: {}, all: []));
+    when(() => core.updateExternalProvider('http-one'))
+        .thenAnswer((_) => completer.future);
+    when(() => core.getExternalProvider('http-one'))
+        .thenAnswer((_) async => provider);
+    when(() => core.getProxies())
+        .thenAnswer((_) async => const ProxiesData(proxies: {}, all: []));
 
     final container = containerFor(tester, [provider]);
     await pump(tester, container);

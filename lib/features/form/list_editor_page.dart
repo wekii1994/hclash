@@ -5,16 +5,15 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-typedef ListEditorItemBuilder<T> =
-    Widget Function(
-      BuildContext context,
-      WidgetRef ref,
-      T item,
-      int index,
-      bool isEditing,
-      bool isSelected,
-      VoidCallback onToggleSelected,
-    );
+typedef ListEditorItemBuilder<T> = Widget Function(
+  BuildContext context,
+  WidgetRef ref,
+  T item,
+  int index,
+  bool isEditing,
+  bool isSelected,
+  VoidCallback onToggleSelected,
+);
 
 class ListEditorPage<T, K> extends ConsumerStatefulWidget {
   final String title;

@@ -82,9 +82,8 @@ void main() {
         ensureDir(tmp);
         expect(Directory(tmp).existsSync(), isTrue);
       } finally {
-        Directory(
-          '${Directory.systemTemp.path}/setup_hooks_test_dir',
-        ).deleteSync(recursive: true);
+        Directory('${Directory.systemTemp.path}/setup_hooks_test_dir')
+            .deleteSync(recursive: true);
       }
     });
   });
@@ -101,9 +100,8 @@ void main() {
         expect(File(dest).readAsStringSync(), 'content');
       } finally {
         src.deleteSync();
-        Directory(
-          '${Directory.systemTemp.path}/setup_hooks_test_dest',
-        ).deleteSync(recursive: true);
+        Directory('${Directory.systemTemp.path}/setup_hooks_test_dest')
+            .deleteSync(recursive: true);
       }
     });
 

@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 String _androidAttribute(String source, String element, String attribute) {
   final elementTag = RegExp('<$element\\b[^>]*>').firstMatch(source)!.group(0)!;
-  return RegExp(
-    'android:$attribute="([^"]+)"',
-  ).firstMatch(elementTag)!.group(1)!;
+  return RegExp('android:$attribute="([^"]+)"')
+      .firstMatch(elementTag)!
+      .group(1)!;
 }
 
 double _androidDoubleAttribute(

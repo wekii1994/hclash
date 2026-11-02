@@ -137,16 +137,12 @@ class ApplicationState extends ConsumerState<Application> {
       ref.read(routeTrackerProvider.notifier).bumpHostEpoch();
       // Android's NetworkObserver tells the Core about a new network itself.
       if (system.isDesktop) {
-        debouncer.call(
-          FunctionTag.clearDnsCache,
-          () {
-            ref.read(coreActionProvider.notifier).clearDnsCacheOnNetworkChange();
-            if (ref.read(appSettingProvider).closeConnections) {
-              ref.read(coreActionProvider.notifier).closeConnections();
-            }
-          },
-          duration: const Duration(milliseconds: 200),
-        );
+        debouncer.call(FunctionTag.clearDnsCache, () {
+          ref.read(coreActionProvider.notifier).clearDnsCacheOnNetworkChange();
+          if (ref.read(appSettingProvider).closeConnections) {
+            ref.read(coreActionProvider.notifier).closeConnections();
+          }
+        }, duration: const Duration(milliseconds: 200));
       }
     }
     _preHasVpn = hasVpn;

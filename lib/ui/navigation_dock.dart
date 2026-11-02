@@ -1473,9 +1473,8 @@ class _Lens extends StatelessWidget {
               ? platter.withValues(alpha: platter.a * (1 - lifted))
               : Color.alphaBlend(
                   colorScheme.onSurface.withValues(alpha: 0.08 * lifted),
-                  SurfaceLevel.floatingOf(
-                    colorScheme,
-                  ).next.colorOf(colorScheme),
+                  SurfaceLevel.floatingOf(colorScheme).next
+                      .colorOf(colorScheme),
                 ),
           shape: AppShape.full,
         ),
@@ -1573,9 +1572,8 @@ class _LensContent extends StatelessWidget {
                   width: rect.width,
                   height: rect.height,
                   child: LiquidGlass(
-                    style: LiquidGlassStyle.lensContent(
-                      context.colorScheme,
-                    ).scale(lift),
+                    style: LiquidGlassStyle.lensContent(context.colorScheme)
+                        .scale(lift),
                   ),
                 ),
               ],

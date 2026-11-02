@@ -100,9 +100,10 @@ class Git {
     return tags;
   }
 
-  List<VersionTag> stableTags({String revision = 'HEAD'}) => versionTags(
-    revision: revision,
-  ).where((tag) => !tag.isPrerelease).toList();
+  List<VersionTag> stableTags({String revision = 'HEAD'}) =>
+      versionTags(revision: revision)
+          .where((tag) => !tag.isPrerelease)
+          .toList();
 
   bool tagExists(String name) =>
       _run(['tag', '--list', name]).trim().isNotEmpty;

@@ -6,9 +6,9 @@ import 'package:test/test.dart';
 
 Set<String> _keysOf(String path, String struct, String tag) {
   final source = File(path).readAsStringSync();
-  final body = RegExp(
-    'type $struct struct {([^}]*)}',
-  ).firstMatch(source)!.group(1)!;
+  final body = RegExp('type $struct struct {([^}]*)}')
+      .firstMatch(source)!
+      .group(1)!;
   return {
     for (final line in body.split('\n'))
       if (!line.trim().startsWith('//'))

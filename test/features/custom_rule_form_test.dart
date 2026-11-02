@@ -96,9 +96,8 @@ class _Harness {
         profilesProvider.overrideWith(() => TestProfiles([profile])),
         currentProfileIdProvider.overrideWithBuild((_, _) => profile.id),
         profileRulesProvider.overrideWith2((_) => rules),
-        customProfileDataProvider(
-          profile.id,
-        ).overrideWith((ref) => ref.watch(_testCustomDataProvider)),
+        customProfileDataProvider(profile.id)
+            .overrideWith((ref) => ref.watch(_testCustomDataProvider)),
         clashProvidersProvider.overrideWith(
           () => _TestClashProviders(appRuleProviders),
         ),

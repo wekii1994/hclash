@@ -18,8 +18,10 @@ import 'sheet_navigator.dart';
 
 /// Receives the sheet's own scroll controller, or null where the sheet has no
 /// detents to drag between and the content keeps its own controller.
-typedef SnapSheetBuilder =
-    Widget Function(BuildContext context, ScrollController? controller);
+typedef SnapSheetBuilder = Widget Function(
+  BuildContext context,
+  ScrollController? controller,
+);
 
 /// The heights a snap sheet rests at, as a fraction of the space it gets.
 const snapSheetDetents = [9 / 16, 0.9];

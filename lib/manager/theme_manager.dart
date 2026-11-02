@@ -221,6 +221,9 @@ class _AppMediaQuery extends StatelessWidget {
     final effectiveScale = pageScale.isFinite
         ? pageScale.clamp(minPageScale, maxPageScale).toDouble()
         : defaultPageScale;
+    if ((effectiveScale - 1.0).abs() < 0.001 || mediaQueryData.size.isEmpty) {
+      return MediaQuery(data: mediaQueryData, child: child);
+    }
     final originalSize = mediaQueryData.size;
     final scaledSize = originalSize / effectiveScale;
     return MediaQuery(

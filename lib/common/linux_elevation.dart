@@ -4,12 +4,11 @@ import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
-typedef InputProcessRunner =
-    Future<ProcessResult> Function(
-      String executable,
-      List<String> arguments,
-      String input,
-    );
+typedef InputProcessRunner = Future<ProcessResult> Function(
+  String executable,
+  List<String> arguments,
+  String input,
+);
 
 typedef PasswordPrompt = Future<String?> Function();
 

@@ -31,9 +31,8 @@ void main() {
             builder: (_, child) => ThemeCrossFade(child: child!),
             home: Builder(
               builder: (context) => ColoredBox(
-                color: Theme.of(
-                  context,
-                ).scaffoldBackgroundColor.withValues(alpha: opacity),
+                color: Theme.of(context).scaffoldBackgroundColor
+                    .withValues(alpha: opacity),
               ),
             ),
           ),

@@ -1494,9 +1494,8 @@ class _EditCustomProxyViewState extends ConsumerState<_EditCustomProxyView> {
         slivers: [
           SliverCustomIssuesBanner(issues: issues),
           SliverPadding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-            ).copyWith(bottom: 20 + context.bottomInset),
+            padding: const EdgeInsets.symmetric(horizontal: 16)
+                .copyWith(bottom: 20 + context.bottomInset),
             sliver: SliverList.list(
               children: [
                 generateSection(

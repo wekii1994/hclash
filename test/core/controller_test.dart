@@ -121,21 +121,18 @@ void main() {
       tearDown(() => dir.deleteSync(recursive: true));
 
       test('decrypts an age-encrypted config in place', () async {
-        File(
-          path,
-        ).writeAsStringSync('-----BEGIN AGE ENCRYPTED FILE-----\nYWdl\n');
-        when(
-          () => mock.decryptConfig(path, 'AGE-SECRET-KEY-1A'),
-        ).thenAnswer((_) async => 'proxies: []');
+        File(path)
+            .writeAsStringSync('-----BEGIN AGE ENCRYPTED FILE-----\nYWdl\n');
+        when(() => mock.decryptConfig(path, 'AGE-SECRET-KEY-1A'))
+            .thenAnswer((_) async => 'proxies: []');
 
         expect(await controller.validateProfile(path, 'AGE-SECRET-KEY-1A'), '');
         expect(File(path).readAsStringSync(), 'proxies: []');
       });
 
       test('asks for a key an encrypted config lacks', () async {
-        File(
-          path,
-        ).writeAsStringSync('-----BEGIN AGE ENCRYPTED FILE-----\nYWdl\n');
+        File(path)
+            .writeAsStringSync('-----BEGIN AGE ENCRYPTED FILE-----\nYWdl\n');
 
         await expectLater(
           controller.validateProfile(path),
@@ -265,9 +262,8 @@ void main() {
         vehicleType: 'HTTP',
         updateAt: DateTime.now(),
       );
-      when(
-        () => mock.getExternalProviders(),
-      ).thenAnswer((_) async => [provider]);
+      when(() => mock.getExternalProviders())
+          .thenAnswer((_) async => [provider]);
       final result = await controller.getExternalProviders();
       expect(result.length, 1);
       expect(result.first.name, 'provider1');
@@ -288,27 +284,24 @@ void main() {
 
   group('traffic methods', () {
     test('getTraffic delegates structured traffic', () async {
-      when(
-        () => mock.getTraffic(false),
-      ).thenAnswer((_) async => const Traffic(up: 1, down: 2));
+      when(() => mock.getTraffic(false))
+          .thenAnswer((_) async => const Traffic(up: 1, down: 2));
       final result = await controller.getTraffic(false);
       expect(result.up, 1);
       expect(result.down, 2);
     });
 
     test('getTotalTraffic delegates structured traffic', () async {
-      when(
-        () => mock.getTotalTraffic(false),
-      ).thenAnswer((_) async => const Traffic(up: 3, down: 4));
+      when(() => mock.getTotalTraffic(false))
+          .thenAnswer((_) async => const Traffic(up: 3, down: 4));
       final result = await controller.getTotalTraffic(false);
       expect(result.up, 3);
       expect(result.down, 4);
     });
 
     test('getMemoryStats delegates the structured stats', () async {
-      when(
-        () => mock.getMemoryStats(),
-      ).thenAnswer((_) async => const CoreMemoryStats(rss: 2048));
+      when(() => mock.getMemoryStats())
+          .thenAnswer((_) async => const CoreMemoryStats(rss: 2048));
       final result = await controller.getMemoryStats();
       expect(result?.rss, 2048);
     });

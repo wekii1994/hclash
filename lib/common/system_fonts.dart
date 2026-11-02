@@ -130,16 +130,21 @@ extension type const _ComObject(Pointer<Void> pointer) {
   Pointer<NativeFunction<T>> method<T extends Function>(int index) =>
       pointer.cast<Pointer<Pointer<NativeFunction<T>>>>().value[index];
 
-  void release() => method<Uint32 Function(Pointer<Void>)>(
-    2,
-  ).asFunction<int Function(Pointer<Void>)>()(pointer);
+  void release() =>
+      method<Uint32 Function(Pointer<Void>)>(2)
+          .asFunction<int Function(Pointer<Void>)>()(pointer);
 }
 
-typedef _GetObjectNative =
-    Int32 Function(Pointer<Void>, Pointer<Pointer<Void>>);
+typedef _GetObjectNative = Int32 Function(
+  Pointer<Void>,
+  Pointer<Pointer<Void>>,
+);
 typedef _GetObject = int Function(Pointer<Void>, Pointer<Pointer<Void>>);
-typedef _GetIndexedNative =
-    Int32 Function(Pointer<Void>, Uint32, Pointer<Pointer<Void>>);
+typedef _GetIndexedNative = Int32 Function(
+  Pointer<Void>,
+  Uint32,
+  Pointer<Pointer<Void>>,
+);
 typedef _GetIndexed = int Function(Pointer<Void>, int, Pointer<Pointer<Void>>);
 
 const _dwriteFactoryTypeShared = 0;

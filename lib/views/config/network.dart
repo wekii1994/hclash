@@ -15,8 +15,10 @@ typedef _VpnUpdate<T> = VpnProps Function(VpnProps state, T value);
 
 typedef _NetworkUpdate<T> = NetworkProps Function(NetworkProps state, T value);
 
-typedef _TunUpdate<T> =
-    PatchClashConfig Function(PatchClashConfig state, T value);
+typedef _TunUpdate<T> = PatchClashConfig Function(
+  PatchClashConfig state,
+  T value,
+);
 
 ConfigWriter<T> _vpnWriter<T>(_VpnUpdate<T> update) {
   return (ref, value) => ref

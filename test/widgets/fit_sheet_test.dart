@@ -502,9 +502,9 @@ void main() {
       tester,
       (_) => NestedPagedSheet(
         builder: (context) => page(
-          onNext: () => Navigator.of(
-            context,
-          ).push(PagedSheetRoute(builder: (_) => _list(3))),
+          onNext: () =>
+              Navigator.of(context)
+                  .push(PagedSheetRoute(builder: (_) => _list(3))),
         ),
       ),
       props: nestedPagedSheetProps,
@@ -541,9 +541,9 @@ void main() {
               ListTile(
                 title: const Text('next'),
                 minTileHeight: _rowHeight,
-                onTap: () => Navigator.of(
-                  context,
-                ).push(PagedSheetRoute(builder: (_) => _list(3))),
+                onTap: () =>
+                    Navigator.of(context)
+                        .push(PagedSheetRoute(builder: (_) => _list(3))),
               ),
             ],
           ),
@@ -685,9 +685,9 @@ void main() {
         (_) => NestedPagedSheet(
           builder: (context) => page(
             'a',
-            onNext: () => Navigator.of(
-              context,
-            ).push(PagedSheetRoute(builder: (_) => page('b'))),
+            onNext: () =>
+                Navigator.of(context)
+                    .push(PagedSheetRoute(builder: (_) => page('b'))),
           ),
           onDismiss: dismissals.add,
         ),

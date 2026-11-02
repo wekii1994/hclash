@@ -43,8 +43,9 @@ extension HotKeyActionExt on HotKeyAction {
   }
 }
 
-typedef HotKeyRegistrar =
-    Future<List<HotKeyFailure>> Function({required List<HotKeySpec> specs});
+typedef HotKeyRegistrar = Future<List<HotKeyFailure>> Function({
+  required List<HotKeySpec> specs,
+});
 
 class HotKeyManager extends ConsumerStatefulWidget {
   final HotKeyRegistrar? registerHotKeys;

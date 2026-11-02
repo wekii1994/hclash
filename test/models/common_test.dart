@@ -32,9 +32,8 @@ void main() {
       () async {
         when(() => file.exists()).thenAnswer((_) async => true);
         when(() => file.length()).thenAnswer((_) async => 1024);
-        when(
-          () => file.lastModified(),
-        ).thenAnswer((_) async => DateTime(1970, 12, 31, 23, 59, 59));
+        when(() => file.lastModified())
+            .thenAnswer((_) async => DateTime(1970, 12, 31, 23, 59, 59));
 
         final fileInfo = await file.getFileInfo();
 
@@ -45,9 +44,8 @@ void main() {
     test('keeps size when last modified time cannot be read', () async {
       when(() => file.exists()).thenAnswer((_) async => true);
       when(() => file.length()).thenAnswer((_) async => 1024);
-      when(
-        () => file.lastModified(),
-      ).thenThrow(const FileSystemException('last modified unavailable'));
+      when(() => file.lastModified())
+          .thenThrow(const FileSystemException('last modified unavailable'));
 
       final fileInfo = await file.getFileInfo();
 

@@ -380,9 +380,8 @@ class _OnDemandViewState extends ConsumerState<OnDemandView>
       body: CustomScrollView(
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-            ).copyWith(top: context.sectionsTopPadding),
+            padding: const EdgeInsets.symmetric(horizontal: 16)
+                .copyWith(top: context.sectionsTopPadding),
             sliver: SliverToBoxAdapter(child: _buildPrerequisites()),
           ),
           SliverPadding(
@@ -391,9 +390,8 @@ class _OnDemandViewState extends ConsumerState<OnDemandView>
           ),
           _buildExcludeSsidsList(excludeSSIDs, selectedItems),
           SliverPadding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-            ).copyWith(bottom: 16 + context.bottomInset),
+            padding: const EdgeInsets.symmetric(horizontal: 16)
+                .copyWith(bottom: 16 + context.bottomInset),
             sliver: SliverToBoxAdapter(
               child: ListFooter(
                 text: context.appLocalizations.excludeSsidsDesc,

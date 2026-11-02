@@ -198,9 +198,8 @@ void main() {
         final script = data.scripts.single;
         expect(script.label, 'A');
         expect(
-          File(
-            join(target.path, 'scripts', '${script.id}.js'),
-          ).readAsStringSync(),
+          File(join(target.path, 'scripts', '${script.id}.js'))
+              .readAsStringSync(),
           'export default 1;',
         );
       },
@@ -255,9 +254,8 @@ void main() {
       final profile = data.profiles.single;
       expect(profile.label, 'Legacy');
       expect(
-        File(
-          join(target.path, 'profiles', '${profile.id}.yaml'),
-        ).readAsStringSync(),
+        File(join(target.path, 'profiles', '${profile.id}.yaml'))
+            .readAsStringSync(),
         'proxies: []',
       );
     });
@@ -589,9 +587,9 @@ void main() {
       expect(data.configMap?['version'], 1);
       expect(
         BackupEntries.ofData(data).map(
-          (entry) => File(
-            BackupEntries.resolve(staging.path, entry),
-          ).readAsStringSync(),
+          (entry) =>
+              File(BackupEntries.resolve(staging.path, entry))
+                  .readAsStringSync(),
         ),
         ['proxies: []', 'body', 'payload: []'],
       );

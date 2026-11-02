@@ -178,9 +178,8 @@ void main() {
           homeBuilder: (child) => Scaffold(body: child),
           child: TrackerInfoItem(
             key: ValueKey(isLive),
-            trackerInfo: _tracker(
-              host: 'example.com',
-            ).copyWith(uploadSpeed: 2048, downloadSpeed: 4096),
+            trackerInfo: _tracker(host: 'example.com')
+                .copyWith(uploadSpeed: 2048, downloadSpeed: 4096),
             isLive: isLive,
             action: const SizedBox(key: ValueKey('action')),
             detailTitle: 'detail',

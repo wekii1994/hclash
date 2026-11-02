@@ -14,9 +14,9 @@ ProfileOverrides _decode(Map<String, Object?> json) {
 void main() {
   test('NtpOverrideKey names every key of the core NTP section', () {
     final source = File('core/Clash.Meta/config/config.go').readAsStringSync();
-    final body = RegExp(
-      'type RawNTP struct {([^}]*)}',
-    ).firstMatch(source)!.group(1)!;
+    final body = RegExp('type RawNTP struct {([^}]*)}')
+        .firstMatch(source)!
+        .group(1)!;
 
     expect(NtpOverrideKey.values.map((key) => key.path).toSet(), {
       for (final match in RegExp(r'yaml:"([^",]+)').allMatches(body))
@@ -26,9 +26,9 @@ void main() {
 
   test('the model defaults match the core\'s', () {
     final source = File('core/Clash.Meta/config/config.go').readAsStringSync();
-    final body = RegExp(
-      r'NTP: RawNTP\{([^}]*)\}',
-    ).firstMatch(source)!.group(1)!;
+    final body = RegExp(r'NTP: RawNTP\{([^}]*)\}')
+        .firstMatch(source)!
+        .group(1)!;
     String valueOf(String field) =>
         RegExp('$field:\\s*(.+),').firstMatch(body)!.group(1)!.trim();
 

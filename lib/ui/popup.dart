@@ -332,9 +332,8 @@ class CommonPopupRoute<T> extends PopupRoute<T> {
               surface: _surface,
               sourceColor: sourceColor,
               sourceImage: sourceImage,
-              surfaceColor: SurfaceLevel.floatingOf(
-                colorScheme,
-              ).colorOf(colorScheme),
+              surfaceColor: SurfaceLevel.floatingOf(colorScheme)
+                  .colorOf(colorScheme),
               shadows: menuShadows(colorScheme),
               glass: glass
                   ? (
@@ -1925,9 +1924,8 @@ class _CommonPopupMenuState extends State<CommonPopupMenu>
     // Whole rows above, not centring, keep the half row a label cut at the foot.
     final visible = _maxVisibleItems;
     final alignment = (visible ~/ 2) / (visible - 0.5);
-    Scrollable.maybeOf(
-      row,
-    )?.position.ensureVisible(row.findRenderObject()!, alignment: alignment);
+    Scrollable.maybeOf(row)?.position
+        .ensureVisible(row.findRenderObject()!, alignment: alignment);
   }
 
   double _rowExtentOf(BuildContext context) =>

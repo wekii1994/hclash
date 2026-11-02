@@ -274,9 +274,8 @@ class _ScanPageState extends ConsumerState<ScanPage>
                     size: constraints.biggest,
                     padding: MediaQuery.paddingOf(context),
                     hintHeight:
-                        MediaQuery.textScalerOf(
-                          context,
-                        ).scale(hintStyle.fontSize!) *
+                        MediaQuery.textScalerOf(context)
+                            .scale(hintStyle.fontSize!) *
                         hintStyle.height! *
                         _hintMaxLines,
                   );

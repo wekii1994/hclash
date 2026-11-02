@@ -172,9 +172,8 @@ class _ProxiesListViewState extends ConsumerState<ProxiesListView> {
           proxiesStyleSettingProvider.select((state) => state.layout),
         );
         final isSearching = ref.watch(
-          queryProvider(
-            QueryTag.proxies,
-          ).select((query) => SearchQuery(query).isNotEmpty),
+          queryProvider(QueryTag.proxies)
+              .select((query) => SearchQuery(query).isNotEmpty),
         );
         return NullStatusSwitcher(
           isEmpty: groups.isEmpty,

@@ -224,9 +224,8 @@ void main() {
 
     test('propagates a failed manual Core request', () async {
       final core = _MockCoreHandlerInterface();
-      when(
-        () => core.updateGeoData('MMDB'),
-      ).thenThrow(StateError('disconnected'));
+      when(() => core.updateGeoData('MMDB'))
+          .thenThrow(StateError('disconnected'));
       final container = ProviderContainer(
         overrides: [
           coreHandlerProvider.overrideWithValue(CoreController.scoped(core)),
@@ -683,9 +682,9 @@ void main() {
           ],
         );
         addTearDown(container.dispose);
-        final action =
-            container.read(setupActionProvider.notifier)
-                as _InitializingSetupAction;
+        final action = container.read(
+          setupActionProvider.notifier,
+        ) as _InitializingSetupAction;
 
         final start = action.setRunning(true, initialize: true);
         final stop = action.setRunning(false);

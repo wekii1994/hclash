@@ -222,9 +222,8 @@ void main() {
         ),
         null,
       ];
-      when(
-        () => core.outboundIp(any()),
-      ).thenAnswer((_) async => answers.removeAt(0));
+      when(() => core.outboundIp(any()))
+          .thenAnswer((_) async => answers.removeAt(0));
 
       for (var attempt = 0; attempt < 5; attempt++) {
         expect(

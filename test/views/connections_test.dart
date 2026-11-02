@@ -135,9 +135,8 @@ void main() {
   testWidgets('shows its first connections while its page is pushed in', (
     tester,
   ) async {
-    when(
-      core.getConnections,
-    ).thenAnswer((_) async => [_tracker(id: 'a', host: 'alpha.test')]);
+    when(core.getConnections)
+        .thenAnswer((_) async => [_tracker(id: 'a', host: 'alpha.test')]);
     tester.view.physicalSize = const Size(1400, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);

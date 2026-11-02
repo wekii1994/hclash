@@ -295,9 +295,8 @@ void main() {
       ),
     );
 
-    final submenu = _items(
-      showCall(),
-    ).firstWhere((item) => item['type'] == 'submenu');
+    final submenu = _items(showCall())
+        .firstWhere((item) => item['type'] == 'submenu');
     expect(submenu['label'], 'Proxy');
     final children = (submenu['items'] as List).cast<Map<Object?, Object?>>();
     expect(children.map((item) => item['label']), contains('A'));

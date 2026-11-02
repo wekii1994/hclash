@@ -17,9 +17,8 @@ void main() {
   setUp(() {
     repository = Directory.systemTemp.createTempSync('setup_core_builder_');
     repository = Directory(repository.resolveSymbolicLinksSync());
-    File(
-      p.join(repository.path, 'pubspec.yaml'),
-    ).writeAsStringSync('name: x\n');
+    File(p.join(repository.path, 'pubspec.yaml'))
+        .writeAsStringSync('name: x\n');
     Directory(p.join(repository.path, 'core')).createSync();
     packageRoot = Directory(p.join(repository.path, 'plugins', 'setup'))
       ..createSync(recursive: true);

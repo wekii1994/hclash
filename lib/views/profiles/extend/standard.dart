@@ -236,9 +236,8 @@ class _MatchTargetItem extends ConsumerWidget {
             labelBuilder: (item) =>
                 item.isEmpty ? appLocalizations.followProfile : item,
             selectedOf: (ref) => ref.watch(
-              profileProvider(
-                profileId,
-              ).select((state) => state?.matchTarget ?? ''),
+              profileProvider(profileId)
+                  .select((state) => state?.matchTarget ?? ''),
             ),
             onSelected: (item) => Navigator.of(context).pop(item),
           );
@@ -354,9 +353,8 @@ class _EditGlobalAddedRulesState extends ConsumerState<_EditGlobalAddedRules> {
             builder: (context) => CustomScrollView(
               slivers: [
                 SliverPadding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                  ).copyWith(top: context.contentTopPadding),
+                  padding: const EdgeInsets.symmetric(horizontal: 16)
+                      .copyWith(top: context.contentTopPadding),
                   sliver: SliverFixedExtentList.builder(
                     itemExtent: ruleItemHeight,
                     itemBuilder: (context, index) {

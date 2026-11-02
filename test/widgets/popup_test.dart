@@ -1650,9 +1650,8 @@ void main() {
     open();
     await tester.pumpAndSettle();
 
-    final colorScheme = Theme.of(
-      tester.element(find.text('delete')),
-    ).colorScheme;
+    final colorScheme = Theme.of(tester.element(find.text('delete')))
+        .colorScheme;
 
     expect(
       tester.widget<Text>(find.text('delete')).style?.color,

@@ -4,12 +4,11 @@ import 'package:flutter/foundation.dart';
 
 const proxyHost = '127.0.0.1';
 
-typedef ProxyProcessRunner =
-    Future<ProcessResult> Function(
-      String executable,
-      List<String> arguments, {
-      bool runInShell,
-    });
+typedef ProxyProcessRunner = Future<ProcessResult> Function(
+  String executable,
+  List<String> arguments, {
+  bool runInShell,
+});
 
 typedef ProxyExecutableChecker = Future<bool> Function(String executable);
 

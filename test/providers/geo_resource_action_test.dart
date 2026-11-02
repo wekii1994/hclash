@@ -103,9 +103,8 @@ void main() {
 
   testWidgets('a rejected manual request clears progress', (tester) async {
     final coreInterface = _MockCoreHandlerInterface();
-    when(
-      () => coreInterface.updateGeoData('MMDB'),
-    ).thenAnswer((_) async => 'unknown geo resource');
+    when(() => coreInterface.updateGeoData('MMDB'))
+        .thenAnswer((_) async => 'unknown geo resource');
     final container = await _pumpGeoResourceAction(tester, coreInterface);
     final action = container.read(geoResourceActionProvider.notifier);
     final key = GeoResource.MMDB.updatingKey;

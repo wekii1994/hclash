@@ -139,9 +139,8 @@ class DnsView extends OverrideView<DnsOverrideKey, Dns> {
             profileId,
             get: _profileDns,
             set: _setProfileDns,
-            issues: customProfileIssuesProvider(
-              profileId,
-            ).select((state) => state.dns),
+            issues: customProfileIssuesProvider(profileId)
+                .select((state) => state.dns),
           ),
         ),
       );

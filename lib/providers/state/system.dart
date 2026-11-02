@@ -175,17 +175,54 @@ final _regionCodeRegex = RegExp(
 );
 
 const _strongEntryKeywords = [
-  '节点选择', '选择节点', '默认代理', '代理模式', '科学上网',
-  'proxy', 'proxies', 'default', 'select', '🚀', '🔰',
+  '节点选择',
+  '选择节点',
+  '默认代理',
+  '代理模式',
+  '科学上网',
+  'proxy',
+  'proxies',
+  'default',
+  'select',
+  '🚀',
+  '🔰',
 ];
 
 const _broadEntryKeywords = ['全球', '代理', '节点', '主', '自动', 'auto'];
 
 const _subRuleExcludeKeywords = [
-  '手动', 'manual', '奈飞', 'netflix', 'bili', '哔哩', 'openai', 'chatgpt',
-  'telegram', '电报', 'youtube', '油管', 'spotify', 'disney', 'steam',
-  'game', '游戏', 'apple', '微软', 'microsoft', '漏网之鱼', '直连', '拒绝',
-  '香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '狮城',
+  '手动',
+  'manual',
+  '奈飞',
+  'netflix',
+  'bili',
+  '哔哩',
+  'openai',
+  'chatgpt',
+  'telegram',
+  '电报',
+  'youtube',
+  '油管',
+  'spotify',
+  'disney',
+  'steam',
+  'game',
+  '游戏',
+  'apple',
+  '微软',
+  'microsoft',
+  '漏网之鱼',
+  '直连',
+  '拒绝',
+  '香港',
+  '台湾',
+  '日本',
+  '新加坡',
+  '美国',
+  '韩国',
+  '英国',
+  '德国',
+  '狮城',
 ];
 
 bool _isExcludedSubGroup(String lowerName) {

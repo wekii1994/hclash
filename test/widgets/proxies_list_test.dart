@@ -74,9 +74,8 @@ void main() {
           homeBuilder: (child) => Scaffold(
             body: Builder(
               builder: (context) => MediaQuery(
-                data: MediaQuery.of(
-                  context,
-                ).copyWith(padding: const EdgeInsets.only(top: 64)),
+                data: MediaQuery.of(context)
+                    .copyWith(padding: const EdgeInsets.only(top: 64)),
                 child: child,
               ),
             ),

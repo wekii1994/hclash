@@ -741,9 +741,8 @@ void main() {
       container = buildContainer(
         _group().copyWith(id: -1, name: ''),
         overrides: [
-          customProfileDataProvider(
-            _profileId,
-          ).overrideWith((ref) => ref.watch(_pendingProfileDataProvider)),
+          customProfileDataProvider(_profileId)
+              .overrideWith((ref) => ref.watch(_pendingProfileDataProvider)),
         ],
       );
       final emptyName = _bannerText(

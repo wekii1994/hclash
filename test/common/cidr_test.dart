@@ -76,9 +76,8 @@ void main() {
   });
 
   test('an include list wholly excluded leaves that family unrouted', () async {
-    final routes = await const Tun(
-      routeAddress: ['192.168.1.0/24'],
-    ).vpnRouteAddress(bypassPrivateRoute: true);
+    final routes = await const Tun(routeAddress: ['192.168.1.0/24'])
+        .vpnRouteAddress(bypassPrivateRoute: true);
 
     expect(routes, isNotEmpty);
     expect(routes.where((route) => !route.contains(':')), isEmpty);

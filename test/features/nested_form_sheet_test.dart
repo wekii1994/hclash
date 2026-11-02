@@ -236,9 +236,8 @@ void main() {
         .read(proxyGroupProvider.notifier)
         .update((state) => state.copyWith(name: 'changed'));
     unawaited(
-      Navigator.of(
-        tester.element(find.text('row 0')),
-      ).push(PagedSheetRoute(builder: (_) => const Text('nested page'))),
+      Navigator.of(tester.element(find.text('row 0')))
+          .push(PagedSheetRoute(builder: (_) => const Text('nested page'))),
     );
     await tester.pumpAndSettle();
     expect(find.text('nested page'), findsOneWidget);

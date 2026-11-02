@@ -529,13 +529,19 @@ void main() {
       await pumpThemeView(tester);
 
       expect(readTheme().textScale.enable, isFalse);
-      expect(tester.widget<Slider>(find.byType(Slider)).onChanged, isNull);
+      expect(
+        tester.widget<Slider>(find.byType(Slider).first).onChanged,
+        isNull,
+      );
 
       await tester.tap(find.text('Custom'));
       await tester.pumpAndSettle();
 
       expect(readTheme().textScale.enable, isTrue);
-      expect(tester.widget<Slider>(find.byType(Slider)).onChanged, isNotNull);
+      expect(
+        tester.widget<Slider>(find.byType(Slider).first).onChanged,
+        isNotNull,
+      );
 
       await tester.tap(find.text('Follow system'));
       await tester.pumpAndSettle();
@@ -549,7 +555,7 @@ void main() {
       await tester.pumpAndSettle();
       final before = readTheme().textScale.scale;
 
-      final slider = find.byType(Slider);
+      final slider = find.byType(Slider).first;
       final gesture = await tester.startGesture(tester.getCenter(slider));
       await gesture.moveBy(const Offset(120, 0));
       await tester.pump();
@@ -569,13 +575,13 @@ void main() {
 
       await pumpThemeView(tester);
 
-      expect(find.text('120%'), findsOneWidget);
+      expect(find.text('120%'), findsNWidgets(2));
 
       await tester.tap(find.byTooltip('Reset').last);
       await tester.pumpAndSettle();
 
       expect(readTheme().textScale.scale, 1);
-      expect(find.text('100%'), findsOneWidget);
+      expect(find.text('100%'), findsWidgets);
     });
   });
 }

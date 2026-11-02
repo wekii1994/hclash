@@ -334,9 +334,8 @@ class _IconPickerViewState extends ConsumerState<IconPickerView> {
             ),
             if (_value.isNotEmpty)
               SliverPadding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                ).copyWith(bottom: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 16)
+                    .copyWith(bottom: 16),
                 sliver: SliverToBoxAdapter(
                   child: _CurrentIcon(
                     src: _value,

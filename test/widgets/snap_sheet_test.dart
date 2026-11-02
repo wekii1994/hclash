@@ -82,9 +82,10 @@ class _OwnControllerListState extends State<_OwnControllerList> {
 void main() {
   Future<void> setView(WidgetTester tester, Size size) async {
     tester.view.physicalSize = size;
-    ProviderScope.containerOf(
-      tester.element(find.text('open')),
-    ).read(viewSizeProvider.notifier).value = size;
+    ProviderScope.containerOf(tester.element(find.text('open')))
+            .read(viewSizeProvider.notifier)
+            .value =
+        size;
     await tester.pumpAndSettle();
   }
 

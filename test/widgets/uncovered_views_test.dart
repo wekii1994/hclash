@@ -554,9 +554,8 @@ void main() {
         profileDisabledRuleIdsProvider.overrideWith2(
           (_) => _TestProfileDisabledRuleIds(const []),
         ),
-        clashConfigProvider(
-          profile.id,
-        ).overrideWithValue(const AsyncData(ClashConfig())),
+        clashConfigProvider(profile.id)
+            .overrideWithValue(const AsyncData(ClashConfig())),
       ],
     );
 
@@ -663,9 +662,8 @@ void main() {
         profileDisabledRuleIdsProvider.overrideWith2(
           (_) => _TestProfileDisabledRuleIds(const []),
         ),
-        clashConfigProvider(
-          profile.id,
-        ).overrideWithValue(const AsyncData(ClashConfig())),
+        clashConfigProvider(profile.id)
+            .overrideWithValue(const AsyncData(ClashConfig())),
       ],
     );
 

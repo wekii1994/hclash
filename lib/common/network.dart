@@ -2,13 +2,14 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
-typedef NetworkInterfaceLister =
-    Future<List<NetworkInterface>> Function({bool includeLoopback});
+typedef NetworkInterfaceLister = Future<List<NetworkInterface>> Function({
+  bool includeLoopback,
+});
 
 @visibleForTesting
-NetworkInterfaceLister listNetworkInterfaces =
-    ({bool includeLoopback = false}) =>
-        NetworkInterface.list(includeLoopback: includeLoopback);
+NetworkInterfaceLister listNetworkInterfaces = ({
+  bool includeLoopback = false,
+}) => NetworkInterface.list(includeLoopback: includeLoopback);
 
 extension NetworkInterfaceExt on NetworkInterface {
   bool get isWifi {

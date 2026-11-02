@@ -10,8 +10,10 @@ import 'clash_config.dart';
 part 'generated/profile.freezed.dart';
 part 'generated/profile.g.dart';
 
-typedef ValidateConfig =
-    Future<String> Function(String path, String ageSecretKey);
+typedef ValidateConfig = Future<String> Function(
+  String path,
+  String ageSecretKey,
+);
 
 @freezed
 abstract class SubscriptionInfo with _$SubscriptionInfo {

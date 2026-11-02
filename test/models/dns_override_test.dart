@@ -15,12 +15,12 @@ void main() {
   test('DnsOverrideKey names every key of the core DNS section', () {
     final source = File('core/Clash.Meta/config/config.go').readAsStringSync();
     Iterable<String> yamlKeysOf(String struct) {
-      final body = RegExp(
-        'type $struct struct {([^}]*)}',
-      ).firstMatch(source)!.group(1)!;
-      return RegExp(
-        r'yaml:"([^",]+)',
-      ).allMatches(body).map((match) => match.group(1)!);
+      final body = RegExp('type $struct struct {([^}]*)}')
+          .firstMatch(source)!
+          .group(1)!;
+      return RegExp(r'yaml:"([^",]+)')
+          .allMatches(body)
+          .map((match) => match.group(1)!);
     }
 
     expect(DnsOverrideKey.values.map((key) => key.path).toSet(), {
@@ -33,17 +33,17 @@ void main() {
 
   test('the model defaults match the core\'s, GeoIP code aside', () {
     final source = File('core/Clash.Meta/config/config.go').readAsStringSync();
-    final body = RegExp(
-      r'DNS: RawDNS\{([\s\S]*?)\n\t\t\},',
-    ).firstMatch(source)!.group(1)!;
+    final body = RegExp(r'DNS: RawDNS\{([\s\S]*?)\n\t\t\},')
+        .firstMatch(source)!
+        .group(1)!;
     String valueOf(String field) =>
         RegExp('\\b$field:\\s*(.+),').firstMatch(body)!.group(1)!.trim();
     String stringOf(String field) => jsonDecode(valueOf(field)) as String;
     List<String> stringsOf(String field) => [
       for (final match in RegExp(r'"([^"]*)"').allMatches(
-        RegExp(
-          '\\b$field:\\s*\\[\\]string\\{([^}]*)\\}',
-        ).firstMatch(body)!.group(1)!,
+        RegExp('\\b$field:\\s*\\[\\]string\\{([^}]*)\\}')
+            .firstMatch(body)!
+            .group(1)!,
       ))
         match.group(1)!,
     ];

@@ -25,9 +25,9 @@ void main() {
   test('every generated locale exposes and evaluates every source message', () {
     final arbByLocale = <String, Map<String, dynamic>>{
       for (final locale in lookups.keys)
-        locale:
-            jsonDecode(File('arb/intl_$locale.arb').readAsStringSync())
-                as Map<String, dynamic>,
+        locale: jsonDecode(
+          File('arb/intl_$locale.arb').readAsStringSync(),
+        ) as Map<String, dynamic>,
     };
     final expectedKeys = arbByLocale['en']!.keys
         .where((key) => !key.startsWith('@'))
@@ -45,9 +45,10 @@ void main() {
 
       for (final key in expectedKeys) {
         final template = arbByLocale['en']![key] as String;
-        final placeholderNames = RegExp(
-          r'\{([A-Za-z_][A-Za-z0-9_]*)\b',
-        ).allMatches(template).map((match) => match.group(1)).toSet();
+        final placeholderNames = RegExp(r'\{([A-Za-z_][A-Za-z0-9_]*)\b')
+            .allMatches(template)
+            .map((match) => match.group(1))
+            .toSet();
         final argumentCount = placeholderNames.length;
         final arguments = List<dynamic>.filled(argumentCount, 2);
         late final dynamic translated;

@@ -116,7 +116,7 @@ SelectedProxyState getRealSelectedProxyState(
   final visited = <String>{};
   var currentName = state.proxyName;
   var currentTestUrl = state.testUrl;
-  var isGroup = state.group;
+  var isGroup = true;
 
   while (currentName.isNotEmpty && visited.add(currentName)) {
     final group = groups.getGroup(currentName);

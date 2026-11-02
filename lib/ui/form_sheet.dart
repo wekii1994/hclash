@@ -91,9 +91,8 @@ class _FormSheet extends StatelessWidget {
       explicitChildNodes: true,
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(
-            _margin,
-          ).copyWith(bottom: _margin + keyboard),
+          padding: const EdgeInsets.all(_margin)
+              .copyWith(bottom: _margin + keyboard),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(

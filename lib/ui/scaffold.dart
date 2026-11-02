@@ -38,8 +38,9 @@ import 'sortable.dart';
 
 typedef OnKeywordsUpdateCallback = void Function(List<String> keywords);
 
-typedef AppBarSearchStateBuilder =
-    AppBarSearchState? Function(AppBarSearchState? state);
+typedef AppBarSearchStateBuilder = AppBarSearchState? Function(
+  AppBarSearchState? state,
+);
 
 class CommonScaffold extends StatefulWidget {
   final Widget body;
@@ -229,9 +230,8 @@ class CommonScaffoldState extends State<CommonScaffold>
     if (event is! KeyDownEvent ||
         _appBarState.value.searchState == null ||
         _sorting ||
-        !controlSingleActivator(
-          LogicalKeyboardKey.keyF,
-        ).accepts(event, HardwareKeyboard.instance) ||
+        !controlSingleActivator(LogicalKeyboardKey.keyF)
+            .accepts(event, HardwareKeyboard.instance) ||
         !_isFrontmost) {
       return false;
     }

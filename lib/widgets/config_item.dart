@@ -16,8 +16,10 @@ typedef ConfigLabel = String Function(AppLocalizations appLocalizations);
 
 typedef ConfigWriter<T> = void Function(WidgetRef ref, T value);
 
-typedef ConfigValidator =
-    String? Function(String? value, AppLocalizations appLocalizations);
+typedef ConfigValidator = String? Function(
+  String? value,
+  AppLocalizations appLocalizations,
+);
 
 String? validateCidr(String? value, AppLocalizations appLocalizations) {
   return isCidr(value ?? '') ? null : appLocalizations.invalidCidrContent;

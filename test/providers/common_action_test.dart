@@ -84,12 +84,10 @@ void main() {
       container
           .read(appSettingProvider.notifier)
           .update((state) => state.copyWith(onlyStatisticsProxy: true));
-      when(
-        () => core.getTraffic(true),
-      ).thenAnswer((_) async => const Traffic(up: 10, down: 20));
-      when(
-        () => core.getTotalTraffic(true),
-      ).thenAnswer((_) async => const Traffic(up: 100, down: 200));
+      when(() => core.getTraffic(true))
+          .thenAnswer((_) async => const Traffic(up: 10, down: 20));
+      when(() => core.getTotalTraffic(true))
+          .thenAnswer((_) async => const Traffic(up: 100, down: 200));
 
       await container.read(commonActionProvider.notifier).updateTraffic();
 
@@ -118,9 +116,8 @@ void main() {
     test('does not record a total when only the total call fails', () async {
       final container = buildContainer();
       final before = container.read(totalTrafficProvider);
-      when(
-        () => core.getTraffic(any()),
-      ).thenAnswer((_) async => const Traffic(up: 1, down: 2));
+      when(() => core.getTraffic(any()))
+          .thenAnswer((_) async => const Traffic(up: 1, down: 2));
       when(() => core.getTotalTraffic(any())).thenThrow(StateError('boom'));
 
       await container.read(commonActionProvider.notifier).updateTraffic();
@@ -135,9 +132,8 @@ void main() {
         final container = buildContainer();
         final completer = Completer<Traffic>();
         when(() => core.getTraffic(any())).thenAnswer((_) => completer.future);
-        when(
-          () => core.getTotalTraffic(any()),
-        ).thenAnswer((_) => completer.future);
+        when(() => core.getTotalTraffic(any()))
+            .thenAnswer((_) => completer.future);
 
         final first = container
             .read(commonActionProvider.notifier)

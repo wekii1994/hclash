@@ -380,9 +380,8 @@ void main() {
 
 Map<String, Object?> _createConfigMap({DAVProps? davProps}) {
   return jsonDecode(
-        jsonEncode(Config(themeProps: defaultThemeProps, davProps: davProps)),
-      )
-      as Map<String, Object?>;
+    jsonEncode(Config(themeProps: defaultThemeProps, davProps: davProps)),
+  ) as Map<String, Object?>;
 }
 
 Map<String, Object?> _createClashConfigMap({required int mixedPort}) {

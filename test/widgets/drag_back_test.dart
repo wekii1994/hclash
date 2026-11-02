@@ -80,9 +80,9 @@ void main() {
       sliderValue = 0.5;
       return _pumpOpener(
         tester,
-        (context) => Navigator.of(
-          context,
-        ).push(CommonRoute<void>(builder: (_) => page())),
+        (context) =>
+            Navigator.of(context)
+                .push(CommonRoute<void>(builder: (_) => page())),
       );
     }
 

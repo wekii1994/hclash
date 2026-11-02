@@ -264,9 +264,8 @@ Future<_TestProfileRules> _pumpRules(WidgetTester tester) async {
       profilesProvider.overrideWith(() => TestProfiles([profile])),
       currentProfileIdProvider.overrideWithBuild((_, _) => profile.id),
       profileRulesProvider.overrideWith2((_) => notifier),
-      customProfileDataProvider(
-        profile.id,
-      ).overrideWithValue(const CustomProfileData(ruleTargets: {'DIRECT'})),
+      customProfileDataProvider(profile.id)
+          .overrideWithValue(const CustomProfileData(ruleTargets: {'DIRECT'})),
     ],
   );
   addTearDown(container.dispose);
@@ -388,9 +387,9 @@ void main() {
 
     final rows = find.byType(DecorationListItem);
     expect(rows, findsNWidgets(3));
-    final color = Theme.of(
-      tester.element(rows.first),
-    ).colorScheme.outlineVariant;
+    final color = Theme.of(tester.element(rows.first))
+        .colorScheme
+        .outlineVariant;
     final separator = paints
       ..something(
         (method, arguments) =>
@@ -1393,9 +1392,8 @@ void main() {
     _setViewport(tester);
     final core = _MockCore();
     registerFallbackValue(<Map<String, dynamic>>[]);
-    when(
-      () => core.validateProxies(any()),
-    ).thenAnswer((_) async => ['missing server']);
+    when(() => core.validateProxies(any()))
+        .thenAnswer((_) async => ['missing server']);
     final container = ProviderContainer(
       overrides: [
         coreHandlerProvider.overrideWithValue(CoreController.scoped(core)),
@@ -1450,9 +1448,8 @@ void main() {
     _setViewport(tester);
     final core = _MockCore();
     registerFallbackValue(<Map<String, dynamic>>[]);
-    when(
-      () => core.validateProxies(any()),
-    ).thenAnswer((_) async => throw Exception('core down'));
+    when(() => core.validateProxies(any()))
+        .thenAnswer((_) async => throw Exception('core down'));
     final proxies = _RecordingCustomProxies();
     final container = ProviderContainer(
       overrides: [
@@ -1994,9 +1991,8 @@ void main() {
         profilesProvider.overrideWith(() => TestProfiles([profile])),
         currentProfileIdProvider.overrideWithBuild((_, _) => profile.id),
         proxyGroupsProvider.overrideWith2((_) => _TestProxyGroups(const [])),
-        customProfileDataProvider(
-          profile.id,
-        ).overrideWithValue(const CustomProfileData()),
+        customProfileDataProvider(profile.id)
+            .overrideWithValue(const CustomProfileData()),
       ],
     );
     addTearDown(container.dispose);

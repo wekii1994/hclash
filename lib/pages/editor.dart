@@ -1063,9 +1063,8 @@ class FindPanel extends StatelessWidget implements PreferredSizeWidget {
         ),
       ],
     );
-    final inlineMinWidth = MediaQuery.textScalerOf(
-      context,
-    ).scale(_findInlineMinWidth);
+    final inlineMinWidth = MediaQuery.textScalerOf(context)
+        .scale(_findInlineMinWidth);
     if (constraints.maxWidth < inlineMinWidth) {
       return Column(
         mainAxisSize: MainAxisSize.min,

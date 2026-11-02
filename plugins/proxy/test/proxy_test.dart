@@ -358,10 +358,8 @@ void main() {
   });
 
   group('macOS proxy command builders', () {
-    test(
-      'filters networksetup service list headers, disabled services, and blanks',
-      () {
-        final services = MacosProxyCommands.parseNetworkServices('''
+    test('filters networksetup service list headers, disabled services, and blanks', () {
+      final services = MacosProxyCommands.parseNetworkServices('''
 An asterisk (*) denotes that a network service is disabled.
 Wi-Fi
 *Thunderbolt Bridge
@@ -369,9 +367,8 @@ USB 10/100/1000 LAN
 
 ''');
 
-        expect(services, ['Wi-Fi', 'USB 10/100/1000 LAN']);
-      },
-    );
+      expect(services, ['Wi-Fi', 'USB 10/100/1000 LAN']);
+    });
 
     test('passes bypass domains as separate networksetup arguments', () {
       final command = MacosProxyCommands.buildProxyBypass('Wi-Fi', [

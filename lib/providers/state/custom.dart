@@ -68,9 +68,8 @@ CustomProfileData? customProfileData(Ref ref, int profileId) {
 @riverpod
 bool customProfileTargetIsValid(Ref ref, int profileId, String? target) {
   return ref.watch(
-    customProfileDataProvider(
-      profileId,
-    ).select((state) => state == null || _isRuleLineTarget(state, target)),
+    customProfileDataProvider(profileId)
+        .select((state) => state == null || _isRuleLineTarget(state, target)),
   );
 }
 
@@ -99,9 +98,8 @@ bool customProfileRuleProviderIsValid(
   String? providerName,
 ) {
   return ref.watch(
-    customProfileDataProvider(
-      profileId,
-    ).select((state) => state?.ruleProviders.contains(providerName) ?? true),
+    customProfileDataProvider(profileId)
+        .select((state) => state?.ruleProviders.contains(providerName) ?? true),
   );
 }
 
@@ -887,9 +885,8 @@ CustomProfileIssues customProfileIssues(Ref ref, int profileId) {
   final rules =
       ref.watch(profileRulesProvider(profileId)).value ?? const <Rule>[];
   final overrides = ref.watch(
-    profileProvider(
-      profileId,
-    ).select((profile) => profile?.overrides ?? const ProfileOverrides()),
+    profileProvider(profileId)
+        .select((profile) => profile?.overrides ?? const ProfileOverrides()),
   );
   if (data == null) {
     return const CustomProfileIssues();

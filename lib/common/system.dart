@@ -12,8 +12,10 @@ import 'package:fl_clash/plugins/app.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 
-typedef ProcessRunner =
-    Future<ProcessResult> Function(String executable, List<String> arguments);
+typedef ProcessRunner = Future<ProcessResult> Function(
+  String executable,
+  List<String> arguments,
+);
 
 class System {
   static System? _instance;
@@ -476,9 +478,10 @@ class MacOS implements SystemDnsPort {
           (line) => RegExp(r'^\(\d+\).*').hasMatch(line),
           orElse: () => '',
         );
-    final name = RegExp(
-      r'^\(\d+\)\s+(.+)$',
-    ).firstMatch(nameLine.trim())?.group(1)?.trim();
+    final name = RegExp(r'^\(\d+\)\s+(.+)$')
+        .firstMatch(nameLine.trim())
+        ?.group(1)
+        ?.trim();
     if (name == null || name.isEmpty) {
       return null;
     }

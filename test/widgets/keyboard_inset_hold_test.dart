@@ -34,9 +34,8 @@ void main() {
   }
 
   double shownInset(WidgetTester tester) {
-    return MediaQuery.viewInsetsOf(
-      tester.element(find.byType(_InsetProbe)),
-    ).bottom;
+    return MediaQuery.viewInsetsOf(tester.element(find.byType(_InsetProbe)))
+        .bottom;
   }
 
   Future<void> setKeyboard(WidgetTester tester, double height) async {

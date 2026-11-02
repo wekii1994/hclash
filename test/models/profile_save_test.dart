@@ -58,9 +58,8 @@ void main() {
     });
 
     test('validates with the profile age key', () async {
-      final profile = Profile.normal(
-        label: 'p',
-      ).copyWith(ageSecretKey: 'AGE-SECRET-KEY-1A');
+      final profile = Profile.normal(label: 'p')
+          .copyWith(ageSecretKey: 'AGE-SECRET-KEY-1A');
       final bytes = Uint8List.fromList(utf8.encode('proxies: []'));
       String? ageSecretKey;
 

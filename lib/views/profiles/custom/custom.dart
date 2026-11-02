@@ -260,14 +260,12 @@ class _CustomProfileViewState extends ConsumerState<CustomProfileView> {
     _loaded =
         _loaded ||
         (ref.watch(
-              customProfileDataProvider(
-                profileId,
-              ).select((state) => state != null),
+              customProfileDataProvider(profileId)
+                  .select((state) => state != null),
             ) &&
             !ref.watch(
-              profileRulesProvider(
-                profileId,
-              ).select((state) => state.isLoading),
+              profileRulesProvider(profileId)
+                  .select((state) => state.isLoading),
             ));
     if (_loaded) {
       _loadedInputs ??= _inputs;
@@ -327,9 +325,8 @@ class _CustomProfileViewState extends ConsumerState<CustomProfileView> {
                     child: SizedBox(height: context.sectionsTopPadding),
                   ),
                   SliverPadding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                    ).copyWith(bottom: 24 + context.bottomInset),
+                    padding: const EdgeInsets.symmetric(horizontal: 16)
+                        .copyWith(bottom: 24 + context.bottomInset),
                     sliver: SliverMainAxisGroup(
                       slivers: [
                         SliverToBoxAdapter(child: _overview),

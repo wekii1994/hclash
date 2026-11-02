@@ -95,14 +95,16 @@ final class Tray {
       _itemsById = encoded.itemsById;
       return;
     }
-    final isApplied = await _channel
-        .invokeMethod<bool>(_methodShow, <String, Object?>{
-          'id': _stableId,
-          'icon': await _resolveIcon(spec.icon),
-          'toolTip': encoded.toolTip,
-          'title': _title,
-          'menu': encoded.menu,
-        });
+    final isApplied = await _channel.invokeMethod<bool>(
+      _methodShow,
+      <String, Object?>{
+        'id': _stableId,
+        'icon': await _resolveIcon(spec.icon),
+        'toolTip': encoded.toolTip,
+        'title': _title,
+        'menu': encoded.menu,
+      },
+    );
     if (isApplied != true) {
       _signature = null;
       return;

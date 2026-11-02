@@ -404,96 +404,93 @@ void main() {
     },
   );
 
-  test(
-    'rules DAO keeps global and profile rules apart, disables, orders and renames',
-    () async {
-      const profile = Profile(id: 1, autoUpdateDuration: Duration.zero);
-      const global = Rule(
-        id: 30,
-        ruleAction: RuleAction.DOMAIN,
-        content: 'global.example',
-        ruleTarget: 'DIRECT',
-        order: 'b',
-      );
-      const added = Rule(
-        id: 31,
-        ruleAction: RuleAction.IP_CIDR,
-        content: '10.0.0.0/8',
-        ruleTarget: 'Proxy',
-        noResolve: true,
-        src: true,
-        order: 'a',
-      );
-      const ruleSet = Rule(
-        id: 32,
-        ruleAction: RuleAction.RULE_SET,
-        ruleProvider: 'provider',
-        ruleTarget: 'OldGroup',
-        order: 'c',
-      );
-      await database.profiles.put(profile.toCompanion());
-      await database.rulesDao.putRule(global);
-      await database.rulesDao.putRule(added, profileId: profile.id);
-      await database.rulesDao.putRule(ruleSet, profileId: profile.id);
+  test('rules DAO keeps global and profile rules apart, disables, orders and renames', () async {
+    const profile = Profile(id: 1, autoUpdateDuration: Duration.zero);
+    const global = Rule(
+      id: 30,
+      ruleAction: RuleAction.DOMAIN,
+      content: 'global.example',
+      ruleTarget: 'DIRECT',
+      order: 'b',
+    );
+    const added = Rule(
+      id: 31,
+      ruleAction: RuleAction.IP_CIDR,
+      content: '10.0.0.0/8',
+      ruleTarget: 'Proxy',
+      noResolve: true,
+      src: true,
+      order: 'a',
+    );
+    const ruleSet = Rule(
+      id: 32,
+      ruleAction: RuleAction.RULE_SET,
+      ruleProvider: 'provider',
+      ruleTarget: 'OldGroup',
+      order: 'c',
+    );
+    await database.profiles.put(profile.toCompanion());
+    await database.rulesDao.putRule(global);
+    await database.rulesDao.putRule(added, profileId: profile.id);
+    await database.rulesDao.putRule(ruleSet, profileId: profile.id);
 
-      expect(await database.rulesDao.queryGlobalRules().get(), [global]);
-      expect(await database.rulesDao.queryProfileRules(profile.id).get(), [
-        added.copyWith(profileId: profile.id),
-        ruleSet.copyWith(profileId: profile.id),
-      ]);
-      expect(
-        await database.rulesDao.profileRulesCount(profile.id).getSingle(),
-        2,
-      );
-      expect(
-        (await database.rulesDao.queryAddedRules(profile.id).get()).map(
-          (rule) => rule.id,
-        ),
-        [added.id, ruleSet.id, global.id],
-      );
+    expect(await database.rulesDao.queryGlobalRules().get(), [global]);
+    expect(await database.rulesDao.queryProfileRules(profile.id).get(), [
+      added.copyWith(profileId: profile.id),
+      ruleSet.copyWith(profileId: profile.id),
+    ]);
+    expect(
+      await database.rulesDao.profileRulesCount(profile.id).getSingle(),
+      2,
+    );
+    expect(
+      (await database.rulesDao.queryAddedRules(profile.id).get()).map(
+        (rule) => rule.id,
+      ),
+      [added.id, ruleSet.id, global.id],
+    );
 
-      await database.rulesDao.putDisabled(profile.id, global.id);
-      expect(await database.rulesDao.queryDisabledRuleIds(profile.id).get(), [
-        global.id,
-      ]);
-      expect(
-        (await database.rulesDao.queryAddedRules(profile.id).get()).map(
-          (rule) => rule.id,
-        ),
-        isNot(contains(global.id)),
-      );
-      expect(await database.rulesDao.delDisabled(profile.id, global.id), 1);
-      expect(
-        await database.rulesDao.queryDisabledRuleIds(profile.id).get(),
-        isEmpty,
-      );
+    await database.rulesDao.putDisabled(profile.id, global.id);
+    expect(await database.rulesDao.queryDisabledRuleIds(profile.id).get(), [
+      global.id,
+    ]);
+    expect(
+      (await database.rulesDao.queryAddedRules(profile.id).get()).map(
+        (rule) => rule.id,
+      ),
+      isNot(contains(global.id)),
+    );
+    expect(await database.rulesDao.delDisabled(profile.id, global.id), 1);
+    expect(
+      await database.rulesDao.queryDisabledRuleIds(profile.id).get(),
+      isEmpty,
+    );
 
-      await database.rulesDao.order(ruleId: ruleSet.id, order: '0');
-      expect(
-        (await database.rulesDao.queryProfileRules(profile.id).get()).first.id,
-        ruleSet.id,
-      );
+    await database.rulesDao.order(ruleId: ruleSet.id, order: '0');
+    expect(
+      (await database.rulesDao.queryProfileRules(profile.id).get()).first.id,
+      ruleSet.id,
+    );
 
-      await database.rulesDao.renameRuleTarget(
-        profile.id,
-        oldName: 'OldGroup',
-        newName: 'NewGroup',
-      );
-      expect(
-        (await database.rulesDao.queryProfileRules(profile.id).get())
-            .first
-            .ruleTarget,
-        'NewGroup',
-      );
+    await database.rulesDao.renameRuleTarget(
+      profile.id,
+      oldName: 'OldGroup',
+      newName: 'NewGroup',
+    );
+    expect(
+      (await database.rulesDao.queryProfileRules(profile.id).get())
+          .first
+          .ruleTarget,
+      'NewGroup',
+    );
 
-      await database.rulesDao.delRules([added.id, ruleSet.id]);
-      expect(
-        await database.rulesDao.queryProfileRules(profile.id).get(),
-        isEmpty,
-      );
-      expect(await database.rulesDao.queryGlobalRules().get(), [global]);
-    },
-  );
+    await database.rulesDao.delRules([added.id, ruleSet.id]);
+    expect(
+      await database.rulesDao.queryProfileRules(profile.id).get(),
+      isEmpty,
+    );
+    expect(await database.rulesDao.queryGlobalRules().get(), [global]);
+  });
 
   test('setting a profile\'s rules replaces only its own', () async {
     const profile = Profile(id: 1, autoUpdateDuration: Duration.zero);

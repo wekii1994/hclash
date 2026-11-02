@@ -14,9 +14,9 @@ ProfileOverrides _decode(Map<String, Object?> json) {
 void main() {
   test('every TunOverrideKey is a key of the core TUN section', () {
     final source = File('core/Clash.Meta/config/config.go').readAsStringSync();
-    final body = RegExp(
-      'type RawTun struct {([^}]*)}',
-    ).firstMatch(source)!.group(1)!;
+    final body = RegExp('type RawTun struct {([^}]*)}')
+        .firstMatch(source)!
+        .group(1)!;
     final coreKeys = {
       for (final match in RegExp(r'yaml:"([^",]+)').allMatches(body))
         match.group(1)!,

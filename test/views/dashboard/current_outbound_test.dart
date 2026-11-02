@@ -16,6 +16,7 @@ import 'package:fl_clash/views/dashboard/layout.dart';
 import 'package:fl_clash/views/dashboard/widgets/card.dart';
 import 'package:fl_clash/views/dashboard/widgets/current_outbound.dart';
 import 'package:fl_clash/widgets/widgets.dart';
+
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -398,9 +399,11 @@ void main() {
       containerOf(tester).read(runTimeProvider.notifier).value = 1;
     }
 
-    ProbePhase phaseOf(WidgetTester tester) => containerOf(
-      tester,
-    ).read(outboundIpProbeProvider).entryOf(routedOutbound).phase;
+    ProbePhase phaseOf(WidgetTester tester) =>
+        containerOf(tester)
+            .read(outboundIpProbeProvider)
+            .entryOf(routedOutbound)
+            .phase;
 
     testWidgets('that fails as the proxy starts shows as checking', (
       tester,

@@ -104,9 +104,8 @@ class SubscriptionInfoDetailView extends StatelessWidget {
     final appLocalizations = context.appLocalizations;
     final used = subscriptionInfo.upload + subscriptionInfo.download;
     final expire = subscriptionInfo.expire != 0
-        ? DateTime.fromMillisecondsSinceEpoch(
-            subscriptionInfo.expire * 1000,
-          ).show
+        ? DateTime.fromMillisecondsSinceEpoch(subscriptionInfo.expire * 1000)
+              .show
         : appLocalizations.infiniteTime;
     return SelectionArea(
       child: Column(

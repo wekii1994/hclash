@@ -803,9 +803,9 @@ void main() {
     expect(tester.widget<IconButton>(checkAllButton()).onPressed, isNotNull);
   });
 
-  AppSettingProps settingsOf(WidgetTester tester) => ProviderScope.containerOf(
-    tester.element(find.byType(ServiceStatusCard)),
-  ).read(appSettingProvider);
+  AppSettingProps settingsOf(WidgetTester tester) =>
+      ProviderScope.containerOf(tester.element(find.byType(ServiceStatusCard)))
+          .read(appSettingProvider);
 
   Future<void> openManage(WidgetTester tester) async {
     await tester.tap(find.byType(ServiceStatusCard));
@@ -1017,9 +1017,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(asked, unorderedEquals(shownIds));
 
-    ProviderScope.containerOf(
-      tester.element(find.byType(ServiceStatusCard)),
-    ).read(appSettingProvider.notifier).value = const AppSettingProps(
+    ProviderScope.containerOf(tester.element(find.byType(ServiceStatusCard)))
+        .read(appSettingProvider.notifier)
+        .value = const AppSettingProps(
       disabledServices: ['google'],
     );
     await tester.pumpAndSettle();
@@ -1062,9 +1062,11 @@ void main() {
     runTime.value = started ? 1 : null;
   }
 
-  ProbePhase checkPhase(WidgetTester tester) => containerOf(
-    tester,
-  ).read(serviceStatusProvider).entryOf(ServiceTarget.google).phase;
+  ProbePhase checkPhase(WidgetTester tester) =>
+      containerOf(tester)
+          .read(serviceStatusProvider)
+          .entryOf(ServiceTarget.google)
+          .phase;
 
   testWidgets('a check that fails as the proxy starts shows as checking', (
     tester,

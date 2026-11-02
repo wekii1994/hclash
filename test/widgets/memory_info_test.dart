@@ -330,9 +330,8 @@ void main() {
     tester,
   ) async {
     final coreInterface = _MockCoreHandlerInterface();
-    when(
-      () => coreInterface.getMemoryStats(),
-    ).thenAnswer((_) async => const CoreMemoryStats(rss: 4096));
+    when(() => coreInterface.getMemoryStats())
+        .thenAnswer((_) async => const CoreMemoryStats(rss: 4096));
     final container = _containerWith(coreInterface, CoreStatus.connected);
     addTearDown(container.dispose);
 
@@ -346,9 +345,8 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    verify(
-      () => coreInterface.getMemoryStats(),
-    ).called(greaterThanOrEqualTo(1));
+    verify(() => coreInterface.getMemoryStats())
+        .called(greaterThanOrEqualTo(1));
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -357,9 +355,8 @@ void main() {
     tester,
   ) async {
     final coreInterface = _MockCoreHandlerInterface();
-    when(
-      () => coreInterface.getMemoryStats(),
-    ).thenAnswer((_) async => const CoreMemoryStats(rss: 4096));
+    when(() => coreInterface.getMemoryStats())
+        .thenAnswer((_) async => const CoreMemoryStats(rss: 4096));
     final container = _containerWith(coreInterface, CoreStatus.disconnected);
     addTearDown(container.dispose);
 

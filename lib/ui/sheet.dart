@@ -189,9 +189,8 @@ Future<T?> showSnapSheet<T>(
           builder: home,
           initialScrollOffset: initialScrollOffset,
           sheetBarrierColor: barrierColor,
-          barrierLabel: MaterialLocalizations.of(
-            context,
-          ).modalBarrierDismissLabel,
+          barrierLabel: MaterialLocalizations.of(context)
+              .modalBarrierDismissLabel,
         ),
       );
     } else {

@@ -14,11 +14,7 @@ class TargetSitesView extends StatefulWidget {
   final List<TargetSiteData> sites;
   final ValueChanged<int>? onCountChanged;
 
-  const TargetSitesView({
-    super.key,
-    required this.sites,
-    this.onCountChanged,
-  });
+  const TargetSitesView({super.key, required this.sites, this.onCountChanged});
 
   @override
   State<TargetSitesView> createState() => _TargetSitesViewState();
@@ -76,9 +72,9 @@ class _TargetSitesViewState extends State<TargetSitesView> {
         child: Center(
           child: Text(
             context.appLocalizations.noData,
-            style: AppTextStyle.subheadline.of(context).copyWith(
-                  color: context.colorScheme.onSurfaceVariant,
-                ),
+            style: AppTextStyle.subheadline
+                .of(context)
+                .copyWith(color: context.colorScheme.onSurfaceVariant),
           ),
         ),
       );
@@ -94,12 +90,13 @@ class _TargetSitesViewState extends State<TargetSitesView> {
     final displaySites = widget.sites.take(50).toList();
 
     final maxTotal = _isAggregated
-        ? ((displayGroups?.isNotEmpty ?? false) && displayGroups!.first.total > 0
-            ? displayGroups.first.total
-            : 1)
+        ? ((displayGroups?.isNotEmpty ?? false) &&
+                  displayGroups!.first.total > 0
+              ? displayGroups.first.total
+              : 1)
         : (displaySites.isNotEmpty && displaySites.first.total > 0
-            ? displaySites.first.total
-            : 1);
+              ? displaySites.first.total
+              : 1);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -177,11 +174,7 @@ class _TargetSitesViewState extends State<TargetSitesView> {
             itemBuilder: (context, index) {
               final site = displaySites[index];
               final rank = index + 1;
-              return _SiteTile(
-                site: site,
-                rank: rank,
-                maxTotal: maxTotal,
-              );
+              return _SiteTile(site: site, rank: rank, maxTotal: maxTotal);
             },
           ),
       ],
@@ -223,7 +216,9 @@ class _TogglePill extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: AppTextStyle.caption1.of(context, emphasized: isSelected).copyWith(
+          style: AppTextStyle.caption1
+              .of(context, emphasized: isSelected)
+              .copyWith(
                 color: isSelected
                     ? colorScheme.primary
                     : colorScheme.onSurfaceVariant,
@@ -287,9 +282,9 @@ class _AggregatedGroupTile extends StatelessWidget {
                       width: 24,
                       child: Text(
                         '#$rank',
-                        style: AppTextStyle.caption1.of(context, emphasized: true).copyWith(
-                              color: _rankColor(context, rank),
-                            ),
+                        style: AppTextStyle.caption1
+                            .of(context, emphasized: true)
+                            .copyWith(color: _rankColor(context, rank)),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -304,7 +299,9 @@ class _AggregatedGroupTile extends StatelessWidget {
                       alignment: Alignment.center,
                       child: Text(
                         group.iconText,
-                        style: AppTextStyle.subheadline.of(context, emphasized: true).copyWith(
+                        style: AppTextStyle.subheadline
+                            .of(context, emphasized: true)
+                            .copyWith(
                               color: brandColor,
                               fontSize: group.iconText.length > 2 ? 11 : 13,
                             ),
@@ -320,16 +317,19 @@ class _AggregatedGroupTile extends StatelessWidget {
                             group.displayName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTextStyle.body.of(context, emphasized: true),
+                            style: AppTextStyle.body.of(
+                              context,
+                              emphasized: true,
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             hasMultiple
                                 ? '↑ ${group.upload.traffic.show}   ↓ ${group.download.traffic.show}   (${group.subSites.length} 个域名)'
                                 : '↑ ${group.upload.traffic.show}   ↓ ${group.download.traffic.show}   (${group.count})',
-                            style: AppTextStyle.caption2.of(context).copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
+                            style: AppTextStyle.caption2
+                                .of(context)
+                                .copyWith(color: colorScheme.onSurfaceVariant),
                           ),
                         ],
                       ),
@@ -338,12 +338,16 @@ class _AggregatedGroupTile extends StatelessWidget {
                     // Total traffic
                     Text(
                       group.total.traffic.show,
-                      style: AppTextStyle.subheadline.of(context, emphasized: true).toTabular,
+                      style: AppTextStyle.subheadline
+                          .of(context, emphasized: true)
+                          .toTabular,
                     ),
                     if (hasMultiple) ...[
                       const SizedBox(width: 4),
                       Icon(
-                        isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                        isExpanded
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
                         size: 18,
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -357,9 +361,12 @@ class _AggregatedGroupTile extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: fraction,
                     minHeight: 4,
-                    backgroundColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                    backgroundColor: colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.5),
                     valueColor: AlwaysStoppedAnimation(
-                      rank <= 3 ? _rankColor(context, rank) : colorScheme.primary,
+                      rank <= 3
+                          ? _rankColor(context, rank)
+                          : colorScheme.primary,
                     ),
                   ),
                 ),
@@ -367,9 +374,14 @@ class _AggregatedGroupTile extends StatelessWidget {
                 if (isExpanded && hasMultiple) ...[
                   const SizedBox(height: 10),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                      color: colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.35,
+                      ),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Column(
@@ -379,18 +391,23 @@ class _AggregatedGroupTile extends StatelessWidget {
                             Divider(
                               height: 12,
                               thickness: 0.5,
-                              color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+                              color: colorScheme.outlineVariant.withValues(
+                                alpha: 0.2,
+                              ),
                             ),
                           Builder(
                             builder: (context) {
                               final sub = group.subSites[i];
-                              final app = DomainClassifier.friendlyAppName(sub.process);
+                              final app = DomainClassifier.friendlyAppName(
+                                sub.process,
+                              );
                               return Row(
                                 children: [
                                   Icon(
                                     Icons.subdirectory_arrow_right,
                                     size: 14,
-                                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                                    color: colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.7),
                                   ),
                                   const SizedBox(width: 6),
                                   Expanded(
@@ -400,7 +417,9 @@ class _AggregatedGroupTile extends StatelessWidget {
                                         Flexible(
                                           child: Text(
                                             sub.host,
-                                            style: AppTextStyle.caption1.of(context).copyWith(
+                                            style: AppTextStyle.caption1
+                                                .of(context)
+                                                .copyWith(
                                                   color: colorScheme.onSurface,
                                                 ),
                                             maxLines: 1,
@@ -410,15 +429,23 @@ class _AggregatedGroupTile extends StatelessWidget {
                                         if (app != null && app.isNotEmpty) ...[
                                           const SizedBox(width: 6),
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 5,
+                                              vertical: 1,
+                                            ),
                                             decoration: BoxDecoration(
-                                              color: colorScheme.surfaceContainerHighest,
-                                              borderRadius: BorderRadius.circular(4),
+                                              color: colorScheme
+                                                  .surfaceContainerHighest,
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
                                             ),
                                             child: Text(
                                               app,
-                                              style: AppTextStyle.caption2.of(context).copyWith(
-                                                    color: colorScheme.onSurfaceVariant,
+                                              style: AppTextStyle.caption2
+                                                  .of(context)
+                                                  .copyWith(
+                                                    color: colorScheme
+                                                        .onSurfaceVariant,
                                                     fontSize: 10,
                                                   ),
                                             ),
@@ -430,7 +457,9 @@ class _AggregatedGroupTile extends StatelessWidget {
                                   const SizedBox(width: 8),
                                   Text(
                                     sub.total.traffic.show,
-                                    style: AppTextStyle.caption1.of(context, emphasized: true).copyWith(
+                                    style: AppTextStyle.caption1
+                                        .of(context, emphasized: true)
+                                        .copyWith(
                                           color: colorScheme.onSurfaceVariant,
                                         ),
                                   ),
@@ -494,9 +523,9 @@ class _SiteTile extends StatelessWidget {
                 width: 24,
                 child: Text(
                   '#$rank',
-                  style: AppTextStyle.caption1.of(context, emphasized: true).copyWith(
-                        color: _rankColor(context, rank),
-                      ),
+                  style: AppTextStyle.caption1
+                      .of(context, emphasized: true)
+                      .copyWith(color: _rankColor(context, rank)),
                 ),
               ),
               const SizedBox(width: 8),
@@ -513,8 +542,12 @@ class _SiteTile extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Text(
                   initial,
-                  style: AppTextStyle.subheadline.of(context, emphasized: true).copyWith(
-                        color: isIp ? const Color(0xFF607D8B) : colorScheme.primary,
+                  style: AppTextStyle.subheadline
+                      .of(context, emphasized: true)
+                      .copyWith(
+                        color: isIp
+                            ? const Color(0xFF607D8B)
+                            : colorScheme.primary,
                         fontSize: initial.length > 1 ? 11 : 13,
                       ),
                 ),
@@ -534,9 +567,9 @@ class _SiteTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       detail,
-                      style: AppTextStyle.caption2.of(context).copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
+                      style: AppTextStyle.caption2
+                          .of(context)
+                          .copyWith(color: colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -545,7 +578,9 @@ class _SiteTile extends StatelessWidget {
               // Total traffic
               Text(
                 site.total.traffic.show,
-                style: AppTextStyle.subheadline.of(context, emphasized: true).toTabular,
+                style: AppTextStyle.subheadline
+                    .of(context, emphasized: true)
+                    .toTabular,
               ),
             ],
           ),
@@ -556,7 +591,9 @@ class _SiteTile extends StatelessWidget {
             child: LinearProgressIndicator(
               value: fraction,
               minHeight: 4,
-              backgroundColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              backgroundColor: colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.5,
+              ),
               valueColor: AlwaysStoppedAnimation(
                 rank <= 3 ? _rankColor(context, rank) : colorScheme.primary,
               ),

@@ -713,15 +713,14 @@ tun:
       compiledUrls = [];
       final core = _MockCoreHandlerInterface();
       when(() => core.validateConfig(any())).thenAnswer((_) async => '');
-      when(() => core.compileRuleSet(any(), url: any(named: 'url'))).thenAnswer(
-        (invocation) async {
-          compiledUrls.add(invocation.namedArguments[#url] as String);
-          return (
-            behavior: RuleProviderBehavior.classical,
-            format: RuleProviderFormat.text,
-          );
-        },
-      );
+      when(() => core.compileRuleSet(any(), url: any(named: 'url')))
+          .thenAnswer((invocation) async {
+            compiledUrls.add(invocation.namedArguments[#url] as String);
+            return (
+              behavior: RuleProviderBehavior.classical,
+              format: RuleProviderFormat.text,
+            );
+          });
       container = ProviderContainer(
         overrides: [
           profilesProvider.overrideWith(() => TestProfiles([custom])),

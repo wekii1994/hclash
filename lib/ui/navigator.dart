@@ -95,9 +95,8 @@ Future<void> whenRouteSettled(BuildContext context) async {
   }
 }
 
-bool isRouteArriving(BuildContext context) => routesCarrying(
-  context,
-).any((route) => route.offstage || (route.animation?.isAnimating ?? false));
+bool isRouteArriving(BuildContext context) => routesCarrying(context)
+    .any((route) => route.offstage || (route.animation?.isAnimating ?? false));
 
 /// Completes once the route [context] is on stops moving under the route
 /// above it, as while that route still leaves after its pop.

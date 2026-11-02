@@ -118,9 +118,8 @@ void main() {
     tester,
   ) async {
     await _pumpDialog(tester, ['Cancel', 'Delete'], destructive: true);
-    final colorScheme = Theme.of(
-      tester.element(find.text('Delete')),
-    ).colorScheme;
+    final colorScheme = Theme.of(tester.element(find.text('Delete')))
+        .colorScheme;
 
     expect(_labelColor(tester, 'Delete'), colorScheme.destructive);
     expect(_labelColor(tester, 'Cancel'), colorScheme.onSurface);

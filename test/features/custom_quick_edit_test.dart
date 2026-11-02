@@ -328,9 +328,8 @@ void main() {
         id: 2,
         definition: {'name': 'WG', 'type': 'wireguard'},
       );
-      when(
-        () => core.encodeShareLinks(any()),
-      ).thenAnswer((_) async => ['ss://home#Home', '']);
+      when(() => core.encodeShareLinks(any()))
+          .thenAnswer((_) async => ['ss://home#Home', '']);
       decodesTo({
         'vless://new#New': [
           {'name': 'New', 'type': 'vless', 'server': 'n.example', 'port': 1},
@@ -363,9 +362,8 @@ void main() {
         id: 1,
         definition: {'name': 'Home', 'type': 'ss', 'server': 'a.example'},
       );
-      when(
-        () => core.encodeShareLinks(any()),
-      ).thenAnswer((_) async => ['ss://home#Home']);
+      when(() => core.encodeShareLinks(any()))
+          .thenAnswer((_) async => ['ss://home#Home']);
       decodesTo({
         'ss://home#Away': [
           {'name': 'Away', 'type': 'ss', 'server': 'a.example'},
@@ -503,9 +501,8 @@ void main() {
           'dialer-proxy': 'Relay',
         },
       );
-      when(
-        () => core.encodeShareLinks(any()),
-      ).thenAnswer((_) async => ['socks5://a.example:1080#Mine']);
+      when(() => core.encodeShareLinks(any()))
+          .thenAnswer((_) async => ['socks5://a.example:1080#Mine']);
       decodesTo({
         'trojan://pw@c.example:443': [
           {
@@ -816,9 +813,8 @@ void main() {
         expect(row(title), findsOneWidget, reason: title);
       }
 
-      when(
-        () => core.encodeShareLinks(any()),
-      ).thenAnswer((_) async => ['trojan://pw@a.example:443#Gate']);
+      when(() => core.encodeShareLinks(any()))
+          .thenAnswer((_) async => ['trojan://pw@a.example:443#Gate']);
       decodesTo({
         'trojan://pw@b.example:443#Gate': [
           {...linked, 'server': 'b.example'},

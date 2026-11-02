@@ -207,9 +207,14 @@ void main() {
       final payload = _payloadOf(body);
       expect(payload, isNot(contains(releaseJsonEndMarker)));
       expect(
-        decodeChangelog(
-          payload,
-        ).versions.single.groups.single.entries.single.text,
+        decodeChangelog(payload)
+            .versions
+            .single
+            .groups
+            .single
+            .entries
+            .single
+            .text,
         'Handle a --> sequence',
       );
     });

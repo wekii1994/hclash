@@ -261,9 +261,8 @@ void main() {
         () => null,
         () => _snapshot,
       ];
-      when(
-        () => core.watchRoute(true),
-      ).thenAnswer((_) async => answers.removeAt(0)());
+      when(() => core.watchRoute(true))
+          .thenAnswer((_) async => answers.removeAt(0)());
       final container = build();
       trackerOf(container).attach();
       await tester.pump();

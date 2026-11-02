@@ -602,15 +602,13 @@ class _ProxyProviderOptionsViewState
       body: CustomScrollView(
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-            ).copyWith(top: context.sectionsTopPadding),
+            padding: const EdgeInsets.symmetric(horizontal: 16)
+                .copyWith(top: context.sectionsTopPadding),
             sliver: const ProxyProviderFiltersSliver(),
           ),
           SliverPadding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-            ).copyWith(bottom: 20 + context.bottomInset),
+            padding: const EdgeInsets.symmetric(horizontal: 16)
+                .copyWith(bottom: 20 + context.bottomInset),
             sliver: SliverList.list(
               children: [
                 generateAnimatedSection(

@@ -58,9 +58,8 @@ class CustomProxyDialersView extends ConsumerWidget {
             ],
             labelBuilder: (item) => item.isEmpty ? appLocalizations.none : item,
             selectedOf: (ref) => ref.watch(
-              proxyDialersProvider(
-                profileId,
-              ).select((state) => state.value?[proxy.id] ?? ''),
+              proxyDialersProvider(profileId)
+                  .select((state) => state.value?[proxy.id] ?? ''),
             ),
             onSelected: (item) => Navigator.of(context).pop(item),
           );

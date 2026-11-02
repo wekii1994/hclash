@@ -152,9 +152,8 @@ class BackupAction extends _$BackupAction {
       for (final MapEntry(key: entry, value: replaced) in copied.entries) {
         final target = BackupEntries.resolve(homeDirPath, entry);
         if (replaced) {
-          await File(
-            BackupEntries.resolve(replacedDirPath, entry),
-          ).safeCopy(target);
+          await File(BackupEntries.resolve(replacedDirPath, entry))
+              .safeCopy(target);
         } else {
           await File(target).safeDelete();
         }

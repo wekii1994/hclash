@@ -365,33 +365,36 @@ void main() {
     await expectLater(
       lookup.result,
       throwsA(
-        isA<IpQualityLookupException>()
-            .having((error) => error.failures, 'failures', [
-              (
-                source: IpQualitySource.identMe,
-                status: IpQualitySourceStatus.ipMismatch,
-              ),
-              (
-                source: IpQualitySource.ipApiCom,
-                status: IpQualitySourceStatus.failed,
-              ),
-              (
-                source: IpQualitySource.ipQuery,
-                status: IpQualitySourceStatus.rateLimited,
-              ),
-              (
-                source: IpQualitySource.ipLocate,
-                status: IpQualitySourceStatus.noType,
-              ),
-              (
-                source: IpQualitySource.proxyCheck,
-                status: IpQualitySourceStatus.rateLimited,
-              ),
-              (
-                source: IpQualitySource.ipApiIs,
-                status: IpQualitySourceStatus.timeout,
-              ),
-            ]),
+        isA<IpQualityLookupException>().having(
+          (error) => error.failures,
+          'failures',
+          [
+            (
+              source: IpQualitySource.identMe,
+              status: IpQualitySourceStatus.ipMismatch,
+            ),
+            (
+              source: IpQualitySource.ipApiCom,
+              status: IpQualitySourceStatus.failed,
+            ),
+            (
+              source: IpQualitySource.ipQuery,
+              status: IpQualitySourceStatus.rateLimited,
+            ),
+            (
+              source: IpQualitySource.ipLocate,
+              status: IpQualitySourceStatus.noType,
+            ),
+            (
+              source: IpQualitySource.proxyCheck,
+              status: IpQualitySourceStatus.rateLimited,
+            ),
+            (
+              source: IpQualitySource.ipApiIs,
+              status: IpQualitySourceStatus.timeout,
+            ),
+          ],
+        ),
       ),
     );
   });

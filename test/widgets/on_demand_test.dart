@@ -291,9 +291,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final notifier =
-        container.read(batteryOptimizationIgnoredProvider.notifier)
-            as _TestBatteryOptimizationIgnored;
+    final notifier = container.read(
+      batteryOptimizationIgnoredProvider.notifier,
+    ) as _TestBatteryOptimizationIgnored;
     expect(notifier.requests, 1);
     expect(
       find.descendant(
@@ -316,9 +316,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final notifier =
-        container.read(batteryOptimizationIgnoredProvider.notifier)
-            as _TestBatteryOptimizationIgnored;
+    final notifier = container.read(
+      batteryOptimizationIgnoredProvider.notifier,
+    ) as _TestBatteryOptimizationIgnored;
     expect(notifier.requests, 0);
   });
 
@@ -330,9 +330,9 @@ void main() {
     await tester.tap(find.text('Tap to authorize').first);
     await tester.pumpAndSettle();
 
-    final notifier =
-        container.read(batteryOptimizationIgnoredProvider.notifier)
-            as _TestBatteryOptimizationIgnored;
+    final notifier = container.read(
+      batteryOptimizationIgnoredProvider.notifier,
+    ) as _TestBatteryOptimizationIgnored;
     expect(notifier.requests, 1);
     expect(find.byTooltip('Tip'), findsNothing);
   });

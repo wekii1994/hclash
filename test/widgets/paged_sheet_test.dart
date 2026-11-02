@@ -165,9 +165,8 @@ void main() {
     expect(tester.getSize(find.byType(PagedSheet)), const Size(400, 120));
 
     unawaited(
-      Navigator.of(
-        pageContext,
-      ).push(PagedSheetRoute(builder: (_) => page(300, 'second'))),
+      Navigator.of(pageContext)
+          .push(PagedSheetRoute(builder: (_) => page(300, 'second'))),
     );
     await tester.pump();
     await tester.pump();

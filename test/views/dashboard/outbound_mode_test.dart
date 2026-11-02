@@ -90,9 +90,8 @@ void main() {
     tester,
   ) async {
     await pump(tester, const OutboundModeCard());
-    final colorScheme = Theme.of(
-      tester.element(find.byType(OutboundModeCard)),
-    ).colorScheme;
+    final colorScheme = Theme.of(tester.element(find.byType(OutboundModeCard)))
+        .colorScheme;
     expect(decorationOf(tester, Mode.rule).color, colorScheme.primary);
     final innerRadius = startRadiusOf(tester, Mode.direct);
 
@@ -110,9 +109,8 @@ void main() {
       tester,
       const LiquidGlassScope(enabled: true, child: OutboundModeCard()),
     );
-    final colorScheme = Theme.of(
-      tester.element(find.byType(OutboundModeCard)),
-    ).colorScheme;
+    final colorScheme = Theme.of(tester.element(find.byType(OutboundModeCard)))
+        .colorScheme;
 
     expect(find.byType(LiquidGlass), findsNothing);
     expect(decorationOf(tester, Mode.rule).color, colorScheme.primary);
@@ -122,9 +120,8 @@ void main() {
     tester,
   ) async {
     await pump(tester, const OutboundModeCard());
-    final colorScheme = Theme.of(
-      tester.element(find.byType(OutboundModeCard)),
-    ).colorScheme;
+    final colorScheme = Theme.of(tester.element(find.byType(OutboundModeCard)))
+        .colorScheme;
     double swellOf(Mode mode) {
       final box = tester.renderObject<RenderBox>(buttonOf(mode));
       return ElasticPress.paintBoundsOf(box).width / box.size.width;

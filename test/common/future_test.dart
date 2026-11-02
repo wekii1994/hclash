@@ -6,9 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('FutureExt.withTimeout', () {
     test('returns the value when it completes before the timeout', () async {
-      final result = await Future<int>.value(
-        7,
-      ).withTimeout(timeout: const Duration(seconds: 1));
+      final result = await Future<int>.value(7)
+          .withTimeout(timeout: const Duration(seconds: 1));
 
       expect(result, 7);
     });

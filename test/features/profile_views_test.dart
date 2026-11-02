@@ -128,8 +128,9 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(
-      (container.read(setupActionProvider.notifier) as _RecordingSetupAction)
-          .autoApplyCalls,
+      (container.read(
+        setupActionProvider.notifier,
+      ) as _RecordingSetupAction).autoApplyCalls,
       1,
     );
   }
@@ -278,9 +279,8 @@ void main() {
     (tester) async {
       setViewport(tester);
       final edited = DateTime(2020);
-      final profile = Profile.custom(
-        label: 'mine',
-      ).copyWith(lastUpdateDate: edited);
+      final profile = Profile.custom(label: 'mine')
+          .copyWith(lastUpdateDate: edited);
       final container = ProviderContainer(
         overrides: [
           profilesProvider.overrideWith(() => TestProfiles([profile])),

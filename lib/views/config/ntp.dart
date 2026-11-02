@@ -42,9 +42,8 @@ class NtpView extends OverrideView<NtpOverrideKey, Ntp> {
             profileId,
             get: _profileNtp,
             set: _setProfileNtp,
-            issues: customProfileIssuesProvider(
-              profileId,
-            ).select((state) => state.ntp),
+            issues: customProfileIssuesProvider(profileId)
+                .select((state) => state.ntp),
           ),
         ),
       );

@@ -54,9 +54,8 @@ void main() {
   });
 
   void decodesTo(String link, List<Map<String, dynamic>> proxies) {
-    when(
-      () => core.decodeShareLinks([link]),
-    ).thenAnswer((_) async => [proxies]);
+    when(() => core.decodeShareLinks([link]))
+        .thenAnswer((_) async => [proxies]);
   }
 
   Future<void> pumpHost(WidgetTester tester) async {

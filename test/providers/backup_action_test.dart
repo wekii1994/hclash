@@ -101,9 +101,8 @@ void main() {
       await testDatabase.delete(testDatabase.profiles).go();
       profileFile.deleteSync();
       final target = buildContainer()..listen(configProvider, (_, _) {});
-      final restored = await actionOf(
-        target,
-      ).restore(RestoreOption.all, (_) async => archivePath);
+      final restored = await actionOf(target)
+          .restore(RestoreOption.all, (_) async => archivePath);
 
       expect(restored, isTrue);
       final stored = await testDatabase.profilesDao.query().get();
@@ -117,9 +116,8 @@ void main() {
       final container = buildContainer();
 
       await expectLater(
-        actionOf(
-          container,
-        ).backup((_) async => throw const SocketException('offline')),
+        actionOf(container)
+            .backup((_) async => throw const SocketException('offline')),
         throwsA(isA<SocketException>()),
       );
 
@@ -129,9 +127,8 @@ void main() {
     test('a cancelled fetch changes nothing', () async {
       final container = buildContainer();
 
-      final restored = await actionOf(
-        container,
-      ).restore(RestoreOption.all, (_) async => null);
+      final restored = await actionOf(container)
+          .restore(RestoreOption.all, (_) async => null);
 
       expect(restored, isFalse);
     });
@@ -346,9 +343,8 @@ void main() {
       final configMap = configMapOf(source);
 
       final target = buildContainer();
-      await actionOf(
-        target,
-      ).applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
+      await actionOf(target)
+          .applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
 
       expect(target.read(currentProfileIdProvider), 42);
       expect(target.read(appSettingProvider).autoLaunch, isTrue);
@@ -361,9 +357,8 @@ void main() {
       final target = buildContainer();
       target.read(davSettingProvider.notifier).value = dav;
 
-      await actionOf(
-        target,
-      ).applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
+      await actionOf(target)
+          .applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
 
       expect(target.read(davSettingProvider), dav);
     });
@@ -380,9 +375,8 @@ void main() {
           .read(vpnSettingProvider.notifier)
           .update((state) => state.copyWith(accessControlProps: picked));
 
-      await actionOf(
-        target,
-      ).applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
+      await actionOf(target)
+          .applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
 
       expect(target.read(vpnSettingProvider).accessControlProps, picked);
     });
@@ -408,9 +402,8 @@ void main() {
             ),
           );
 
-      await actionOf(
-        target,
-      ).applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
+      await actionOf(target)
+          .applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
 
       expect(target.read(vpnSettingProvider).accessControlProps, listed);
     });

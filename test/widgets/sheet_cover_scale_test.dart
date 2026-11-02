@@ -60,9 +60,9 @@ void main() {
     builder: (context) => _page(
       'A',
       6,
-      onNext: () => Navigator.of(
-        context,
-      ).push(PagedSheetRoute(builder: (_) => _page('B', 2))),
+      onNext: () =>
+          Navigator.of(context)
+              .push(PagedSheetRoute(builder: (_) => _page('B', 2))),
     ),
   );
 
@@ -75,9 +75,9 @@ void main() {
           builder: (context) => _page(
             'B',
             6,
-            onNext: () => Navigator.of(
-              context,
-            ).push(PagedSheetRoute(builder: (_) => _page('C', 2))),
+            onNext: () =>
+                Navigator.of(context)
+                    .push(PagedSheetRoute(builder: (_) => _page('C', 2))),
           ),
         ),
       ),
