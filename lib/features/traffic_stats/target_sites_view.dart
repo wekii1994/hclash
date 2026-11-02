@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/models/models.dart';
+import 'package:fl_clash/ui/icons/icons.dart';
 import 'package:fl_clash/ui/ui.dart';
 import 'package:fl_clash/views/dashboard/style.dart';
 import 'package:fl_clash/widgets/widgets.dart';
@@ -300,12 +301,12 @@ class _AggregatedGroupTile extends StatelessWidget {
                       alignment: Alignment.center,
                       child: Text(
                         group.iconText,
-                        style:
-                            AppTextStyle.custom(
-                                  group.iconText.length > 2 ? 11 : 13,
-                                )
-                                .of(context, emphasized: true)
-                                .copyWith(color: brandColor),
+                        style: AppTextStyle.custom(
+                          context,
+                          size: group.iconText.length > 2 ? 11 : 13,
+                          leading: group.iconText.length > 2 ? 11 : 13,
+                          weight: FontWeight.w600,
+                        ).copyWith(color: brandColor),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -437,12 +438,14 @@ class _AggregatedGroupTile extends StatelessWidget {
                                             ),
                                             child: Text(
                                               app,
-                                              style: AppTextStyle.custom(10)
-                                                  .of(context)
-                                                  .copyWith(
-                                                    color: colorScheme
-                                                        .onSurfaceVariant,
-                                                  ),
+                                              style: AppTextStyle.custom(
+                                                context,
+                                                size: 10,
+                                                leading: 12,
+                                              ).copyWith(
+                                                color: colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
                                             ),
                                           ),
                                         ],
@@ -537,13 +540,16 @@ class _SiteTile extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Text(
                   initial,
-                  style: AppTextStyle.custom(initial.length > 1 ? 11 : 13)
-                      .of(context, emphasized: true)
-                      .copyWith(
-                        color: isIp
-                            ? const Color(0xFF607D8B)
-                            : colorScheme.primary,
-                      ),
+                  style: AppTextStyle.custom(
+                    context,
+                    size: initial.length > 1 ? 11 : 13,
+                    leading: initial.length > 1 ? 11 : 13,
+                    weight: FontWeight.w600,
+                  ).copyWith(
+                    color: isIp
+                        ? const Color(0xFF607D8B)
+                        : colorScheme.primary,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),

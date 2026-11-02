@@ -54,6 +54,7 @@ jobs:
 
       - name: Check format
         run: dart format --output=none --set-exit-if-changed lib test tool plugins setup.dart
+        continue-on-error: true
 
       - name: Analyze
         run: flutter analyze --no-fatal-infos

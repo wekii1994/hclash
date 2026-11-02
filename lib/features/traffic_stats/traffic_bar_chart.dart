@@ -227,7 +227,7 @@ class _BarChartPainter extends CustomPainter {
     final gridPaint = Paint()
       ..color = trackColor
       ..strokeWidth = 1.0;
-    canvas.drawLine(Offset(0, 0), Offset(size.width, 0), gridPaint);
+    canvas.drawLine(const Offset(0, 0), Offset(size.width, 0), gridPaint);
     canvas.drawLine(
       Offset(0, chartHeight / 2),
       Offset(size.width, chartHeight / 2),

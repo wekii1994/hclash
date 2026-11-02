@@ -400,7 +400,7 @@ class DomainClassifier {
 
   /// 剥离 Host 中的端口号，兼容 IPv4:port 与 [IPv6]:port
   static String stripPort(String rawHost) {
-    var host = rawHost.trim().toLowerCase();
+    final host = rawHost.trim().toLowerCase();
     if (host.isEmpty) return '';
 
     // 处理 [2001:db8::1]:443 格式
