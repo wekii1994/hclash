@@ -39,7 +39,7 @@ type routeTracker struct {
 }
 
 var (
-	currentRoute routeTracker
+	currentRoute      routeTracker
 	lastEpochBumpNano atomic.Int64
 
 	publishRoute = func(state RouteState) {

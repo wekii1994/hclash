@@ -604,4 +604,3 @@ proxy-providers:
 		t.Fatalf("merged provider health-check timeout = %v, want 1500", hcTimeout)
 	}
 }
-

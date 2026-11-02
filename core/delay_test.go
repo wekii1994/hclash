@@ -156,4 +156,3 @@ func TestManualRegistryReleaseIsIdempotent(t *testing.T) {
 	}
 	c()
 }
-
