@@ -269,7 +269,9 @@ class _AggregatedGroupTile extends StatelessWidget {
     final colorScheme = context.colorScheme;
     final fraction = (group.total / maxTotal).clamp(0.0, 1.0);
     final hasMultiple = group.subSites.length > 1;
-    final brandColor = group.brandColor ?? colorScheme.primary;
+    final brandColor = group.brandColor != null
+        ? Color(group.brandColor!)
+        : colorScheme.primary;
 
     return Container(
       decoration: ShapeDecoration(

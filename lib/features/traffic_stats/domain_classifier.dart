@@ -1,11 +1,10 @@
-import 'package:material_ui/material_ui.dart';
 
 import 'traffic_stats_models.dart';
 
 class ServiceCategory {
   final String name;
   final String iconText;
-  final Color? brandColor;
+  final int? brandColor;
 
   const ServiceCategory({
     required this.name,
@@ -18,7 +17,7 @@ class AggregatedSiteGroup {
   final String key;
   final String displayName;
   final String iconText;
-  final Color? brandColor;
+  final int? brandColor;
   final List<TargetSiteData> subSites;
   final int upload;
   final int download;
@@ -45,342 +44,342 @@ class DomainClassifier {
     'googlevideo.com': ServiceCategory(
       name: 'YouTube',
       iconText: 'YT',
-      brandColor: Color(0xFFFF0000),
+      brandColor: 0xFFFF0000,
     ),
     'youtube.com': ServiceCategory(
       name: 'YouTube',
       iconText: 'YT',
-      brandColor: Color(0xFFFF0000),
+      brandColor: 0xFFFF0000,
     ),
     'ytimg.com': ServiceCategory(
       name: 'YouTube',
       iconText: 'YT',
-      brandColor: Color(0xFFFF0000),
+      brandColor: 0xFFFF0000,
     ),
     'youtu.be': ServiceCategory(
       name: 'YouTube',
       iconText: 'YT',
-      brandColor: Color(0xFFFF0000),
+      brandColor: 0xFFFF0000,
     ),
 
     // Bilibili
     'bilivideo.com': ServiceCategory(
       name: '哔哩哔哩',
       iconText: 'Bili',
-      brandColor: Color(0xFF00AEEC),
+      brandColor: 0xFF00AEEC,
     ),
     'bilibili.com': ServiceCategory(
       name: '哔哩哔哩',
       iconText: 'Bili',
-      brandColor: Color(0xFF00AEEC),
+      brandColor: 0xFF00AEEC,
     ),
     'hdslb.com': ServiceCategory(
       name: '哔哩哔哩',
       iconText: 'Bili',
-      brandColor: Color(0xFF00AEEC),
+      brandColor: 0xFF00AEEC,
     ),
     'biliapi.net': ServiceCategory(
       name: '哔哩哔哩',
       iconText: 'Bili',
-      brandColor: Color(0xFF00AEEC),
+      brandColor: 0xFF00AEEC,
     ),
 
     // Netflix
     'nflxvideo.net': ServiceCategory(
       name: 'Netflix',
       iconText: 'NF',
-      brandColor: Color(0xFFE50914),
+      brandColor: 0xFFE50914,
     ),
     'nflxso.net': ServiceCategory(
       name: 'Netflix',
       iconText: 'NF',
-      brandColor: Color(0xFFE50914),
+      brandColor: 0xFFE50914,
     ),
     'nflxext.com': ServiceCategory(
       name: 'Netflix',
       iconText: 'NF',
-      brandColor: Color(0xFFE50914),
+      brandColor: 0xFFE50914,
     ),
     'netflix.com': ServiceCategory(
       name: 'Netflix',
       iconText: 'NF',
-      brandColor: Color(0xFFE50914),
+      brandColor: 0xFFE50914,
     ),
 
     // TikTok / 抖音
     'byteoversea.com': ServiceCategory(
       name: 'TikTok',
       iconText: 'TT',
-      brandColor: Color(0xFF000000),
+      brandColor: 0xFF000000,
     ),
     'ibytedtos.com': ServiceCategory(
       name: 'TikTok',
       iconText: 'TT',
-      brandColor: Color(0xFF000000),
+      brandColor: 0xFF000000,
     ),
     'tiktokv.com': ServiceCategory(
       name: 'TikTok',
       iconText: 'TT',
-      brandColor: Color(0xFF000000),
+      brandColor: 0xFF000000,
     ),
     'tiktok.com': ServiceCategory(
       name: 'TikTok',
       iconText: 'TT',
-      brandColor: Color(0xFF000000),
+      brandColor: 0xFF000000,
     ),
     'tiktokcdn.com': ServiceCategory(
       name: 'TikTok',
       iconText: 'TT',
-      brandColor: Color(0xFF000000),
+      brandColor: 0xFF000000,
     ),
 
     // X / Twitter
     'twimg.com': ServiceCategory(
       name: 'X (Twitter)',
       iconText: 'X',
-      brandColor: Color(0xFF1DA1F2),
+      brandColor: 0xFF1DA1F2,
     ),
     'twitter.com': ServiceCategory(
       name: 'X (Twitter)',
       iconText: 'X',
-      brandColor: Color(0xFF1DA1F2),
+      brandColor: 0xFF1DA1F2,
     ),
     'x.com': ServiceCategory(
       name: 'X (Twitter)',
       iconText: 'X',
-      brandColor: Color(0xFF1DA1F2),
+      brandColor: 0xFF1DA1F2,
     ),
     't.co': ServiceCategory(
       name: 'X (Twitter)',
       iconText: 'X',
-      brandColor: Color(0xFF1DA1F2),
+      brandColor: 0xFF1DA1F2,
     ),
 
     // GitHub
     'github.com': ServiceCategory(
       name: 'GitHub',
       iconText: 'GH',
-      brandColor: Color(0xFF24292E),
+      brandColor: 0xFF24292E,
     ),
     'githubusercontent.com': ServiceCategory(
       name: 'GitHub',
       iconText: 'GH',
-      brandColor: Color(0xFF24292E),
+      brandColor: 0xFF24292E,
     ),
     'githubassets.com': ServiceCategory(
       name: 'GitHub',
       iconText: 'GH',
-      brandColor: Color(0xFF24292E),
+      brandColor: 0xFF24292E,
     ),
 
     // Telegram
     'telegram.org': ServiceCategory(
       name: 'Telegram',
       iconText: 'TG',
-      brandColor: Color(0xFF2AABEE),
+      brandColor: 0xFF2AABEE,
     ),
     't.me': ServiceCategory(
       name: 'Telegram',
       iconText: 'TG',
-      brandColor: Color(0xFF2AABEE),
+      brandColor: 0xFF2AABEE,
     ),
     'telesco.pe': ServiceCategory(
       name: 'Telegram',
       iconText: 'TG',
-      brandColor: Color(0xFF2AABEE),
+      brandColor: 0xFF2AABEE,
     ),
 
     // Apple
     'apple.com': ServiceCategory(
       name: 'Apple',
       iconText: 'AP',
-      brandColor: Color(0xFF888888),
+      brandColor: 0xFF888888,
     ),
     'aaplimg.com': ServiceCategory(
       name: 'Apple',
       iconText: 'AP',
-      brandColor: Color(0xFF888888),
+      brandColor: 0xFF888888,
     ),
     'mzstatic.com': ServiceCategory(
       name: 'Apple',
       iconText: 'AP',
-      brandColor: Color(0xFF888888),
+      brandColor: 0xFF888888,
     ),
     'icloud.com': ServiceCategory(
       name: 'Apple',
       iconText: 'AP',
-      brandColor: Color(0xFF888888),
+      brandColor: 0xFF888888,
     ),
 
     // Microsoft
     'microsoft.com': ServiceCategory(
       name: 'Microsoft',
       iconText: 'MS',
-      brandColor: Color(0xFF00A4EF),
+      brandColor: 0xFF00A4EF,
     ),
     'azureedge.net': ServiceCategory(
       name: 'Microsoft',
       iconText: 'MS',
-      brandColor: Color(0xFF00A4EF),
+      brandColor: 0xFF00A4EF,
     ),
     'live.com': ServiceCategory(
       name: 'Microsoft',
       iconText: 'MS',
-      brandColor: Color(0xFF00A4EF),
+      brandColor: 0xFF00A4EF,
     ),
     'msftconnecttest.com': ServiceCategory(
       name: 'Microsoft',
       iconText: 'MS',
-      brandColor: Color(0xFF00A4EF),
+      brandColor: 0xFF00A4EF,
     ),
     'windowsupdate.com': ServiceCategory(
       name: 'Microsoft',
       iconText: 'MS',
-      brandColor: Color(0xFF00A4EF),
+      brandColor: 0xFF00A4EF,
     ),
     'office.com': ServiceCategory(
       name: 'Microsoft',
       iconText: 'MS',
-      brandColor: Color(0xFF00A4EF),
+      brandColor: 0xFF00A4EF,
     ),
 
     // Google
     'google.com': ServiceCategory(
       name: 'Google',
       iconText: 'G',
-      brandColor: Color(0xFF4285F4),
+      brandColor: 0xFF4285F4,
     ),
     'gstatic.com': ServiceCategory(
       name: 'Google',
       iconText: 'G',
-      brandColor: Color(0xFF4285F4),
+      brandColor: 0xFF4285F4,
     ),
     'googleusercontent.com': ServiceCategory(
       name: 'Google',
       iconText: 'G',
-      brandColor: Color(0xFF4285F4),
+      brandColor: 0xFF4285F4,
     ),
     'googleapis.com': ServiceCategory(
       name: 'Google',
       iconText: 'G',
-      brandColor: Color(0xFF4285F4),
+      brandColor: 0xFF4285F4,
     ),
     '1e100.net': ServiceCategory(
       name: 'Google',
       iconText: 'G',
-      brandColor: Color(0xFF4285F4),
+      brandColor: 0xFF4285F4,
     ),
 
     // OpenAI
     'openai.com': ServiceCategory(
       name: 'OpenAI',
       iconText: 'AI',
-      brandColor: Color(0xFF10A37F),
+      brandColor: 0xFF10A37F,
     ),
     'oaistatic.com': ServiceCategory(
       name: 'OpenAI',
       iconText: 'AI',
-      brandColor: Color(0xFF10A37F),
+      brandColor: 0xFF10A37F,
     ),
     'oaiusercontent.com': ServiceCategory(
       name: 'OpenAI',
       iconText: 'AI',
-      brandColor: Color(0xFF10A37F),
+      brandColor: 0xFF10A37F,
     ),
 
     // Steam
     'steampowered.com': ServiceCategory(
       name: 'Steam',
       iconText: 'ST',
-      brandColor: Color(0xFF171A21),
+      brandColor: 0xFF171A21,
     ),
     'steamstatic.com': ServiceCategory(
       name: 'Steam',
       iconText: 'ST',
-      brandColor: Color(0xFF171A21),
+      brandColor: 0xFF171A21,
     ),
     'steamcommunity.com': ServiceCategory(
       name: 'Steam',
       iconText: 'ST',
-      brandColor: Color(0xFF171A21),
+      brandColor: 0xFF171A21,
     ),
 
     // Cloudflare
     'cloudflare.com': ServiceCategory(
       name: 'Cloudflare',
       iconText: 'CF',
-      brandColor: Color(0xFFF38020),
+      brandColor: 0xFFF38020,
     ),
     'cloudflarestream.com': ServiceCategory(
       name: 'Cloudflare',
       iconText: 'CF',
-      brandColor: Color(0xFFF38020),
+      brandColor: 0xFFF38020,
     ),
     'workers.dev': ServiceCategory(
       name: 'Cloudflare',
       iconText: 'CF',
-      brandColor: Color(0xFFF38020),
+      brandColor: 0xFFF38020,
     ),
 
     // 百度
     'baidu.com': ServiceCategory(
       name: '百度',
       iconText: 'BD',
-      brandColor: Color(0xFF2932E1),
+      brandColor: 0xFF2932E1,
     ),
     'bdstatic.com': ServiceCategory(
       name: '百度',
       iconText: 'BD',
-      brandColor: Color(0xFF2932E1),
+      brandColor: 0xFF2932E1,
     ),
 
     // 腾讯
     'tencent.com': ServiceCategory(
       name: '腾讯服务',
       iconText: 'TX',
-      brandColor: Color(0xFF12B7F5),
+      brandColor: 0xFF12B7F5,
     ),
     'qq.com': ServiceCategory(
       name: '腾讯服务',
       iconText: 'TX',
-      brandColor: Color(0xFF12B7F5),
+      brandColor: 0xFF12B7F5,
     ),
     'qpic.cn': ServiceCategory(
       name: '腾讯服务',
       iconText: 'TX',
-      brandColor: Color(0xFF12B7F5),
+      brandColor: 0xFF12B7F5,
     ),
     'gtimg.com': ServiceCategory(
       name: '腾讯服务',
       iconText: 'TX',
-      brandColor: Color(0xFF12B7F5),
+      brandColor: 0xFF12B7F5,
     ),
 
     // 阿里
     'alipay.com': ServiceCategory(
       name: '阿里服务',
       iconText: 'AL',
-      brandColor: Color(0xFFFF5000),
+      brandColor: 0xFFFF5000,
     ),
     'taobao.com': ServiceCategory(
       name: '阿里服务',
       iconText: 'AL',
-      brandColor: Color(0xFFFF5000),
+      brandColor: 0xFFFF5000,
     ),
     'tmall.com': ServiceCategory(
       name: '阿里服务',
       iconText: 'AL',
-      brandColor: Color(0xFFFF5000),
+      brandColor: 0xFFFF5000,
     ),
     'alicdn.com': ServiceCategory(
       name: '阿里服务',
       iconText: 'AL',
-      brandColor: Color(0xFFFF5000),
+      brandColor: 0xFFFF5000,
     ),
     'aliyun.com': ServiceCategory(
       name: '阿里服务',
       iconText: 'AL',
-      brandColor: Color(0xFFFF5000),
+      brandColor: 0xFFFF5000,
     ),
   };
 
@@ -480,63 +479,63 @@ class DomainClassifier {
       return const ServiceCategory(
         name: '本地回环 (Localhost)',
         iconText: 'LAN',
-        brandColor: Color(0xFF607D8B),
+        brandColor: 0xFF607D8B,
       );
     }
     if (isPrivateIp(ip)) {
       return const ServiceCategory(
         name: '局域网设备 (LAN)',
         iconText: 'LAN',
-        brandColor: Color(0xFF009688),
+        brandColor: 0xFF009688,
       );
     }
     if (isTelegramIp(ip)) {
       return const ServiceCategory(
         name: 'Telegram',
         iconText: 'TG',
-        brandColor: Color(0xFF2AABEE),
+        brandColor: 0xFF2AABEE,
       );
     }
     if (ip == '1.1.1.1' || ip == '1.0.0.1') {
       return const ServiceCategory(
         name: 'Cloudflare DNS',
         iconText: 'CF',
-        brandColor: Color(0xFFF38020),
+        brandColor: 0xFFF38020,
       );
     }
     if (ip == '8.8.8.8' || ip == '8.8.4.4') {
       return const ServiceCategory(
         name: 'Google DNS',
         iconText: 'G',
-        brandColor: Color(0xFF4285F4),
+        brandColor: 0xFF4285F4,
       );
     }
     if (ip == '114.114.114.114' || ip == '114.114.115.115') {
       return const ServiceCategory(
         name: '114 DNS',
         iconText: '114',
-        brandColor: Color(0xFF00897B),
+        brandColor: 0xFF00897B,
       );
     }
     if (ip == '223.5.5.5' || ip == '223.6.6.6') {
       return const ServiceCategory(
         name: '阿里公共 DNS',
         iconText: 'AL',
-        brandColor: Color(0xFFFF5000),
+        brandColor: 0xFFFF5000,
       );
     }
     if (ip == '119.29.29.29' || ip == '182.254.116.116') {
       return const ServiceCategory(
         name: '腾讯 DNSPod',
         iconText: 'TX',
-        brandColor: Color(0xFF12B7F5),
+        brandColor: 0xFF12B7F5,
       );
     }
     if (ip.startsWith('17.')) {
       return const ServiceCategory(
         name: 'Apple',
         iconText: 'AP',
-        brandColor: Color(0xFF888888),
+        brandColor: 0xFF888888,
       );
     }
     if (ip.startsWith('104.')) {
@@ -547,7 +546,7 @@ class DomainClassifier {
           return const ServiceCategory(
             name: 'Cloudflare',
             iconText: 'CF',
-            brandColor: Color(0xFFF38020),
+            brandColor: 0xFFF38020,
           );
         }
       }
@@ -615,14 +614,14 @@ class DomainClassifier {
         return ServiceCategory(
           name: '$app (IP直连)',
           iconText: initial.length > 2 ? initial.substring(0, 2) : initial,
-          brandColor: const Color(0xFF3F51B5),
+          brandColor: 0xFF3F51B5,
         );
       }
 
       return const ServiceCategory(
         name: 'IP 直连访问',
         iconText: 'IP',
-        brandColor: Color(0xFF607D8B),
+        brandColor: 0xFF607D8B,
       );
     }
 
