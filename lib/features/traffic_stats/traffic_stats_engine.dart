@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'domain_classifier.dart';
 import 'traffic_counters.dart';
 import 'traffic_stats_models.dart';
 import 'traffic_stats_persistence.dart';

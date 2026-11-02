@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import '../lib/common/single_flight.dart';
-import '../lib/features/traffic_stats/traffic_counters.dart';
-import '../lib/features/traffic_stats/traffic_stats_engine.dart';
-import '../lib/features/traffic_stats/traffic_stats_models.dart';
-import '../lib/features/traffic_stats/traffic_stats_persistence.dart';
+import 'package:fl_clash/common/single_flight.dart';
+import 'package:fl_clash/features/traffic_stats/traffic_counters.dart';
+import 'package:fl_clash/features/traffic_stats/traffic_stats_engine.dart';
+import 'package:fl_clash/features/traffic_stats/traffic_stats_models.dart';
+import 'package:fl_clash/features/traffic_stats/traffic_stats_persistence.dart';
 
 void check(bool condition, String description) {
   if (!condition) throw StateError(description);
@@ -30,7 +30,12 @@ class MemoryPersistence implements TrafficStatsPersistence {
     final snapshot = data == null ? null : copyJson(data!);
     if (!readStarted.isCompleted) readStarted.complete();
     await readGate?.future;
-    if (readError != null) throw readError!;
+    if (readError != null) {
+      final err = readError;
+      if (err is Exception) throw err;
+      if (err is Error) throw err;
+      throw StateError(err.toString());
+    }
     return snapshot;
   }
 
@@ -39,7 +44,12 @@ class MemoryPersistence implements TrafficStatsPersistence {
     final copied = copyJson(snapshot);
     if (!writeStarted.isCompleted) writeStarted.complete();
     await writeGate?.future;
-    if (writeError != null) throw writeError!;
+    if (writeError != null) {
+      final err = writeError;
+      if (err is Exception) throw err;
+      if (err is Error) throw err;
+      throw StateError(err.toString());
+    }
     data = copied;
     writes++;
   }
@@ -330,7 +340,7 @@ Future<void> main() async {
     'clear failure is reported and a later save can recover',
     () async {
       final disk = MemoryPersistence()
-        ..writeError = FileSystemException('denied');
+        ..writeError = const FileSystemException('denied');
       final e = engine(disk);
       try {
         await e.init();

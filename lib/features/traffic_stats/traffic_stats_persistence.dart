@@ -7,7 +7,7 @@ class SerialOperations {
 
   Future<T> run<T>(Future<T> Function() operation) {
     final result = _tail.then<T>((_) => operation());
-    _tail = result.then<void>((_) {}, onError: (Object _, StackTrace __) {});
+    _tail = result.then<void>((_) {}, onError: (Object _, StackTrace stackTrace) {});
     return result;
   }
 }

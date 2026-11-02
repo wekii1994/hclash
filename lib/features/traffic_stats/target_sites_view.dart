@@ -96,9 +96,7 @@ class _TargetSitesViewState extends State<TargetSitesView> {
       _updateAggregatedGroups();
     }
     final aggregatedGroups = _isAggregated ? _cachedGroups : null;
-    final displayGroups = aggregatedGroups != null
-        ? aggregatedGroups.take(50).toList()
-        : null;
+    final displayGroups = aggregatedGroups?.take(50).toList();
     final displaySites = widget.sites.take(50).toList();
 
     final maxTotal = _isAggregated
@@ -155,7 +153,7 @@ class _TargetSitesViewState extends State<TargetSitesView> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: displayGroups.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            separatorBuilder: (_, index) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               final group = displayGroups[index];
               final rank = index + 1;
@@ -182,7 +180,7 @@ class _TargetSitesViewState extends State<TargetSitesView> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: displaySites.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            separatorBuilder: (_, index) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               final site = displaySites[index];
               final rank = index + 1;

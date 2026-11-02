@@ -454,8 +454,9 @@ class DomainClassifier {
     if (o1 == 192 && o2 == 168) return true;
     if (o1 == 172 && o2 >= 16 && o2 <= 31) return true;
     if (o1 == 169 && o2 == 254) return true;
-    if (o1 == 100 && o2 >= 64 && o2 <= 127)
+    if (o1 == 100 && o2 >= 64 && o2 <= 127) {
       return true; // Carrier-grade NAT / Tailscale 等
+    }
     return false;
   }
 
@@ -561,18 +562,21 @@ class DomainClassifier {
     if (p.contains('youtube')) return 'YouTube';
     if (p.contains('bilibili') || p.contains('danmaku.bili')) return '哔哩哔哩';
     if (p.contains('tencent.mm')) return '微信';
-    if (p.contains('tencent.mobileqq') || p.contains('tencent.tim'))
+    if (p.contains('tencent.mobileqq') || p.contains('tencent.tim')) {
       return 'QQ';
+    }
     if (p.contains('netease.cloudmusic')) return '网易云音乐';
-    if (p.contains('twitter') || p.contains('com.twitter'))
+    if (p.contains('twitter') || p.contains('com.twitter')) {
       return 'X (Twitter)';
+    }
     if (p.contains('github')) return 'GitHub';
     if (p.contains('spotify')) return 'Spotify';
     if (p.contains('netflix')) return 'Netflix';
     if (p.contains('tiktok') ||
         p.contains('aweme') ||
-        p.contains('byteoversea'))
+        p.contains('byteoversea')) {
       return 'TikTok / 抖音';
+    }
     if (p.contains('coolapk')) return '酷安';
     if (p.contains('chrome')) return 'Chrome';
     if (p.contains('firefox')) return 'Firefox';
