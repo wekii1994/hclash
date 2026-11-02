@@ -6,9 +6,13 @@ import 'package:fl_clash/widgets/widgets.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Disclaimer consent bypassed - always returns true.
+/// True only after "Agree" and the restatement; any other way out declines.
 Future<bool> requestDisclaimerConsent() async {
-  return true;
+  return await BaseNavigator.push<bool>(
+        rootNavigatorKey.currentContext!,
+        const DisclaimerView(requireConsent: true),
+      ) ??
+      false;
 }
 
 class DisclaimerView extends StatelessWidget {

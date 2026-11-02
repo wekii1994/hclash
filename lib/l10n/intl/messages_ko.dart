@@ -1527,6 +1527,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "testInterval": MessageLookupByLibrary.simpleMessage("테스트 간격"),
     "testUrl": MessageLookupByLibrary.simpleMessage("테스트 URL"),
     "testWhenUsed": MessageLookupByLibrary.simpleMessage("사용할 때 테스트"),
+    "pageScale": MessageLookupByLibrary.simpleMessage("페이지 배율"),
+    "pageScaleDesc": MessageLookupByLibrary.simpleMessage(
+      "전체 인터페이스 요소 배율 조절 (60% - 120%)",
+    ),
     "textScale": MessageLookupByLibrary.simpleMessage("글자 크기 조절"),
     "textScalePreview": MessageLookupByLibrary.simpleMessage(
       "앱의 글자가 이렇게 표시됩니다",

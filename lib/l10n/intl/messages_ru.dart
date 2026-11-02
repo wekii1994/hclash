@@ -1900,6 +1900,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "testWhenUsed": MessageLookupByLibrary.simpleMessage(
       "Тестировать при использовании",
     ),
+    "pageScale": MessageLookupByLibrary.simpleMessage("Масштаб страницы"),
+    "pageScaleDesc": MessageLookupByLibrary.simpleMessage(
+      "Масштабирование элементов интерфейса (60% - 120%)",
+    ),
     "textScale": MessageLookupByLibrary.simpleMessage("Масштаб текста"),
     "textScalePreview": MessageLookupByLibrary.simpleMessage(
       "Так будет выглядеть текст в приложении",

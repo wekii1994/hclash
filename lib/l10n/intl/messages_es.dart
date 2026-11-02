@@ -1957,6 +1957,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "testInterval": MessageLookupByLibrary.simpleMessage("Intervalo de prueba"),
     "testUrl": MessageLookupByLibrary.simpleMessage("URL de prueba"),
     "testWhenUsed": MessageLookupByLibrary.simpleMessage("Probar al usarse"),
+    "pageScale": MessageLookupByLibrary.simpleMessage("Escalado de página"),
+    "pageScaleDesc": MessageLookupByLibrary.simpleMessage(
+      "Escalar los elementos generales de la interfaz (60% - 120%)",
+    ),
     "textScale": MessageLookupByLibrary.simpleMessage("Escala del texto"),
     "textScalePreview": MessageLookupByLibrary.simpleMessage(
       "Así se verá el texto en la app",

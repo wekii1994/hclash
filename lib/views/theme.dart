@@ -1185,7 +1185,7 @@ class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
                     ElasticPress(
                       child: InkWell(
                         onTap: () => _showCustomInputDialog(context, scale),
-                        borderRadius: BorderRadius.circular(16),
+                        customBorder: AppShape.all(16),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,

@@ -56,13 +56,13 @@ class RouteState {
     );
   }
 
-  bool isFresh(RouteStamp stamp) => synced && !hasMovedSince(stamp);
+  bool isFresh(RouteStamp stamp) =>
+      synced && !hasMovedSince(stamp) && stamp.routeVersion == routeVersion;
 
   bool hasMovedSince(RouteStamp stamp) =>
       stamp.coreEpoch != coreEpoch ||
       stamp.hostEpoch != hostEpoch ||
-      stamp.proxied != proxied ||
-      stamp.routeVersion != routeVersion;
+      stamp.proxied != proxied;
 
   bool isBehind(RouteStamp stamp) =>
       stamp.coreEpoch > coreEpoch || stamp.routeVersion > routeVersion;

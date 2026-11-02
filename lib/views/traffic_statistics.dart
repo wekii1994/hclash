@@ -8,7 +8,6 @@ import 'package:fl_clash/ui/ui.dart';
 import 'package:fl_clash/views/dashboard/style.dart';
 import 'package:fl_clash/views/dashboard/widgets/card.dart';
 import 'package:fl_clash/widgets/widgets.dart';
-import 'package:flutter/material.dart';
 import 'package:material_ui/material_ui.dart';
 
 class TrafficStatisticsView extends StatefulWidget {
@@ -120,7 +119,7 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
           left: 16,
           right: 16,
           top: context.appBarInset + 8,
-          bottom: 24 + BottomInsetScope.of(context),
+          bottom: 24 + context.bottomInset,
         ),
         children: [
           if (store.lastPersistenceError != null)
@@ -145,10 +144,10 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
+                  decoration: ShapeDecoration(
                     color: DashboardColors.of(context).card,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: DashboardShadows.e1(context),
+                    shape: AppShape.all(16),
+                    shadows: DashboardShadows.e1(context),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,10 +188,10 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
+                  decoration: ShapeDecoration(
                     color: DashboardColors.of(context).card,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: DashboardShadows.e1(context),
+                    shape: AppShape.all(16),
+                    shadows: DashboardShadows.e1(context),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,10 +239,10 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
           // 2. Bar Chart Card
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
+            decoration: ShapeDecoration(
               color: DashboardColors.of(context).card,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: DashboardShadows.e1(context),
+              shape: AppShape.all(16),
+              shadows: DashboardShadows.e1(context),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -317,10 +316,10 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
           // 3. Target Sites Ranking Card
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
+            decoration: ShapeDecoration(
               color: DashboardColors.of(context).card,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: DashboardShadows.e1(context),
+              shape: AppShape.all(16),
+              shadows: DashboardShadows.e1(context),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -409,11 +408,11 @@ class _RangeChip extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 6),
         alignment: Alignment.center,
-        decoration: BoxDecoration(
+        decoration: ShapeDecoration(
           color: selected
               ? colorScheme.primary
               : DashboardColors.of(context).tone,
-          borderRadius: BorderRadius.circular(8),
+          shape: AppShape.sm,
         ),
         child: Text(
           label,

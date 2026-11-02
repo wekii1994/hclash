@@ -5,7 +5,7 @@ import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/ui/ui.dart';
 import 'package:fl_clash/views/dashboard/style.dart';
 import 'package:fl_clash/widgets/widgets.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'traffic_stats_models.dart';
 
@@ -62,9 +62,9 @@ class TrafficBarChart extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
+            decoration: ShapeDecoration(
               color: DashboardColors.of(context).tone,
-              borderRadius: BorderRadius.circular(10),
+              shape: AppShape.sm,
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -252,7 +252,7 @@ class _BarChartPainter extends CustomPainter {
 
       // Draw selection background pillar
       if (i == selectedIndex) {
-        final highlightRRect = RRect.fromRectAndRadius(
+        final highlightRRect = RSuperellipse.fromRectAndRadius(
           Rect.fromLTRB(
             centerX - slotWidth / 2 + 1,
             0,
@@ -261,15 +261,15 @@ class _BarChartPainter extends CustomPainter {
           ),
           const Radius.circular(6),
         );
-        canvas.drawRRect(highlightRRect, highlightPaint);
+        canvas.drawRSuperellipse(highlightRRect, highlightPaint);
       }
 
       // Track background bar
-      final trackRRect = RRect.fromRectAndRadius(
+      final trackRRect = RSuperellipse.fromRectAndRadius(
         Rect.fromLTRB(left, 0, right, chartHeight),
         Radius.circular(barWidth / 2),
       );
-      canvas.drawRRect(trackRRect, trackPaint);
+      canvas.drawRSuperellipse(trackRRect, trackPaint);
 
       if (p.total > 0 && maxValue > 0) {
         final totalFraction = (p.total / maxValue).clamp(0.0, 1.0);
@@ -282,7 +282,7 @@ class _BarChartPainter extends CustomPainter {
 
         // Draw download part (bottom)
         if (downloadHeight > 0) {
-          final downloadRRect = RRect.fromRectAndCorners(
+          final downloadRRect = RSuperellipse.fromRectAndCorners(
             Rect.fromLTRB(
               left,
               chartHeight - downloadHeight,
@@ -298,12 +298,12 @@ class _BarChartPainter extends CustomPainter {
                 ? Radius.circular(barWidth / 2)
                 : Radius.zero,
           );
-          canvas.drawRRect(downloadRRect, downloadPaint);
+          canvas.drawRSuperellipse(downloadRRect, downloadPaint);
         }
 
         // Draw upload part (top)
         if (uploadHeight > 0) {
-          final uploadRRect = RRect.fromRectAndCorners(
+          final uploadRRect = RSuperellipse.fromRectAndCorners(
             Rect.fromLTRB(left, barTop, right, barTop + uploadHeight),
             topLeft: Radius.circular(barWidth / 2),
             topRight: Radius.circular(barWidth / 2),
@@ -314,7 +314,7 @@ class _BarChartPainter extends CustomPainter {
                 ? Radius.circular(barWidth / 2)
                 : Radius.zero,
           );
-          canvas.drawRRect(uploadRRect, uploadPaint);
+          canvas.drawRSuperellipse(uploadRRect, uploadPaint);
         }
       }
 

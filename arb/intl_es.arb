@@ -448,6 +448,8 @@
   "launchInterrupted": "El inicio no se completó",
   "launchInterruptedTip": "La última vez, la app se cerró inesperadamente mientras se iniciaba. En este inicio se ha omitido la configuración automática; puedes iniciarla manualmente para reintentarlo.",
   "clearData": "Borrar datos",
+  "pageScale": "Escalado de página",
+  "pageScaleDesc": "Escalar los elementos generales de la interfaz (60% - 120%)",
   "textScale": "Escala del texto",
   "textScalePreview": "Así se verá el texto en la app",
   "followSystem": "Seguir el sistema",

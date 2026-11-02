@@ -448,6 +448,8 @@
   "launchInterrupted": "Démarrage inachevé",
   "launchInterruptedTip": "L’app s’est arrêtée de façon inattendue lors de son dernier démarrage. La configuration automatique a été ignorée pour ce lancement ; vous pouvez la démarrer manuellement pour réessayer.",
   "clearData": "Effacer les données",
+  "pageScale": "Mise à l'échelle de la page",
+  "pageScaleDesc": "Mettre à l'échelle les éléments de l'interface (60% - 120%)",
   "textScale": "Taille du texte",
   "textScalePreview": "Le texte de l’app ressemblera à ceci",
   "followSystem": "Suivre le système",

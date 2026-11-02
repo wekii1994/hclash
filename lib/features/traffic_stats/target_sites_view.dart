@@ -5,7 +5,7 @@ import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/ui/ui.dart';
 import 'package:fl_clash/views/dashboard/style.dart';
 import 'package:fl_clash/widgets/widgets.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'domain_classifier.dart';
 import 'traffic_stats_models.dart';
@@ -202,16 +202,17 @@ class _TogglePill extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
+        decoration: ShapeDecoration(
           color: isSelected
               ? colorScheme.primary.withValues(alpha: 0.15)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: isSelected
-                ? colorScheme.primary
-                : colorScheme.outlineVariant.withValues(alpha: 0.4),
-            width: 1,
+          shape: AppShape.sm.copyWith(
+            side: BorderSide(
+              color: isSelected
+                  ? colorScheme.primary
+                  : colorScheme.outlineVariant.withValues(alpha: 0.4),
+              width: 1,
+            ),
           ),
         ),
         child: Text(
@@ -261,15 +262,15 @@ class _AggregatedGroupTile extends StatelessWidget {
     final brandColor = group.brandColor ?? colorScheme.primary;
 
     return Container(
-      decoration: BoxDecoration(
+      decoration: ShapeDecoration(
         color: DashboardColors.of(context).tone,
-        borderRadius: BorderRadius.circular(12),
+        shape: AppShape.md,
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: hasMultiple ? onToggleExpand : null,
-          borderRadius: BorderRadius.circular(12),
+          customBorder: AppShape.md,
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -292,19 +293,19 @@ class _AggregatedGroupTile extends StatelessWidget {
                     Container(
                       width: 32,
                       height: 32,
-                      decoration: BoxDecoration(
+                      decoration: ShapeDecoration(
                         color: brandColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
+                        shape: AppShape.sm,
                       ),
                       alignment: Alignment.center,
                       child: Text(
                         group.iconText,
-                        style: AppTextStyle.subheadline
-                            .of(context, emphasized: true)
-                            .copyWith(
-                              color: brandColor,
-                              fontSize: group.iconText.length > 2 ? 11 : 13,
-                            ),
+                        style:
+                            AppTextStyle.custom(
+                                  group.iconText.length > 2 ? 11 : 13,
+                                )
+                                .of(context, emphasized: true)
+                                .copyWith(color: brandColor),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -344,10 +345,10 @@ class _AggregatedGroupTile extends StatelessWidget {
                     ),
                     if (hasMultiple) ...[
                       const SizedBox(width: 4),
-                      Icon(
+                      GlyphIcon(
                         isExpanded
-                            ? Icons.keyboard_arrow_up
-                            : Icons.keyboard_arrow_down,
+                            ? AppGlyphs.chevronUp
+                            : AppGlyphs.chevronDown,
                         size: 18,
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -356,18 +357,14 @@ class _AggregatedGroupTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 // Progress bar
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: LinearProgressIndicator(
-                    value: fraction,
-                    minHeight: 4,
-                    backgroundColor: colorScheme.surfaceContainerHighest
-                        .withValues(alpha: 0.5),
-                    valueColor: AlwaysStoppedAnimation(
-                      rank <= 3
-                          ? _rankColor(context, rank)
-                          : colorScheme.primary,
-                    ),
+                LinearProgressIndicator(
+                  value: fraction,
+                  minHeight: 4,
+                  borderRadius: const BorderRadius.all(Radius.circular(2)),
+                  backgroundColor: colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.5),
+                  valueColor: AlwaysStoppedAnimation(
+                    rank <= 3 ? _rankColor(context, rank) : colorScheme.primary,
                   ),
                 ),
                 // Subsites breakdown when expanded
@@ -378,11 +375,11 @@ class _AggregatedGroupTile extends StatelessWidget {
                       horizontal: 10,
                       vertical: 8,
                     ),
-                    decoration: BoxDecoration(
+                    decoration: ShapeDecoration(
                       color: colorScheme.surfaceContainerHighest.withValues(
                         alpha: 0.35,
                       ),
-                      borderRadius: BorderRadius.circular(8),
+                      shape: AppShape.sm,
                     ),
                     child: Column(
                       children: [
@@ -403,8 +400,8 @@ class _AggregatedGroupTile extends StatelessWidget {
                               );
                               return Row(
                                 children: [
-                                  Icon(
-                                    Icons.subdirectory_arrow_right,
+                                  GlyphIcon(
+                                    AppGlyphs.chevronForward,
                                     size: 14,
                                     color: colorScheme.onSurfaceVariant
                                         .withValues(alpha: 0.7),
@@ -433,20 +430,18 @@ class _AggregatedGroupTile extends StatelessWidget {
                                               horizontal: 5,
                                               vertical: 1,
                                             ),
-                                            decoration: BoxDecoration(
+                                            decoration: ShapeDecoration(
                                               color: colorScheme
                                                   .surfaceContainerHighest,
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
+                                              shape: AppShape.xs,
                                             ),
                                             child: Text(
                                               app,
-                                              style: AppTextStyle.caption2
+                                              style: AppTextStyle.custom(10)
                                                   .of(context)
                                                   .copyWith(
                                                     color: colorScheme
                                                         .onSurfaceVariant,
-                                                    fontSize: 10,
                                                   ),
                                             ),
                                           ),
@@ -509,9 +504,9 @@ class _SiteTile extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
+      decoration: ShapeDecoration(
         color: DashboardColors.of(context).tone,
-        borderRadius: BorderRadius.circular(12),
+        shape: AppShape.md,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -533,22 +528,21 @@ class _SiteTile extends StatelessWidget {
               Container(
                 width: 32,
                 height: 32,
-                decoration: BoxDecoration(
+                decoration: ShapeDecoration(
                   color: isIp
                       ? const Color(0xFF607D8B).withValues(alpha: 0.15)
                       : colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(8),
+                  shape: AppShape.sm,
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   initial,
-                  style: AppTextStyle.subheadline
+                  style: AppTextStyle.custom(initial.length > 1 ? 11 : 13)
                       .of(context, emphasized: true)
                       .copyWith(
                         color: isIp
                             ? const Color(0xFF607D8B)
                             : colorScheme.primary,
-                        fontSize: initial.length > 1 ? 11 : 13,
                       ),
                 ),
               ),
@@ -586,17 +580,15 @@ class _SiteTile extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           // Percentage bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: fraction,
-              minHeight: 4,
-              backgroundColor: colorScheme.surfaceContainerHighest.withValues(
-                alpha: 0.5,
-              ),
-              valueColor: AlwaysStoppedAnimation(
-                rank <= 3 ? _rankColor(context, rank) : colorScheme.primary,
-              ),
+          LinearProgressIndicator(
+            value: fraction,
+            minHeight: 4,
+            borderRadius: const BorderRadius.all(Radius.circular(2)),
+            backgroundColor: colorScheme.surfaceContainerHighest.withValues(
+              alpha: 0.5,
+            ),
+            valueColor: AlwaysStoppedAnimation(
+              rank <= 3 ? _rankColor(context, rank) : colorScheme.primary,
             ),
           ),
         ],

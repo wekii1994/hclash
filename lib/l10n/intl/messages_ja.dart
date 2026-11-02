@@ -1554,6 +1554,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "testInterval": MessageLookupByLibrary.simpleMessage("テスト間隔"),
     "testUrl": MessageLookupByLibrary.simpleMessage("テストURL"),
     "testWhenUsed": MessageLookupByLibrary.simpleMessage("使用時にテスト"),
+    "pageScale": MessageLookupByLibrary.simpleMessage("ページの拡大縮小"),
+    "pageScaleDesc": MessageLookupByLibrary.simpleMessage(
+      "インターフェース要素全体の拡大縮小（60% - 120%）",
+    ),
     "textScale": MessageLookupByLibrary.simpleMessage("テキストの拡大縮小"),
     "textScalePreview": MessageLookupByLibrary.simpleMessage(
       "アプリ内の文字はこの大きさで表示されます",

@@ -1958,6 +1958,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "testWhenUsed": MessageLookupByLibrary.simpleMessage(
       "Tester à l’utilisation",
     ),
+    "pageScale": MessageLookupByLibrary.simpleMessage(
+      "Mise à l'échelle de la page",
+    ),
+    "pageScaleDesc": MessageLookupByLibrary.simpleMessage(
+      "Mettre à l'échelle les éléments de l'interface (60% - 120%)",
+    ),
     "textScale": MessageLookupByLibrary.simpleMessage("Taille du texte"),
     "textScalePreview": MessageLookupByLibrary.simpleMessage(
       "Le texte de l’app ressemblera à ceci",

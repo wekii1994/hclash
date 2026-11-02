@@ -448,6 +448,8 @@
   "launchInterrupted": "시작이 완료되지 않음",
   "launchInterruptedTip": "지난번 시작하는 중에 앱이 예기치 않게 종료되었습니다. 이번 실행에서는 자동 설정을 건너뛰었으니 직접 시작하여 다시 시도하세요.",
   "clearData": "데이터 지우기",
+  "pageScale": "페이지 배율",
+  "pageScaleDesc": "전체 인터페이스 요소 배율 조절 (60% - 120%)",
   "textScale": "글자 크기 조절",
   "textScalePreview": "앱의 글자가 이렇게 표시됩니다",
   "followSystem": "시스템 설정 따르기",
