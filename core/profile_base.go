@@ -150,6 +150,7 @@ func decodeAndBuildConfig(document *yaml.Node, writePath string, healthCheckTime
 // clampYAMLInt 确保整型字段在 (0, maxVal] 范围内；若缺失、格式非法或超限则设为 defaultVal。
 func clampYAMLInt(mapping *yaml.Node, key string, defaultVal, maxVal int) {
 	if node := mappingValue(mapping, key); node != nil {
+		node = resolveAlias(node)
 		if val, err := strconv.Atoi(strings.TrimSpace(node.Value)); err == nil && val > 0 && val <= maxVal {
 			return
 		}
@@ -163,8 +164,11 @@ func clampYAMLInt(mapping *yaml.Node, key string, defaultVal, maxVal int) {
 
 // ensureYAMLString 确保字符串字段非空；若缺失或为空白则设为 defaultVal。
 func ensureYAMLString(mapping *yaml.Node, key, defaultVal string) {
-	if node := mappingValue(mapping, key); node != nil && strings.TrimSpace(node.Value) != "" {
-		return
+	if node := mappingValue(mapping, key); node != nil {
+		node = resolveAlias(node)
+		if strings.TrimSpace(node.Value) != "" {
+			return
+		}
 	}
 	setMappingValue(mapping, key, &yaml.Node{
 		Kind:  yaml.ScalarNode,
@@ -177,41 +181,52 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 	if root == nil {
 		return
 	}
+	root = resolveAlias(root)
 	timeout = normalizeHealthCheckTimeout(timeout)
 
-	if groups := mappingValue(root, "proxy-groups"); groups != nil && groups.Kind == yaml.SequenceNode {
-		for _, group := range groups.Content {
-			if group.Kind != yaml.MappingNode {
-				continue
-			}
-			typeNode := mappingValue(group, "type")
-			if typeNode == nil {
-				continue
-			}
-			switch strings.ToLower(strings.TrimSpace(typeNode.Value)) {
-			case "url-test":
-				clampYAMLInt(group, "timeout", timeout, timeout)
-				ensureYAMLString(group, "expected-status", defaultExpectedStatus)
-				clampYAMLInt(group, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
-				clampYAMLInt(group, "tolerance", optimalTolerance, maxAllowedTolerance)
-			case "fallback", "load-balance":
-				clampYAMLInt(group, "timeout", timeout, timeout)
-				ensureYAMLString(group, "expected-status", defaultExpectedStatus)
-				clampYAMLInt(group, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
+	if groups := mappingValue(root, "proxy-groups"); groups != nil {
+		groups = resolveAlias(groups)
+		if groups.Kind == yaml.SequenceNode {
+			for _, group := range groups.Content {
+				group = resolveAlias(group)
+				if group.Kind != yaml.MappingNode {
+					continue
+				}
+				typeNode := resolveAlias(mappingValue(group, "type"))
+				if typeNode == nil {
+					continue
+				}
+				switch strings.ToLower(strings.TrimSpace(typeNode.Value)) {
+				case "url-test":
+					clampYAMLInt(group, "timeout", timeout, timeout)
+					ensureYAMLString(group, "expected-status", defaultExpectedStatus)
+					clampYAMLInt(group, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
+					clampYAMLInt(group, "tolerance", optimalTolerance, maxAllowedTolerance)
+				case "fallback", "load-balance":
+					clampYAMLInt(group, "timeout", timeout, timeout)
+					ensureYAMLString(group, "expected-status", defaultExpectedStatus)
+					clampYAMLInt(group, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
+				}
 			}
 		}
 	}
 
-	if providers := mappingValue(root, "proxy-providers"); providers != nil && providers.Kind == yaml.MappingNode {
-		for i := 1; i < len(providers.Content); i += 2 {
-			provider := providers.Content[i]
-			if provider.Kind != yaml.MappingNode {
-				continue
-			}
-			if hc := mappingValue(provider, "health-check"); hc != nil && hc.Kind == yaml.MappingNode {
-				clampYAMLInt(hc, "timeout", timeout, timeout)
-				ensureYAMLString(hc, "expected-status", defaultExpectedStatus)
-				clampYAMLInt(hc, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
+	if providers := mappingValue(root, "proxy-providers"); providers != nil {
+		providers = resolveAlias(providers)
+		if providers.Kind == yaml.MappingNode {
+			for i := 1; i < len(providers.Content); i += 2 {
+				provider := resolveAlias(providers.Content[i])
+				if provider.Kind != yaml.MappingNode {
+					continue
+				}
+				if hc := mappingValue(provider, "health-check"); hc != nil {
+					hc = resolveAlias(hc)
+					if hc.Kind == yaml.MappingNode {
+						clampYAMLInt(hc, "timeout", timeout, timeout)
+						ensureYAMLString(hc, "expected-status", defaultExpectedStatus)
+						clampYAMLInt(hc, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
+					}
+				}
 			}
 		}
 	}

@@ -471,6 +471,11 @@ class TrafficStatsEngine {
         .toList();
   }
 
+  List<AggregatedSiteGroup> getAggregatedSites({int limit = 50}) {
+    final groups = DomainClassifier.aggregateSites(_targetSiteUsages.values);
+    return groups.take(math.max(0, limit)).toList();
+  }
+
   void dispose() {
     _disposed = true;
     _saveTimer?.cancel();

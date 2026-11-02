@@ -45,6 +45,7 @@ class ProxiesAction extends _$ProxiesAction {
   Timer? _delayFlushTimer;
 
   final Map<String, String> _pendingSelectedRollback = {};
+  int _activeGeneration = 0;
 
   @override
   void build() {
@@ -57,6 +58,7 @@ class ProxiesAction extends _$ProxiesAction {
   }
 
   void cancelDelayTests() {
+    _activeGeneration++;
     _delayTestRequestPool.clear();
     for (final job in _delayTestJobs) {
       job.cancelled = true;
@@ -176,7 +178,17 @@ class ProxiesAction extends _$ProxiesAction {
         .put(currentProfile.copyWith(unfoldSet: value));
   }
 
-  void setDelay(Delay delay) {
+  void setDelay(Delay delay, [int? generation]) {
+    if (generation != null && generation != _activeGeneration) {
+      return;
+    }
+    final groups = ref.read(groupsProvider);
+    if (groups.isNotEmpty &&
+        !groups.any(
+          (g) => g.name == delay.name || g.all.any((p) => p.name == delay.name),
+        )) {
+      return;
+    }
     _bufferedDelays.add(delay);
     _scheduleDelayFlush();
   }
@@ -445,6 +457,7 @@ class ProxiesAction extends _$ProxiesAction {
       _bufferedStarts.add(target.key);
       _scheduleDelayFlush();
     }
+    final generation = _activeGeneration;
     final requestGeneration = _delayTestRequestPool.generation;
     try {
       final delay = await _delayTestRequestPool.run((
@@ -455,8 +468,9 @@ class ProxiesAction extends _$ProxiesAction {
       ), () => _core.getDelay(target.testUrl, target.proxyName, job.timeout));
       if (delay != null &&
           !job.cancelled &&
+          generation == _activeGeneration &&
           requestGeneration == _delayTestRequestPool.generation) {
-        setDelay(delay);
+        setDelay(delay, generation);
       }
     } catch (error) {
       if (error is CoreMethodException && error.isCoreUnavailable) {

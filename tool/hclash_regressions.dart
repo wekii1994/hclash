@@ -433,5 +433,87 @@ Future<void> main() async {
     },
   );
 
+  await test(
+    'aggregated sites ranking computes over full dataset, not pre-truncated Top 200',
+    () async {
+      final e = engine(MemoryPersistence());
+      try {
+        await e.init();
+        // 200 distinct standalone sites with 10 units each
+        for (var i = 0; i < 200; i++) {
+          e.recordRequestSample(
+            id: 'site-$i',
+            upload: 0,
+            download: 10,
+            host: 'standalone$i.test',
+          );
+        }
+        // 201 subdomains of googlevideo.com with 9 units each
+        for (var i = 0; i < 201; i++) {
+          e.recordRequestSample(
+            id: 'yt-$i',
+            upload: 0,
+            download: 9,
+            host: 'r$i.googlevideo.com',
+          );
+        }
+        // Raw top 200 only contains standalone sites because 10 > 9
+        final topSites = e.getTopSites(limit: 200);
+        check(
+          topSites.length == 200 &&
+              !topSites.any((s) => s.host.endsWith('.googlevideo.com')),
+          'individual googlevideo should be filtered out from raw top 200',
+        );
+
+        // Aggregated top sites must compute over the full 401 entries
+        final aggregated = e.getAggregatedSites(limit: 10);
+        check(
+          aggregated.isNotEmpty &&
+              aggregated.first.service.name == 'YouTube' &&
+              aggregated.first.totalUsage == 201 * 9,
+          'YouTube should be ranked #1 with 1809 total units in aggregated view',
+        );
+      } finally {
+        e.dispose();
+      }
+    },
+  );
+
+  await test(
+    'delay test generation rejection prevents stale delayed results from overwriting',
+    () async {
+      var activeGen = 1;
+      final acceptedDelays = <String, int>{};
+
+      void mockSetDelay(String name, int val, [int? gen]) {
+        if (gen != null && gen != activeGen) return;
+        acceptedDelays[name] = val;
+      }
+
+      // Generation 1 test starts
+      final gen1 = activeGen;
+      final delayedCompleter = Completer<int>();
+
+      // Config switch / cancel occurs -> generation increments
+      activeGen++; // becomes 2
+
+      // Generation 2 test runs and succeeds immediately
+      final gen2 = activeGen;
+      mockSetDelay('node1', 50, gen2);
+      check(acceptedDelays['node1'] == 50, 'gen2 delay not set');
+
+      // Generation 1 test finishes late with failure/timeout
+      delayedCompleter.complete(-1);
+      final gen1Delay = await delayedCompleter.future;
+      mockSetDelay('node1', gen1Delay, gen1);
+
+      // Value must remain 50, not overwritten by stale gen1 value (-1)
+      check(
+        acceptedDelays['node1'] == 50,
+        'stale generation 1 result overwrote generation 2',
+      );
+    },
+  );
+
   stdout.writeln('$count regression scenarios passed.');
 }

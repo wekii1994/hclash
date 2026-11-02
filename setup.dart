@@ -54,6 +54,7 @@ Future<void> main(List<String> args) async {
 
   final env = results['env'] as String;
   final rootDir = Directory.current.path;
+  _ensureMihomoPatch(rootDir);
   final skipped = packagesNotBuildingAssets(
     File(p.join(rootDir, 'pubspec.yaml')).readAsStringSync(),
   );
@@ -405,4 +406,39 @@ Future<int> _runLinuxDependencyCommand(List<String> command) async {
     stderr.writeln('Linux dependency command failed with exit code $exitCode.');
   }
   return exitCode;
+}
+
+void _ensureMihomoPatch(String rootDir) {
+  final patchFile = File(p.join(rootDir, 'core', 'patches', 'mihomo-fixes.patch'));
+  final submoduleDir = Directory(p.join(rootDir, 'core', 'Clash.Meta'));
+  if (!patchFile.existsSync() || !submoduleDir.existsSync()) {
+    return;
+  }
+  final checkResult = Process.runSync(
+    'git',
+    ['-C', submoduleDir.path, 'apply', '--check', patchFile.path],
+  );
+  if (checkResult.exitCode == 0) {
+    stdout.writeln('Applying Mihomo companion patch to ${submoduleDir.path}...');
+    final applyResult = Process.runSync(
+      'git',
+      ['-C', submoduleDir.path, 'apply', patchFile.path],
+    );
+    if (applyResult.exitCode != 0) {
+      stderr.writeln('Failed to apply Mihomo patch: ${applyResult.stderr}');
+      exit(1);
+    }
+    stdout.writeln('Successfully applied Mihomo companion patch.');
+  } else {
+    final reverseCheck = Process.runSync(
+      'git',
+      ['-C', submoduleDir.path, 'apply', '--reverse', '--check', patchFile.path],
+    );
+    if (reverseCheck.exitCode != 0) {
+      stderr.writeln(
+        'Error: Mihomo submodule has conflicts or cannot apply companion patch cleanly.',
+      );
+      exit(1);
+    }
+  }
 }

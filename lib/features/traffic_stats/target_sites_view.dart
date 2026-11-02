@@ -13,9 +13,15 @@ import 'traffic_stats_models.dart';
 
 class TargetSitesView extends StatefulWidget {
   final List<TargetSiteData> sites;
+  final List<AggregatedSiteGroup>? aggregatedGroups;
   final ValueChanged<int>? onCountChanged;
 
-  const TargetSitesView({super.key, required this.sites, this.onCountChanged});
+  const TargetSitesView({
+    super.key,
+    required this.sites,
+    this.aggregatedGroups,
+    this.onCountChanged,
+  });
 
   @override
   State<TargetSitesView> createState() => _TargetSitesViewState();
@@ -58,7 +64,9 @@ class _TargetSitesViewState extends State<TargetSitesView> {
   }
 
   void _updateAggregatedGroups() {
-    if (widget.sites.isNotEmpty) {
+    if (widget.aggregatedGroups != null) {
+      _cachedGroups = widget.aggregatedGroups;
+    } else if (widget.sites.isNotEmpty) {
       _cachedGroups = DomainClassifier.aggregateSites(widget.sites);
     } else {
       _cachedGroups = null;
@@ -67,7 +75,10 @@ class _TargetSitesViewState extends State<TargetSitesView> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.sites.isEmpty) {
+    final hasData = _isAggregated
+        ? (_cachedGroups != null && _cachedGroups!.isNotEmpty)
+        : widget.sites.isNotEmpty;
+    if (!hasData) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: Center(

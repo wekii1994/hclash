@@ -484,3 +484,47 @@ proxy-providers:
 		t.Errorf("missing provider1")
 	}
 }
+
+func TestPatchHealthCheckTimeoutNodeWithAliases(t *testing.T) {
+	yamlContent := `
+x-timeout: &t 500
+x-groups: &groups
+  - {name: auto, type: url-test, timeout: *t}
+  - {name: fallback, type: fallback, timeout: 9000}
+proxy-groups: *groups
+`
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(yamlContent), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	root, err := documentMapping(&doc)
+	if err != nil {
+		t.Fatalf("documentMapping: %v", err)
+	}
+
+	patchHealthCheckTimeoutNode(root, 1500)
+
+	var raw struct {
+		ProxyGroup []map[string]any `yaml:"proxy-groups"`
+	}
+	out, err := yaml.Marshal(root)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if err := yaml.Unmarshal(out, &raw); err != nil {
+		t.Fatalf("unmarshal back: %v", err)
+	}
+
+	for _, g := range raw.ProxyGroup {
+		if g["name"] == "auto" {
+			if timeout, ok := g["timeout"].(int); !ok || timeout != 500 {
+				t.Errorf("group auto timeout = %v, want 500", g["timeout"])
+			}
+		}
+		if g["name"] == "fallback" {
+			if timeout, ok := g["timeout"].(int); !ok || timeout != 1500 {
+				t.Errorf("group fallback timeout = %v, want 1500", g["timeout"])
+			}
+		}
+	}
+}

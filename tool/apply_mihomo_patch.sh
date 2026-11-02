@@ -23,5 +23,7 @@ if git -C "${SUBMODULE_DIR}" apply --check "${PATCH_FILE}" 2>/dev/null; then
 elif git -C "${SUBMODULE_DIR}" apply --reverse --check "${PATCH_FILE}" 2>/dev/null; then
   echo "Mihomo companion patch is already applied in ${SUBMODULE_DIR}."
 else
-  echo "Notice: Submodule has custom changes or commit containing the patch. Skipping patch application."
+  echo "Error: Submodule has conflicts or cannot apply Mihomo companion patch cleanly." >&2
+  git -C "${SUBMODULE_DIR}" apply --check "${PATCH_FILE}" || true
+  exit 1
 fi

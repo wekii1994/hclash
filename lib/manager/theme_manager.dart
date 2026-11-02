@@ -221,18 +221,21 @@ class _AppMediaQuery extends StatelessWidget {
     final effectiveScale = pageScale.isFinite
         ? pageScale.clamp(minPageScale, maxPageScale).toDouble()
         : defaultPageScale;
-    if ((effectiveScale - 1.0).abs() < 0.001 || mediaQueryData.size.isEmpty) {
+    final originalSize = mediaQueryData.size;
+    if (originalSize.isEmpty) {
       return MediaQuery(data: mediaQueryData, child: child);
     }
-    final originalSize = mediaQueryData.size;
-    final scaledSize = originalSize / effectiveScale;
+    final isDefaultScale = (effectiveScale - 1.0).abs() < 0.001;
+    final scaledSize = isDefaultScale ? originalSize : originalSize / effectiveScale;
     return MediaQuery(
-      data: mediaQueryData.copyWith(
-        size: scaledSize,
-        padding: mediaQueryData.padding / effectiveScale,
-        viewPadding: mediaQueryData.viewPadding / effectiveScale,
-        viewInsets: mediaQueryData.viewInsets / effectiveScale,
-      ),
+      data: isDefaultScale
+          ? mediaQueryData
+          : mediaQueryData.copyWith(
+              size: scaledSize,
+              padding: mediaQueryData.padding / effectiveScale,
+              viewPadding: mediaQueryData.viewPadding / effectiveScale,
+              viewInsets: mediaQueryData.viewInsets / effectiveScale,
+            ),
       child: SizedBox(
         width: originalSize.width,
         height: originalSize.height,

@@ -28,6 +28,7 @@ if ($LASTEXITCODE -eq 0) {
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Mihomo companion patch is already applied in $SubmoduleDir."
     } else {
-        Write-Host "Notice: Submodule has custom changes or commit containing the patch. Skipping patch application."
+        Write-Error "Submodule has conflicts or cannot apply Mihomo companion patch cleanly."
+        exit 1
     }
 }

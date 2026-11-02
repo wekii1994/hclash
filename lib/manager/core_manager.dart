@@ -126,6 +126,9 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   @override
   Future<void> onDelay(Delay delay) async {
     super.onDelay(delay);
+    if (ref.read(coreStatusProvider) != CoreStatus.connected) {
+      return;
+    }
     final proxiesAction = ref.read(proxiesActionProvider.notifier);
     proxiesAction.setDelay(delay);
     debouncer.call(FunctionTag.updateDelay, () async {

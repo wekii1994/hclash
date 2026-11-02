@@ -60,6 +60,8 @@ class TrafficStatsStore extends ChangeNotifier {
       _engine.getChartPoints(range);
   List<TargetSiteData> getTopSites({int limit = 50}) =>
       _engine.getTopSites(limit: limit);
+  List<AggregatedSiteGroup> getAggregatedSites({int limit = 50}) =>
+      _engine.getAggregatedSites(limit: limit);
   void beginCoreEpoch(Object epoch) => _engine.beginCoreEpoch(epoch);
   void recordClosedConnection(String id) => _engine.recordClosedConnection(id);
   void reconcileCompleteSnapshot(Set<String> activeIds) =>

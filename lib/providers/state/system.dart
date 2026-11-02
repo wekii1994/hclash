@@ -368,6 +368,7 @@ SharedState sharedState(Ref ref) {
         onlyStatisticsProxy: state.onlyStatisticsProxy,
         showStopAction: state.showNotificationStopAction,
         checkCertificate: state.checkCertificate,
+        delayTestTimeout: state.delayTestTimeout,
       ),
     ),
   );
@@ -404,6 +405,7 @@ SharedState sharedState(Ref ref) {
       selectedMap: selectedMap,
       testUrl: testUrl,
       skipCertVerify: !appSetting.checkCertificate,
+      healthCheckTimeout: appSetting.delayTestTimeout,
     ),
     vpnOptions: ref.watch(vpnOptionsProvider).value,
   );

@@ -16,6 +16,12 @@ import (
 func init() {
 	mihomoHttp.TLSConfigHook = relaxCertVerify
 	adapter.UrlTestHook = func(url string, name string, delay uint16, timedOut bool) {
+		if isManualTest(name, url) {
+			return
+		}
+		if lookupProxy(name) == nil {
+			return
+		}
 		sendMessage(DelayMessage, &Delay{Url: url, Name: name, Value: delayValue(delay, timedOut)})
 	}
 	statistic.DefaultRequestNotify = func(c statistic.Tracker) {

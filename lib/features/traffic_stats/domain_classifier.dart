@@ -659,7 +659,7 @@ class DomainClassifier {
     return host;
   }
 
-  static List<AggregatedSiteGroup> aggregateSites(List<TargetSiteData> sites) {
+  static List<AggregatedSiteGroup> aggregateSites(Iterable<TargetSiteData> sites) {
     final Map<String, List<TargetSiteData>> groups = {};
     final Map<String, ServiceCategory> categories = {};
 

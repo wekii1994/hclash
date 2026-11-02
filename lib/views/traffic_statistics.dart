@@ -77,6 +77,10 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
     final allTopSites = store.getTopSites(
       limit: TrafficStatsStore.maxSitesToKeep,
     );
+    final aggregatedGroups = store.getAggregatedSites(limit: 50);
+    final totalInitialCount = aggregatedGroups.isNotEmpty
+        ? min(50, aggregatedGroups.length)
+        : min(50, allTopSites.length);
     final chartPoints = store.getChartPoints(_selectedRange);
 
     final uploadColor = DashboardColors.of(context).series2;
@@ -331,9 +335,9 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
                       glyph: AppGlyphs.target,
                       title: l.target,
                     ),
-                    if (allTopSites.isNotEmpty)
+                    if (allTopSites.isNotEmpty || aggregatedGroups.isNotEmpty)
                       DashboardChip(
-                        label: '${_siteCount ?? min(50, allTopSites.length)}',
+                        label: '${_siteCount ?? totalInitialCount}',
                       ),
                   ],
                 ),
@@ -346,6 +350,7 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
                 ),
                 TargetSitesView(
                   sites: allTopSites,
+                  aggregatedGroups: aggregatedGroups,
                   onCountChanged: (count) {
                     if (_siteCount != count) {
                       setState(() => _siteCount = count);
