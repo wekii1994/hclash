@@ -33,6 +33,13 @@ class TrafficStatsEngine {
   bool _saveAgain = false;
   bool _disposed = false;
   int _historyGeneration = 0;
+  int _revision = 0;
+  int _cachedAggregatedRevision = -1;
+  int _cachedAggregatedLimit = -1;
+  List<AggregatedSiteGroup>? _cachedAggregatedSites;
+  int _cachedTopSitesRevision = -1;
+  int _cachedTopSitesLimit = -1;
+  List<TargetSiteData>? _cachedTopSites;
   Object? _coreEpoch;
   Timer? _saveTimer;
   Timer? _notifyTimer;
@@ -161,6 +168,7 @@ class TrafficStatsEngine {
           }
           _targetSiteUsages[entry.key] = loaded;
         }
+        _revision++;
         _loaded = true;
         lastPersistenceError = null;
         _pruneExpired(_now(), force: true);
@@ -184,11 +192,15 @@ class TrafficStatsEngine {
     final key = _dateKey(cutoff);
     _dailySummaries.removeWhere((date, _) => date.compareTo(key) < 0);
     final activeHosts = _counters.activeHosts;
+    final beforeCount = _targetSiteUsages.length;
     _targetSiteUsages.removeWhere(
       (host, value) =>
           value.lastSeen < cutoff.millisecondsSinceEpoch &&
           !activeHosts.contains(host),
     );
+    if (_targetSiteUsages.length != beforeCount) {
+      _revision++;
+    }
   }
 
   Map<String, dynamic> _snapshot() => {
@@ -251,6 +263,7 @@ class TrafficStatsEngine {
     _saveTimer = null;
     _dailySummaries.clear();
     _targetSiteUsages.clear();
+    _revision++;
     _counters.clearReportedCounts();
     final emptySnapshot = _snapshot();
     _notifyNow();
@@ -356,6 +369,7 @@ class TrafficStatsEngine {
       if (delta.newCount) site.count++;
       site.lastSeen = now.millisecondsSinceEpoch;
       site.process ??= delta.process;
+      _revision++;
     }
     scheduleSave();
     _scheduleNotify();
@@ -464,17 +478,38 @@ class TrafficStatsEngine {
   }
 
   List<TargetSiteData> getTopSites({int limit = 50}) {
+    final effectiveLimit = math.max(0, limit);
+    if (_cachedTopSites != null &&
+        _cachedTopSitesRevision == _revision &&
+        _cachedTopSitesLimit == effectiveLimit) {
+      return _cachedTopSites!;
+    }
     final sorted = _targetSiteUsages.values.toList()
       ..sort((a, b) => b.total.compareTo(a.total));
-    return sorted
-        .take(math.max(0, limit))
-        .map((site) => TargetSiteData.fromJson(site.toJson()))
-        .toList();
+    final result = List<TargetSiteData>.unmodifiable(
+      sorted.take(effectiveLimit).map((site) => site.clone()).toList(),
+    );
+    _cachedTopSites = result;
+    _cachedTopSitesRevision = _revision;
+    _cachedTopSitesLimit = effectiveLimit;
+    return result;
   }
 
   List<AggregatedSiteGroup> getAggregatedSites({int limit = 50}) {
+    final effectiveLimit = math.max(0, limit);
+    if (_cachedAggregatedSites != null &&
+        _cachedAggregatedRevision == _revision &&
+        _cachedAggregatedLimit == effectiveLimit) {
+      return _cachedAggregatedSites!;
+    }
     final groups = DomainClassifier.aggregateSites(_targetSiteUsages.values);
-    return groups.take(math.max(0, limit)).toList();
+    final result = List<AggregatedSiteGroup>.unmodifiable(
+      groups.take(effectiveLimit).toList(),
+    );
+    _cachedAggregatedSites = result;
+    _cachedAggregatedRevision = _revision;
+    _cachedAggregatedLimit = effectiveLimit;
+    return result;
   }
 
   void dispose() {

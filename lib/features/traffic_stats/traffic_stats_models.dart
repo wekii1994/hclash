@@ -106,6 +106,15 @@ class TargetSiteData {
 
   int get total => upload + download;
 
+  TargetSiteData clone() => TargetSiteData(
+        host: host,
+        upload: upload,
+        download: download,
+        count: count,
+        lastSeen: lastSeen,
+        process: process,
+      );
+
   Map<String, dynamic> toJson() => {
     'host': host,
     'upload': upload,

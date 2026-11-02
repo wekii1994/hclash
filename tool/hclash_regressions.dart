@@ -525,5 +525,63 @@ Future<void> main() async {
     },
   );
 
+  await test(
+    'aggregated site views are immutable snapshots that do not leak or mutate engine ledger',
+    () async {
+      final disk = MemoryPersistence();
+      final e = engine(disk);
+      try {
+        await e.init();
+        e.recordRequestSample(
+          id: 'c1',
+          upload: 0,
+          download: 10,
+          host: 'v1.googlevideo.com',
+        );
+        final initialGroups = e.getAggregatedSites();
+        final group = initialGroups.single;
+        check(
+          group.total == 10 && group.subSites.single.total == 10,
+          'initial group total must be 10',
+        );
+
+        // Record more traffic
+        e.recordTrafficSample(id: 'c1', upload: 0, download: 20);
+
+        // Previously returned group snapshot must not be mutated
+        check(
+          group.total == 10 && group.subSites.single.total == 10,
+          'existing snapshot mutated on subsequent traffic',
+        );
+
+        // Attempting to mutate subSites fields in the snapshot must not affect engine ledger
+        group.subSites.single.download = 999;
+        await e.save();
+
+        check(
+          e.todayTotal == 20,
+          'engine ledger was corrupted by snapshot field mutation',
+        );
+
+        final diskSnapshot = await disk.read();
+        final sitesMap = diskSnapshot?['sites'] as Map<String, dynamic>?;
+        check(
+          sitesMap?['v1.googlevideo.com']?['download'] == 20,
+          'persisted site.download corrupted by external snapshot mutation',
+        );
+
+        // Next read with new revision reflects true data
+        final updatedGroups = e.getAggregatedSites();
+        check(
+          updatedGroups.single.total == 20 &&
+              updatedGroups.single.subSites.single.total == 20,
+          'updated aggregation must reflect total 20',
+        );
+      } finally {
+        e.dispose();
+      }
+    },
+  );
+
   stdout.writeln('$count regression scenarios passed.');
 }

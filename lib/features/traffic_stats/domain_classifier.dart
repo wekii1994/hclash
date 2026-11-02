@@ -594,9 +594,22 @@ class DomainClassifier {
     return process;
   }
 
+  static final Map<String, ServiceCategory> _categoryCache = {};
+
   static ServiceCategory classify(String rawHost, {String? process}) {
     final host = stripPort(rawHost);
+    final cacheKey =
+        process != null && process.isNotEmpty ? '$process:$host' : host;
+    final cached = _categoryCache[cacheKey];
+    if (cached != null) return cached;
+    final result = _classifyInternal(host, process: process);
+    if (_categoryCache.length < 10000) {
+      _categoryCache[cacheKey] = result;
+    }
+    return result;
+  }
 
+  static ServiceCategory _classifyInternal(String host, {String? process}) {
     if (host.isEmpty) {
       return const ServiceCategory(name: '未知服务', iconText: '?');
     }
@@ -674,18 +687,18 @@ class DomainClassifier {
 
     final list = groups.entries.map((e) {
       final cat = categories[e.key]!;
-      final subSites = List<TargetSiteData>.from(e.value)
+      final subSites = e.value.map((s) => s.clone()).toList()
         ..sort((a, b) => b.total.compareTo(a.total));
       return AggregatedSiteGroup(
         key: e.key,
         displayName: cat.name,
         iconText: cat.iconText,
         brandColor: cat.brandColor,
-        subSites: subSites,
+        subSites: List<TargetSiteData>.unmodifiable(subSites),
       );
     }).toList();
 
     list.sort((a, b) => b.total.compareTo(a.total));
-    return list;
+    return List<AggregatedSiteGroup>.unmodifiable(list);
   }
 }
