@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -22,36 +21,7 @@ var (
 
 	testURL                 atomic.Pointer[string]
 	missingDelayTestProxyAt atomic.Int64
-	activeManualTests       sync.Map
 )
-
-func testTargetKey(name, url string) string {
-	return name + "\x00" + url
-}
-
-func startManualTest(name, url string) func() {
-	key := testTargetKey(name, url)
-	for {
-		actual, _ := activeManualTests.LoadOrStore(key, new(atomic.Int32))
-		ctr := actual.(*atomic.Int32)
-		val := ctr.Add(1)
-		if val > 0 {
-			return func() {
-				if ctr.Add(-1) <= 0 {
-					activeManualTests.Delete(key)
-				}
-			}
-		}
-	}
-}
-
-func isManualTest(name, url string) bool {
-	val, ok := activeManualTests.Load(testTargetKey(name, url))
-	if !ok {
-		return false
-	}
-	return val.(*atomic.Int32).Load() > 0
-}
 
 func init() {
 	var err error

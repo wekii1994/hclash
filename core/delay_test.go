@@ -1,6 +1,7 @@
 package core
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/metacubex/mihomo/adapter"
@@ -97,3 +98,62 @@ func TestHandleTestDelayEpochChange(t *testing.T) {
 		t.Fatalf("expected delayFailed for missing proxy, got %v", missing)
 	}
 }
+
+func TestManualRegistryConcurrentInvariant(t *testing.T) {
+	old := runtime.GOMAXPROCS(4)
+	defer runtime.GOMAXPROCS(old)
+	const (
+		key        = "concurrent-node"
+		url        = "https://example.com/test"
+		iterations = 10000
+	)
+	for i := 0; i < iterations; i++ {
+		doneA := startManualTest(key, url)
+		start := make(chan struct{})
+		finished := make(chan struct{})
+		next := make(chan func(), 1)
+		go func() {
+			<-start
+			doneA()
+			close(finished)
+		}()
+		go func() {
+			<-start
+			next <- startManualTest(key, url)
+		}()
+		close(start)
+		doneB := <-next
+		<-finished
+		alive := isManualTest(key, url)
+		doneB()
+		if !alive {
+			t.Fatalf("active test B lost registration at iteration %d", i)
+		}
+	}
+}
+
+func TestManualRegistryReleaseIsIdempotent(t *testing.T) {
+	const (
+		node = "idempotent-node"
+		url  = "https://example.com/test"
+	)
+	a := startManualTest(node, url)
+	b := startManualTest(node, url)
+	a()
+	a() // Duplicate release must be no-op
+	if !isManualTest(node, url) {
+		t.Fatal("duplicate release removed active registration b")
+	}
+	b()
+	b()
+	if isManualTest(node, url) {
+		t.Fatal("leaked registration after both released")
+	}
+	c := startManualTest(node, url)
+	a() // Stale release of a must not affect new c
+	if !isManualTest(node, url) {
+		t.Fatal("stale release of a removed new registration c")
+	}
+	c()
+}
+
