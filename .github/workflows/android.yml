@@ -23,12 +23,51 @@ env:
   GO_VERSION: '1.27.1'
   NDK_VERSION: r28c
 
+permissions:
+  contents: read
+
 jobs:
+  quality:
+    name: Validate sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Apply Mihomo companion patch
+        run: bash tool/apply_mihomo_patch.sh
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: core/go.sum
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos
+      - name: Skip the Go core build hook for Dart tests
+        run: yq -i '.hooks.user_defines.setup.build_assets = false' pubspec.yaml
+      - run: dart run tool/test.dart -- --reporter expanded
+      - run: dart run tool/hclash_regressions.dart
+      - name: Go core tests and vet
+        working-directory: core
+        env:
+          CGO_ENABLED: 0
+        run: |
+          go test -count=1 .
+          go vet . ./cmd/...
+      - name: Mihomo adapter regressions
+        working-directory: core/Clash.Meta
+        env:
+          CGO_ENABLED: 0
+        run: go test -count=1 ./adapter ./adapter/outboundgroup
+
   build-apk:
     name: Build Android APK
+    needs: quality
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Free Disk Space
@@ -50,6 +89,9 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
+
+      - name: Apply Mihomo companion patch
+        run: bash tool/apply_mihomo_patch.sh
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
@@ -88,44 +130,60 @@ jobs:
           cache: true
 
       - name: Setup Android Release Keystore
+        env:
+          KEYSTORE: ${{ secrets.KEYSTORE }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        shell: bash
         run: |
-          if [ -n "${{ secrets.KEYSTORE }}" ]; then
-            echo "Using signing keystore from GitHub Secrets..."
-            echo "${{ secrets.KEYSTORE }}" | base64 --decode > android/app/keystore.jks
-            {
-              echo "keyAlias=${{ secrets.KEY_ALIAS }}"
-              echo "storePassword=${{ secrets.STORE_PASSWORD }}"
-              echo "keyPassword=${{ secrets.KEY_PASSWORD }}"
-            } >> android/local.properties
-          elif [ -f "android/app/keystore.jks" ]; then
-            echo "Using committed persistent release keystore..."
-            {
-              echo "keyAlias=hclash"
-              echo "storePassword=123456"
-              echo "keyPassword=123456"
-            } >> android/local.properties
-          else
-            echo "Generating persistent release keystore and committing to repository..."
-            keytool -genkeypair -v \
-              -keystore android/app/keystore.jks \
-              -alias hclash \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass 123456 \
-              -keypass 123456 \
-              -dname "CN=hclash, OU=hclash, O=hclash, L=City, ST=State, C=US"
-            {
-              echo "keyAlias=hclash"
-              echo "storePassword=123456"
-              echo "keyPassword=123456"
-            } >> android/local.properties
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add -f android/app/keystore.jks
-            git commit -m "chore: persist release signing keystore for consistent app updates [skip ci]" || true
-            git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:main || true
-          fi
+          set -euo pipefail
+          for name in KEYSTORE KEY_ALIAS STORE_PASSWORD KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Required signing secret is missing: $name"
+              exit 1
+            fi
+          done
+          umask 077
+          python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          keystore = Path('android/app/keystore.jks')
+          encoded = ''.join(os.environ['KEYSTORE'].split())
+          keystore.write_bytes(base64.b64decode(encoded, validate=True))
+          if keystore.stat().st_size == 0:
+              raise RuntimeError('Signing keystore is empty')
+
+          # Java .properties escaping; values never become shell source.
+          def escape(value):
+              result = []
+              for char in value:
+                  if char == '\\': result.append('\\\\')
+                  elif char == '\n': result.append('\\n')
+                  elif char == '\r': result.append('\\r')
+                  elif char == '\t': result.append('\\t')
+                  elif char in ' :=#!': result.append('\\' + char)
+                  elif ord(char) < 32 or ord(char) > 126:
+                      raw = char.encode('utf-16-be')
+                      result.extend('\\u' + raw[i:i + 2].hex() for i in range(0, len(raw), 2))
+                  else: result.append(char)
+              return ''.join(result)
+
+          path = Path('android/local.properties')
+          existing = path.read_text(encoding='utf-8') if path.exists() else ''
+          keys = {'keyAlias', 'storePassword', 'keyPassword'}
+          lines = [line for line in existing.splitlines()
+                   if line.split('=', 1)[0].strip() not in keys]
+          for key, name in [('keyAlias', 'KEY_ALIAS'),
+                            ('storePassword', 'STORE_PASSWORD'),
+                            ('keyPassword', 'KEY_PASSWORD')]:
+              lines.append(key + '=' + escape(os.environ[name]))
+          path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+          PY
+          keytool -list -keystore android/app/keystore.jks \
+            -storepass:env STORE_PASSWORD -alias "$KEY_ALIAS" >/dev/null
 
       - name: Fetch CA certificates
         shell: bash
@@ -149,6 +207,19 @@ jobs:
         run: |
           dart setup.dart android --arch arm64 --env stable -v
 
+      - name: Android unit tests
+        working-directory: android
+        env:
+          ANDROID_NDK_HOME: ${{ steps.build-ndk.outputs.ndk-path }}
+        run: |
+          wrapper="$FLUTTER_ROOT/bin/cache/artifacts/gradle_wrapper"
+          test -d "$wrapper" || flutter precache
+          cp -R "$wrapper/." .
+          chmod +x gradlew
+          ./gradlew :common:testDebugUnitTest :service:testDebugUnitTest :app:testDebugUnitTest \
+            -Ptarget-platform=android-arm64 \
+            -x :app:compileFlutterBuildDebug -x :app:copyFlutterAssetsDebug
+
       - name: Generate Checksums
         run: |
           cd dist
@@ -162,6 +233,24 @@ jobs:
           path: dist/
           overwrite: true
 
+  publish:
+    name: Publish verified APK
+    needs: build-apk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: hclash-release-publishing
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: hclash-android-apks
+          path: dist
+
       - name: Publish to GitHub Releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -169,8 +258,8 @@ jobs:
           VERSION=$(sed -n 's/^version: *\([^ +]*\).*/\1/p' pubspec.yaml)
           [ -z "$VERSION" ] && VERSION="0.9.1"
           
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            TAG="${{ github.ref_name }}"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="$GITHUB_REF_NAME"
           else
             # Auto-increment pre-release tag: v0.9.1-pre1, v0.9.1-pre2, ...
             EXISTING_PRES=$(gh release list --limit 100 2>/dev/null | grep -o "v${VERSION}-pre[0-9]*" | sed "s/v${VERSION}-pre//" | sort -n | tail -n 1 || true)
@@ -182,6 +271,10 @@ jobs:
             TAG="v${VERSION}-pre${NEXT_PRE}"
           fi
           
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Unsupported release tag format"
+            exit 1
+          fi
           echo "Publishing release for tag: $TAG"
           
           # Flatten any nested APKs into dist/

@@ -46,8 +46,7 @@ object NetworkObserver {
     @Volatile
     private var currentDnsList = listOf<String>()
 
-    @Volatile
-    private var currentNetwork: Network? = null
+    private val networkTransitions = NetworkTransitionTracker<Network>()
 
     @Volatile
     private var started = false
@@ -177,13 +176,7 @@ object NetworkObserver {
             Core.updateDNS(dnsList.joinToString(","))
         }
         val network = preferred?.key
-        if (network == null) {
-            currentNetwork = null
-            return
-        }
-        val previous = currentNetwork
-        currentNetwork = network
-        if (previous != null && previous != network) {
+        if (networkTransitions.update(network)) {
             Core.resetNetwork()
         }
     }

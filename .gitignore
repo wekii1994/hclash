@@ -79,3 +79,7 @@ devtools_options.yaml
 .fvm/
 .fvmrc
 /coverage/lcov.info
+
+# Local signing material
+/android/app/keystore.jks
+/android/local.properties

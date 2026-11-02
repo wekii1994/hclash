@@ -36,7 +36,10 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   @override
   void initState() {
     super.initState();
-    TrafficStatsStore.instance.init();
+    TrafficStatsStore.instance.beginCoreEpoch(
+      ref.read(routeTrackerProvider).coreEpoch,
+    );
+    unawaited(TrafficStatsStore.instance.init());
     coreEventManager.addListener(this);
     ref.read(updatingActionProvider.notifier);
     // A rejected profile stays selected on purpose: silently reverting to
@@ -84,6 +87,11 @@ class _CoreContainerState extends ConsumerState<CoreManager>
         (state) => (state.coreEpoch, state.routeVersion),
       ),
       (prev, next) {
+        // Invalidate results that belong to an earlier route/configuration.
+        ref.read(proxiesActionProvider.notifier).cancelDelayTests();
+        if (prev == null || prev.$1 != next.$1) {
+          TrafficStatsStore.instance.beginCoreEpoch(next.$1);
+        }
         if (prev != null && prev != next) {
           ref.read(proxiesActionProvider.notifier).updateGroupsDebounce();
         }
@@ -166,6 +174,14 @@ class _CoreContainerState extends ConsumerState<CoreManager>
     ref.read(requestsProvider.notifier).updateTraffic(traffic);
     TrafficStatsStore.instance.recordRequestTraffic(traffic);
     super.onRequestTraffic(traffic);
+  }
+
+  @override
+  void onRequestsClosed(Set<String> ids) {
+    for (final id in ids) {
+      TrafficStatsStore.instance.recordClosedConnection(id);
+    }
+    super.onRequestsClosed(ids);
   }
 
   @override

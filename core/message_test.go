@@ -281,3 +281,22 @@ func TestRunMessageBatcherDrainsBulkAfterPriorityCloses(t *testing.T) {
 		}
 	}
 }
+
+func TestBulkProducersCannotEvictAcceptedFinalTotals(t *testing.T) {
+	state := make(chan Message, 1)
+	priority := make(chan Message, 1)
+	bulk := make(chan Message, 2)
+	opened := Message{Type: RequestMessage, Data: "opened"}
+	closed := Message{Type: RequestTrafficMessage, Data: "final-and-closed"}
+	if !enqueueMessage(opened, state, priority, bulk) || !enqueueMessage(closed, state, priority, bulk) {
+		t.Fatal("failed to enqueue initial request and final totals")
+	}
+	for _, typ := range []MessageType{LogMessage, RequestMessage, DnsMessage, RequestTrafficMessage} {
+		if enqueueMessage(Message{Type: typ}, state, priority, bulk) {
+			t.Fatalf("full bulk FIFO accepted %v", typ)
+		}
+	}
+	if (<-bulk).Data != "opened" || (<-bulk).Data != "final-and-closed" {
+		t.Fatal("accepted events were evicted or reordered")
+	}
+}

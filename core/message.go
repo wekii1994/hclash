@@ -29,8 +29,8 @@ const (
 	stateMessageClass messageClass = iota
 	priorityMessageClass
 	bulkMessageClass
-	// Shares the bulk queue but never evicts from it: a lookup burst would
-	// otherwise push out the request events the connection list is built from.
+	// All bulk producers use a non-evicting FIFO. This classification is kept
+	// for compatibility with the existing message-priority contract.
 	yieldingBulkMessageClass
 )
 
@@ -54,15 +54,18 @@ func sendMessage(messageType MessageType, data any) (queued bool) {
 		return false
 	}
 	message := Message{Type: messageType, Data: data}
+	return enqueueMessage(message, stateMessageQueue, priorityMessageQueue, bulkMessageQueue)
+}
+
+func enqueueMessage(message Message, state, priority, bulk chan Message) bool {
 	switch classOfMessage(message) {
 	case stateMessageClass:
-		return enqueueState(stateMessageQueue, message)
-	case bulkMessageClass:
-		return enqueueLatest(bulkMessageQueue, message)
-	case yieldingBulkMessageClass:
-		return enqueueState(bulkMessageQueue, message)
+		return enqueueState(state, message)
+	case bulkMessageClass, yieldingBulkMessageClass:
+		// RequestTraffic includes final samples. Never evict accepted FIFO data.
+		return enqueueState(bulk, message)
 	default:
-		return enqueueLatest(priorityMessageQueue, message)
+		return enqueueLatest(priority, message)
 	}
 }
 

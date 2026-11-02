@@ -30,6 +30,9 @@ abstract mixin class CoreEventListener {
 
   void onRequestTraffic(Map<String, RequestTraffic> traffic) {}
 
+  /// Delivered after final cumulative counters in the same FIFO message.
+  void onRequestsClosed(Set<String> ids) {}
+
   void onDns(DnsQuery dnsQuery) {}
 
   void onLoaded(String providerName) {}
@@ -73,6 +76,11 @@ class CoreEventManager {
                     download: (item['download'] as num).toInt(),
                   ),
               });
+              final closedIds = <String>{
+                for (final Map item in event.data)
+                  if (item['closed'] == true) item['id'] as String,
+              };
+              if (closedIds.isNotEmpty) listener.onRequestsClosed(closedIds);
               break;
             case CoreEventType.dns:
               listener.onDns(DnsQuery.fromJson(event.data));

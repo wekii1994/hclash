@@ -198,52 +198,26 @@ func hasSelectionChanged(before map[string]string, groups []*adapter.Proxy) bool
 	return false
 }
 
-func probeGroupsConcurrently(ctx context.Context, groups []*adapter.Proxy, url string) bool {
-	if len(groups) == 0 {
-		return false
-	}
-	maxConcurrent := primaryProbeConcurrency
-	if len(groups) < maxConcurrent {
-		maxConcurrent = len(groups)
-	}
-	sem := make(chan struct{}, maxConcurrent)
-	var (
-		wg         sync.WaitGroup
-		mu         sync.Mutex
-		anySuccess bool
-	)
+type contextHealthCheckedGroup interface {
+	HealthCheckContext(context.Context) (map[string]uint16, error)
+}
 
-	for _, group := range groups {
-		if ctx.Err() != nil {
-			break
-		}
-		wg.Add(1)
-		select {
-		case sem <- struct{}{}:
-		case <-ctx.Done():
-			wg.Done()
-			break
-		}
-		go func(g *adapter.Proxy) {
-			defer func() {
-				<-sem
-				wg.Done()
-			}()
-			if ctx.Err() != nil {
-				return
+// Require the companion Mihomo patch at compile time, not only at runtime.
+var _ contextHealthCheckedGroup = (*outboundgroup.URLTest)(nil)
+var _ contextHealthCheckedGroup = (*outboundgroup.Fallback)(nil)
+
+func probeGroupsConcurrently(ctx context.Context, groups []*adapter.Proxy) bool {
+	return runBoundedProbes(ctx, len(groups), primaryProbeConcurrency,
+		func(probeCtx context.Context, index int) bool {
+			checker, ok := groups[index].ProxyAdapter.(contextHealthCheckedGroup)
+			if !ok {
+				return false
 			}
-			testCtx, cancel := context.WithTimeout(ctx, groupProbeTimeout)
+			testCtx, cancel := context.WithTimeout(probeCtx, groupProbeTimeout)
 			defer cancel()
-			delay, err := g.URLTest(testCtx, url, delayTestExpectedStatus)
-			if err == nil && delay > 0 {
-				mu.Lock()
-				anySuccess = true
-				mu.Unlock()
-			}
-		}(group)
-	}
-	wg.Wait()
-	return anySuccess
+			results, err := checker.HealthCheckContext(testCtx)
+			return err == nil && len(results) > 0
+		})
 }
 
 func waitOrCancel(ctx context.Context, d time.Duration) bool {
@@ -284,11 +258,10 @@ func handleResetNetwork() {
 		}
 
 		if len(primaryGroups) > 0 {
-			url := currentTestURL()
-			ok := probeGroupsConcurrently(resetCtx, primaryGroups, url)
+			ok := probeGroupsConcurrently(resetCtx, primaryGroups)
 			if !ok && waitOrCancel(resetCtx, networkRetryBackoff) {
 				handleClearDnsCache()
-				_ = probeGroupsConcurrently(resetCtx, primaryGroups, url)
+				_ = probeGroupsConcurrently(resetCtx, primaryGroups)
 			}
 		} else {
 			for _, pd := range tunnel.ProvidersSnapshot() {

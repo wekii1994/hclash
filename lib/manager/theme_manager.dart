@@ -54,10 +54,8 @@ ThemeData watchAppTheme(WidgetRef ref, Brightness brightness) {
     colorScheme: colorScheme,
     locales: locales.join(','),
   );
-  if (_appThemes[brightness] case (
-    inputs: final cached,
-    :final theme,
-  ) when cached == inputs) {
+  if (_appThemes[brightness] case (inputs: final cached, :final theme)
+      when cached == inputs) {
     return theme;
   }
   final theme = ThemeData(
@@ -220,13 +218,9 @@ class _AppMediaQuery extends StatelessWidget {
         top: padding.top > data.size.height * 0.3 ? 20.0 : padding.top,
       ),
     );
-    final effectiveScale = pageScale.clamp(minPageScale, maxPageScale);
-    if ((effectiveScale - 1.0).abs() < 0.001) {
-      return MediaQuery(
-        data: mediaQueryData,
-        child: child,
-      );
-    }
+    final effectiveScale = pageScale.isFinite
+        ? pageScale.clamp(minPageScale, maxPageScale).toDouble()
+        : defaultPageScale;
     final originalSize = mediaQueryData.size;
     final scaledSize = originalSize / effectiveScale;
     return MediaQuery(

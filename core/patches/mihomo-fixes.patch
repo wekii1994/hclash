@@ -1,0 +1,94 @@
+diff --git a/adapter/adapter.go b/adapter/adapter.go
+--- a/adapter/adapter.go
++++ b/adapter/adapter.go
+@@ -278,6 +278,10 @@
+ 	}
+ 
+ 	satisfied = resp != nil && (expectedStatus == nil || expectedStatus.Check(uint16(resp.StatusCode)))
++	if !satisfied {
++		// Also drives UrlTestHook and the global/per-URL health history as failed.
++		return 0, fmt.Errorf("delay test response does not match expected status")
++	}
+ 	t = uint16(time.Since(start) / time.Millisecond)
+ 	if t == 0 {
+ 		// a zero delay means a failed test to callers, so report a test
+diff --git a/adapter/outboundgroup/fallback.go b/adapter/outboundgroup/fallback.go
+--- a/adapter/outboundgroup/fallback.go
++++ b/adapter/outboundgroup/fallback.go
+@@ -180,3 +180,12 @@
+ 		expectedStatus: option.ExpectedStatus,
+ 	}, nil
+ }
++
++// HealthCheckContext refreshes all candidates, including currently unselected ones.
++func (f *Fallback) HealthCheckContext(ctx context.Context) (map[string]uint16, error) {
++	expected, err := utils.NewUnsignedRanges[uint16](f.expectedStatus)
++	if err != nil {
++		return nil, err
++	}
++	return f.GroupBase.URLTest(ctx, f.testUrl, expected)
++}
+diff --git a/adapter/outboundgroup/urltest.go b/adapter/outboundgroup/urltest.go
+--- a/adapter/outboundgroup/urltest.go
++++ b/adapter/outboundgroup/urltest.go
+@@ -220,3 +220,16 @@
+ 
+ 	return urlTest, nil
+ }
++
++// HealthCheckContext refreshes member health using this group's configured URL
++// and expected-status policy, and invalidates its cached selection afterwards.
++func (u *URLTest) HealthCheckContext(ctx context.Context) (map[string]uint16, error) {
++	expected, err := utils.NewUnsignedRanges[uint16](u.expectedStatus)
++	if err != nil {
++		return nil, err
++	}
++	u.fastSingle.Reset()
++	result, err := u.GroupBase.URLTest(ctx, u.testUrl, expected)
++	u.fastSingle.Reset()
++	return result, err
++}
+diff --git a/adapter/urltest_expected_status_test.go b/adapter/urltest_expected_status_test.go
+new file mode 100644
+--- /dev/null
++++ b/adapter/urltest_expected_status_test.go
+@@ -0,0 +1,39 @@
++package adapter
++
++import (
++	"context"
++	"net/http"
++	"net/http/httptest"
++	"strconv"
++	"testing"
++	"time"
++
++	"github.com/metacubex/mihomo/adapter/outbound"
++	"github.com/metacubex/mihomo/common/utils"
++)
++
++func TestURLTestRejectsUnexpectedStatus(t *testing.T) {
++	expected, err := utils.NewUnsignedRanges[uint16]("200-204")
++	if err != nil {
++		t.Fatal(err)
++	}
++	for _, status := range []int{204, 302, 403, 503} {
++		t.Run(strconv.Itoa(status), func(t *testing.T) {
++			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
++				w.WriteHeader(status)
++			}))
++			defer server.Close()
++			proxy := NewProxy(outbound.NewDirectWithOption(outbound.DirectOption{Name: "DIRECT"}))
++			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
++			defer cancel()
++			delay, testErr := proxy.URLTest(ctx, server.URL, expected)
++			if status == 204 {
++				if testErr != nil || delay == 0 || !proxy.AliveForTestUrl(server.URL) {
++					t.Fatalf("accepted response: delay=%d error=%v", delay, testErr)
++				}
++			} else if testErr == nil || delay != 0 || proxy.AliveForTestUrl(server.URL) {
++				t.Fatalf("status %d accepted: delay=%d error=%v", status, delay, testErr)
++			}
++		})
++	}
++}

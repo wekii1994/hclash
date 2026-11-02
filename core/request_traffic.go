@@ -11,13 +11,11 @@ import (
 // close; the request list learns the traffic that follows from these reports.
 const requestTrafficInterval = time.Second
 
-// A full bulk queue drops a report; a closed request holds its connection only this many retries.
-const requestTrafficCloseRetries = 5
-
 type RequestTraffic struct {
 	Id       string `json:"id"`
 	Upload   int64  `json:"upload"`
 	Download int64  `json:"download"`
+	Closed   bool   `json:"closed,omitempty"`
 }
 
 type watchedRequest struct {
@@ -26,8 +24,9 @@ type watchedRequest struct {
 	download int64
 	// The tracker is announced before the manager stores it, so a request
 	// missing from the manager on its first report may still be opening.
-	fresh         bool
-	closedReports int
+	fresh bool
+	// A closed tracker is released immediately; only final scalar totals are retried.
+	terminal *RequestTraffic
 }
 
 type requestTrafficWatch struct {
@@ -63,26 +62,32 @@ func (w *requestTrafficWatch) collect(
 	defer w.mu.Unlock()
 	var changed []RequestTraffic
 	for id, request := range w.requests {
-		if request.closedReports > 0 || !request.fresh && !isOpen(id) {
-			request.closedReports++
+		if request.terminal != nil {
+			changed = append(changed, *request.terminal)
+			continue
 		}
+		closed := !request.fresh && !isOpen(id)
 		request.fresh = false
 		info := request.tracker.Info()
 		upload, download := info.UploadTotal.Load(), info.DownloadTotal.Load()
-		if upload != request.upload || download != request.download {
-			changed = append(changed, RequestTraffic{Id: id, Upload: upload, Download: download})
+		sample := RequestTraffic{Id: id, Upload: upload, Download: download, Closed: closed}
+		if closed {
+			request.terminal = &sample
+			request.tracker = nil
+			changed = append(changed, sample)
+		} else if upload != request.upload || download != request.download {
+			changed = append(changed, sample)
 		}
 	}
 	queued := len(changed) == 0 || queue(changed)
 	if queued {
 		for _, traffic := range changed {
-			request := w.requests[traffic.Id]
-			request.upload, request.download = traffic.Upload, traffic.Download
-		}
-	}
-	for id, request := range w.requests {
-		if request.closedReports > 0 && (queued || request.closedReports > requestTrafficCloseRetries) {
-			delete(w.requests, id)
+			if traffic.Closed {
+				delete(w.requests, traffic.Id)
+			} else {
+				request := w.requests[traffic.Id]
+				request.upload, request.download = traffic.Upload, traffic.Download
+			}
 		}
 	}
 	w.running = len(w.requests) > 0

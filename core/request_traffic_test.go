@@ -73,7 +73,7 @@ func TestRequestTrafficReportsChangesUntilTheRequestCloses(t *testing.T) {
 	}
 	open = false
 	changed, watching := collectDelivered(&watch, isOpen)
-	if len(changed) != 1 || changed[0].Upload != 8 || watching {
+	if len(changed) != 1 || changed[0].Upload != 8 || !changed[0].Closed || watching {
 		t.Fatalf("closed request: changed %v, watching %v", changed, watching)
 	}
 	if !watch.add(tracker) {
@@ -117,23 +117,24 @@ func TestRequestTrafficResendsTheLastTotalsOfAClosedRequestUntilQueued(t *testin
 	}
 }
 
-func TestRequestTrafficGivesUpOnAClosedRequestItCannotReport(t *testing.T) {
+func TestRequestTrafficKeepsClosedTotalsWithoutRetainingTracker(t *testing.T) {
 	tracker := newPipeTracker(t)
 	watch := requestTrafficWatch{requests: map[string]*watchedRequest{}}
-	closed := func(string) bool { return false }
+	isOpen := func(string) bool { return false }
 	dropped := func([]RequestTraffic) bool { return false }
-
 	watch.add(tracker)
-	watch.collect(closed, dropped)
-	if _, err := tracker.Write([]byte("bye")); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	for report := 1; report <= requestTrafficCloseRetries; report++ {
-		if !watch.collect(closed, dropped) {
-			t.Fatalf("let go after %d dropped reports", report)
+	watch.collect(isOpen, dropped) // The first observation may precede manager insertion.
+	for attempt := 0; attempt < 20; attempt++ {
+		if !watch.collect(isOpen, dropped) {
+			t.Fatal("final totals were discarded before entering the queue")
 		}
 	}
-	if watch.collect(closed, dropped) {
-		t.Fatal("a closed request outlived its retries")
+	state := watch.requests[tracker.ID()]
+	if state == nil || state.tracker != nil || state.terminal == nil {
+		t.Fatal("closed tracker retained, or terminal state lost")
+	}
+	changed, watching := collectDelivered(&watch, isOpen)
+	if len(changed) != 1 || !changed[0].Closed || watching {
+		t.Fatalf("closed idle connection not reported: %+v, watching=%v", changed, watching)
 	}
 }

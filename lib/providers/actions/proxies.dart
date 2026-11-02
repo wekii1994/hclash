@@ -23,29 +23,8 @@ class _DelayTestJob {
   bool cancelled = false;
 }
 
-class DelayTestRequestPool {
-  final Map<String, Future<Delay?>> _pendingRequests = {};
-
-  int get pendingCount => _pendingRequests.length;
-
-  Future<Delay?> run(String key, Future<Delay?> Function() action) {
-    final pendingRequest = _pendingRequests[key];
-    if (pendingRequest != null) {
-      return pendingRequest;
-    }
-
-    final request = action();
-    _pendingRequests[key] = request;
-    return request.whenComplete(() {
-      if (identical(_pendingRequests[key], request)) {
-        _pendingRequests.remove(key);
-      }
-    });
-  }
-
-  void clear() {
-    _pendingRequests.clear();
-  }
+class DelayTestRequestPool extends SingleFlight<Object, Delay?> {
+  void clear() => invalidate();
 }
 
 @Riverpod(keepAlive: true)
@@ -466,16 +445,17 @@ class ProxiesAction extends _$ProxiesAction {
       _bufferedStarts.add(target.key);
       _scheduleDelayFlush();
     }
+    final requestGeneration = _delayTestRequestPool.generation;
     try {
-      final delay = await _delayTestRequestPool.run(
-        '#',
-        () => _core.getDelay(
-          target.testUrl,
-          target.proxyName,
-          job.timeout,
-        ),
-      );
-      if (delay != null && !job.cancelled) {
+      final delay = await _delayTestRequestPool.run((
+        target.proxyName,
+        target.testUrl,
+        job.timeout,
+        requestGeneration,
+      ), () => _core.getDelay(target.testUrl, target.proxyName, job.timeout));
+      if (delay != null &&
+          !job.cancelled &&
+          requestGeneration == _delayTestRequestPool.generation) {
         setDelay(delay);
       }
     } catch (error) {

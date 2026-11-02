@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+
 import 'package:flutter/services.dart';
 
 import 'package:fl_clash/common/common.dart';
@@ -914,9 +915,9 @@ class _TextScaleFactorItemState extends ConsumerState<_TextScaleFactorItem> {
     final textScale = ref.watch(
       themeSettingProvider.select((state) => state.textScale),
     );
-    final systemScale = systemTextScaleOf(
-      context,
-    ).clamp(minTextScale, maxTextScale).toDouble();
+    final systemScale = systemTextScaleOf(context)
+        .clamp(minTextScale, maxTextScale)
+        .toDouble();
     final scale = _draft ?? (textScale.enable ? textScale.scale : systemScale);
     final percent = '${(scale * 100).round()}%';
     final level = context.raisedSurfaceLevel;
@@ -1135,11 +1136,14 @@ class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
     final pageScale = ref.watch(
       themeSettingProvider.select((state) => state.pageScale),
     );
-    final scale = _draft ?? pageScale;
+    final rawScale = _draft ?? pageScale;
+    final scale = rawScale.isFinite
+        ? rawScale.clamp(minPageScale, maxPageScale).toDouble()
+        : defaultPageScale;
     final percent = '${(scale * 100).round()}%';
     final level = context.raisedSurfaceLevel;
-    final divisions =
-        ((maxPageScale - minPageScale) / _PageScaleItem._step).round();
+    final divisions = ((maxPageScale - minPageScale) / _PageScaleItem._step)
+        .round();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1151,9 +1155,7 @@ class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
           ),
           actions: [
             if (pageScale != defaultPageScale)
-              _ResetButton(
-                onPressed: () => _update(defaultPageScale),
-              ),
+              _ResetButton(onPressed: () => _update(defaultPageScale)),
           ],
         ),
         Padding(
@@ -1174,9 +1176,9 @@ class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
                     Expanded(
                       child: Text(
                         appLocalizations.pageScaleDesc,
-                        style: AppTextStyle.subheadline.of(context).copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                        style: AppTextStyle.subheadline
+                            .of(context)
+                            .copyWith(color: colorScheme.onSurfaceVariant),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -1216,9 +1218,9 @@ class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
                     ExcludeSemantics(
                       child: Text(
                         '${(minPageScale * 100).round()}%',
-                        style: AppTextStyle.footnote.of(context).copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                        style: AppTextStyle.footnote
+                            .of(context)
+                            .copyWith(color: colorScheme.onSurfaceVariant),
                       ),
                     ),
                     Expanded(
@@ -1232,18 +1234,17 @@ class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
                           value: scale,
                           label: percent,
                           onChanged: (value) => setState(() => _draft = value),
-                          onChangeEnd: (value) => _update(
-                            (value * 100).round() / 100,
-                          ),
+                          onChangeEnd: (value) =>
+                              _update((value * 100).round() / 100),
                         ),
                       ),
                     ),
                     ExcludeSemantics(
                       child: Text(
                         '120%',
-                        style: AppTextStyle.footnote.of(context).copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                        style: AppTextStyle.footnote
+                            .of(context)
+                            .copyWith(color: colorScheme.onSurfaceVariant),
                       ),
                     ),
                   ],

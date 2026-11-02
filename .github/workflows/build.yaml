@@ -1,6 +1,10 @@
 name: build
 
 on:
+  pull_request:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -18,9 +22,8 @@ env:
 jobs:
   dart:
     name: Dart
-    # A private copy pays for its Actions minutes, so it runs the checks only when
-    # started by hand.
-    if: &checks github.repository == 'chen08209/FlClash' && (github.event_name == 'workflow_dispatch' || !github.event.repository.private)
+    # Generic checks also run in forks; publishing has separate conditions.
+    if: &checks ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -65,6 +68,9 @@ jobs:
 
       - name: Run tests
         run: dart run tool/test.dart -- --reporter expanded --coverage
+
+      - name: HClash accounting and concurrency regressions
+        run: dart run tool/hclash_regressions.dart
 
       - name: Check coverage
         run: dart run tool/check_coverage.dart coverage/lcov.info 75
@@ -113,6 +119,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Apply Mihomo companion patch
+        run: bash tool/apply_mihomo_patch.sh
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -172,6 +181,9 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Apply Mihomo companion patch
+        run: bash tool/apply_mihomo_patch.sh
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -196,6 +208,12 @@ jobs:
           go vet . ./cmd/...
           GOOS=linux go vet ./platform
 
+      - name: Mihomo adapter regressions
+        working-directory: core/Clash.Meta
+        env:
+          CGO_ENABLED: 0
+        run: go test -count=1 ./adapter ./adapter/outboundgroup
+
       - name: Validate the Android core library
         working-directory: core
         env:
@@ -214,6 +232,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Apply Mihomo companion patch
+        run: bash tool/apply_mihomo_patch.sh
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -361,6 +382,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Apply Mihomo companion patch
+        run: bash tool/apply_mihomo_patch.sh
 
       - name: Setup Android Signing
         if: startsWith(matrix.platform,'android')

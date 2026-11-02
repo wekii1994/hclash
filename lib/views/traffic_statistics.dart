@@ -51,9 +51,9 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
     final isZh = Localizations.localeOf(context).languageCode == 'zh';
     return switch (range) {
       TrafficStatsRange.today => isZh ? '今日' : 'Today',
-      TrafficStatsRange.week => isZh ? '本周' : 'This Week',
-      TrafficStatsRange.month => isZh ? '本月' : 'This Month',
-      TrafficStatsRange.all => isZh ? '全部' : 'All',
+      TrafficStatsRange.week => isZh ? '近7天' : '7 days',
+      TrafficStatsRange.month => isZh ? '近30天' : '30 days',
+      TrafficStatsRange.all => isZh ? '近90天' : '90 days',
     };
   }
 
@@ -65,7 +65,7 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
 
     final isZh = Localizations.localeOf(context).languageCode == 'zh';
     final todayText = isZh ? '今日' : 'Today';
-    final weekText = isZh ? '本周' : 'This Week';
+    final weekText = isZh ? '近7天' : 'Last 7 days';
     final cleanText = isZh ? '清空' : 'Clear';
     final cleanTitle = isZh ? '清空流量统计' : 'Clear Traffic Statistics';
     final cleanTip = isZh
@@ -75,7 +75,9 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
     final todayTotal = store.todayTotal;
     final weekTotal = store.weekTotal;
     final diff = store.differenceFromYesterday;
-    final allTopSites = store.getTopSites(limit: TrafficStatsStore.maxSitesToKeep);
+    final allTopSites = store.getTopSites(
+      limit: TrafficStatsStore.maxSitesToKeep,
+    );
     final chartPoints = store.getChartPoints(_selectedRange);
 
     final uploadColor = DashboardColors.of(context).series2;
@@ -95,8 +97,20 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
               destructive: true,
             );
             if (confirmed == true) {
+              if (!mounted) return;
               setState(() => _siteCount = null);
-              await store.clearAll();
+              try {
+                await store.clearAll();
+              } catch (_) {
+                if (!context.mounted) return;
+                await dialogs.showMessage(
+                  context: context,
+                  title: isZh ? '清空未保存' : 'Clear was not saved',
+                  message: TextSpan(
+                    text: isZh ? '内存统计已清空，但写入失败，磁盘上可能仍有旧数据。请检查存储权限后重试。' : 'Memory was cleared, but saving failed. Old data may remain on disk. Check storage access and retry.',
+                  ),
+                );
+              }
             }
           },
         ),
@@ -109,6 +123,20 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
           bottom: 24 + BottomInsetScope.of(context),
         ),
         children: [
+          if (store.lastPersistenceError != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                isZh ? '统计文件读取或保存失败；当前数据可能不完整，旧文件不会被自动覆盖。' : 'Statistics could not be loaded or saved. Current data may be incomplete.',
+                style: TextStyle(color: colorScheme.error),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              isZh ? '基于客户端收到的连接事件统计；未连接内核期间可能缺少数据。' : 'Based on received connection events; data may be incomplete while disconnected from the core.',
+            ),
+          ),
           // 1. Metric Summary Cards
           Row(
             spacing: 12,
@@ -143,12 +171,14 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
                         diff == 0
                             ? '0 B'
                             : '${diff > 0 ? '+' : '-'}${diff.abs().traffic.show}',
-                        style: AppTextStyle.caption2.of(context).copyWith(
+                        style: AppTextStyle.caption2
+                            .of(context)
+                            .copyWith(
                               color: diff > 0
                                   ? colorScheme.error
                                   : (diff < 0
-                                      ? colorScheme.primary
-                                      : colorScheme.onSurfaceVariant),
+                                        ? colorScheme.primary
+                                        : colorScheme.onSurfaceVariant),
                             ),
                       ),
                     ],
@@ -255,10 +285,18 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
                 // The Chart
                 Builder(
                   builder: (context) {
-                    final defaultIndex = chartPoints.indexWhere((p) => p.isCurrent);
-                    final effectiveIndex = _selectedBarIndex >= 0 && _selectedBarIndex < chartPoints.length
+                    final defaultIndex = chartPoints.indexWhere(
+                      (p) => p.isCurrent,
+                    );
+                    final effectiveIndex =
+                        _selectedBarIndex >= 0 &&
+                            _selectedBarIndex < chartPoints.length
                         ? _selectedBarIndex
-                        : (defaultIndex != -1 ? defaultIndex : (chartPoints.isNotEmpty ? chartPoints.length - 1 : -1));
+                        : (defaultIndex != -1
+                              ? defaultIndex
+                              : (chartPoints.isNotEmpty
+                                    ? chartPoints.length - 1
+                                    : -1));
                     return TrafficBarChart(
                       points: chartPoints,
                       selectedIndex: effectiveIndex,
@@ -301,6 +339,12 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
                   ],
                 ),
                 const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    isZh ? '站点累计不随图表范围筛选；非活跃站点保留90天。' : 'Site totals are independent of the chart range. Inactive sites are retained for 90 days.',
+                  ),
+                ),
                 TargetSitesView(
                   sites: allTopSites,
                   onCountChanged: (count) {
@@ -373,12 +417,13 @@ class _RangeChip extends StatelessWidget {
         ),
         child: Text(
           label,
-          style:
-              AppTextStyle.caption1.of(context, emphasized: selected).copyWith(
-                    color: selected
-                        ? colorScheme.onPrimary
-                        : colorScheme.onSurfaceVariant,
-                  ),
+          style: AppTextStyle.caption1
+              .of(context, emphasized: selected)
+              .copyWith(
+                color: selected
+                    ? colorScheme.onPrimary
+                    : colorScheme.onSurfaceVariant,
+              ),
         ),
       ),
     );

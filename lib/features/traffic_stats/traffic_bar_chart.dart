@@ -31,9 +31,9 @@ class TrafficBarChart extends StatelessWidget {
         child: Center(
           child: Text(
             context.appLocalizations.noData,
-            style: AppTextStyle.subheadline.of(context).copyWith(
-                  color: context.colorScheme.onSurfaceVariant,
-                ),
+            style: AppTextStyle.subheadline
+                .of(context)
+                .copyWith(color: context.colorScheme.onSurfaceVariant),
           ),
         ),
       );
@@ -133,14 +133,22 @@ class TrafficBarChart extends StatelessWidget {
                 behavior: HitTestBehavior.opaque,
                 onTapDown: (details) {
                   final x = details.localPosition.dx;
-                  final index = _indexOfPosition(x, constraints.maxWidth, points.length);
+                  final index = _indexOfPosition(
+                    x,
+                    constraints.maxWidth,
+                    points.length,
+                  );
                   if (index >= 0 && index < points.length) {
                     onSelectIndex(index);
                   }
                 },
                 onHorizontalDragUpdate: (details) {
                   final x = details.localPosition.dx;
-                  final index = _indexOfPosition(x, constraints.maxWidth, points.length);
+                  final index = _indexOfPosition(
+                    x,
+                    constraints.maxWidth,
+                    points.length,
+                  );
                   if (index >= 0 && index < points.length) {
                     onSelectIndex(index);
                   }
@@ -153,11 +161,19 @@ class TrafficBarChart extends StatelessWidget {
                     maxValue: maxVal,
                     downloadColor: downloadColor,
                     uploadColor: uploadColor,
-                    trackColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-                    selectedHighlightColor: colorScheme.primary.withValues(alpha: 0.15),
+                    trackColor: colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.35,
+                    ),
+                    selectedHighlightColor: colorScheme.primary.withValues(
+                      alpha: 0.15,
+                    ),
                     labelStyle: AppTextStyle.caption2
                         .of(context)
-                        .copyWith(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
+                        .copyWith(
+                          color: colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.7,
+                          ),
+                        ),
                   ),
                 ),
               );
@@ -212,8 +228,16 @@ class _BarChartPainter extends CustomPainter {
       ..color = trackColor
       ..strokeWidth = 1.0;
     canvas.drawLine(Offset(0, 0), Offset(size.width, 0), gridPaint);
-    canvas.drawLine(Offset(0, chartHeight / 2), Offset(size.width, chartHeight / 2), gridPaint);
-    canvas.drawLine(Offset(0, chartHeight), Offset(size.width, chartHeight), gridPaint);
+    canvas.drawLine(
+      Offset(0, chartHeight / 2),
+      Offset(size.width, chartHeight / 2),
+      gridPaint,
+    );
+    canvas.drawLine(
+      Offset(0, chartHeight),
+      Offset(size.width, chartHeight),
+      gridPaint,
+    );
 
     final trackPaint = Paint()..color = trackColor;
     final downloadPaint = Paint()..color = downloadColor;
@@ -229,7 +253,12 @@ class _BarChartPainter extends CustomPainter {
       // Draw selection background pillar
       if (i == selectedIndex) {
         final highlightRRect = RRect.fromRectAndRadius(
-          Rect.fromLTRB(centerX - slotWidth / 2 + 1, 0, centerX + slotWidth / 2 - 1, chartHeight),
+          Rect.fromLTRB(
+            centerX - slotWidth / 2 + 1,
+            0,
+            centerX + slotWidth / 2 - 1,
+            chartHeight,
+          ),
           const Radius.circular(6),
         );
         canvas.drawRRect(highlightRRect, highlightPaint);
@@ -254,11 +283,20 @@ class _BarChartPainter extends CustomPainter {
         // Draw download part (bottom)
         if (downloadHeight > 0) {
           final downloadRRect = RRect.fromRectAndCorners(
-            Rect.fromLTRB(left, chartHeight - downloadHeight, right, chartHeight),
+            Rect.fromLTRB(
+              left,
+              chartHeight - downloadHeight,
+              right,
+              chartHeight,
+            ),
             bottomLeft: Radius.circular(barWidth / 2),
             bottomRight: Radius.circular(barWidth / 2),
-            topLeft: uploadHeight <= 0 ? Radius.circular(barWidth / 2) : Radius.zero,
-            topRight: uploadHeight <= 0 ? Radius.circular(barWidth / 2) : Radius.zero,
+            topLeft: uploadHeight <= 0
+                ? Radius.circular(barWidth / 2)
+                : Radius.zero,
+            topRight: uploadHeight <= 0
+                ? Radius.circular(barWidth / 2)
+                : Radius.zero,
           );
           canvas.drawRRect(downloadRRect, downloadPaint);
         }
@@ -269,8 +307,12 @@ class _BarChartPainter extends CustomPainter {
             Rect.fromLTRB(left, barTop, right, barTop + uploadHeight),
             topLeft: Radius.circular(barWidth / 2),
             topRight: Radius.circular(barWidth / 2),
-            bottomLeft: downloadHeight <= 0 ? Radius.circular(barWidth / 2) : Radius.zero,
-            bottomRight: downloadHeight <= 0 ? Radius.circular(barWidth / 2) : Radius.zero,
+            bottomLeft: downloadHeight <= 0
+                ? Radius.circular(barWidth / 2)
+                : Radius.zero,
+            bottomRight: downloadHeight <= 0
+                ? Radius.circular(barWidth / 2)
+                : Radius.zero,
           );
           canvas.drawRRect(uploadRRect, uploadPaint);
         }
@@ -296,6 +338,9 @@ class _BarChartPainter extends CustomPainter {
         oldDelegate.selectedIndex != selectedIndex ||
         oldDelegate.maxValue != maxValue ||
         oldDelegate.downloadColor != downloadColor ||
-        oldDelegate.uploadColor != uploadColor;
+        oldDelegate.uploadColor != uploadColor ||
+        oldDelegate.trackColor != trackColor ||
+        oldDelegate.selectedHighlightColor != selectedHighlightColor ||
+        oldDelegate.labelStyle != labelStyle;
   }
 }

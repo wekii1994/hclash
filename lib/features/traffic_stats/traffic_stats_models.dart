@@ -1,12 +1,15 @@
-import 'package:fl_clash/common/common.dart';
-
 enum TrafficStatsRange {
   today,
   week,
   month,
   all;
 
-  String getLabel(String todayText, String weekText, String monthText, String allText) {
+  String getLabel(
+    String todayText,
+    String weekText,
+    String monthText,
+    String allText,
+  ) {
     return switch (this) {
       TrafficStatsRange.today => todayText,
       TrafficStatsRange.week => weekText,
@@ -21,19 +24,15 @@ class HourlyTrafficData {
   int upload;
   int download;
 
-  HourlyTrafficData({
-    required this.hour,
-    this.upload = 0,
-    this.download = 0,
-  });
+  HourlyTrafficData({required this.hour, this.upload = 0, this.download = 0});
 
   int get total => upload + download;
 
   Map<String, dynamic> toJson() => {
-        'hour': hour,
-        'upload': upload,
-        'download': download,
-      };
+    'hour': hour,
+    'upload': upload,
+    'download': download,
+  };
 
   factory HourlyTrafficData.fromJson(Map<String, dynamic> json) =>
       HourlyTrafficData(
@@ -59,11 +58,11 @@ class DailyTrafficData {
   int get total => upload + download;
 
   Map<String, dynamic> toJson() => {
-        'date': date,
-        'upload': upload,
-        'download': download,
-        'hourly': hourly.map((k, v) => MapEntry(k.toString(), v.toJson())),
-      };
+    'date': date,
+    'upload': upload,
+    'download': download,
+    'hourly': hourly.map((k, v) => MapEntry(k.toString(), v.toJson())),
+  };
 
   factory DailyTrafficData.fromJson(Map<String, dynamic> json) {
     final hourlyMap = <int, HourlyTrafficData>{};
@@ -73,8 +72,9 @@ class DailyTrafficData {
         if (v is Map<String, dynamic>) {
           hourlyMap[hour] = HourlyTrafficData.fromJson(v);
         } else if (v is Map) {
-          hourlyMap[hour] =
-              HourlyTrafficData.fromJson(Map<String, dynamic>.from(v));
+          hourlyMap[hour] = HourlyTrafficData.fromJson(
+            Map<String, dynamic>.from(v),
+          );
         }
       });
     }
@@ -107,22 +107,22 @@ class TargetSiteData {
   int get total => upload + download;
 
   Map<String, dynamic> toJson() => {
-        'host': host,
-        'upload': upload,
-        'download': download,
-        'count': count,
-        'lastSeen': lastSeen,
-        if (process != null && process!.isNotEmpty) 'process': process,
-      };
+    'host': host,
+    'upload': upload,
+    'download': download,
+    'count': count,
+    'lastSeen': lastSeen,
+    if (process != null && process!.isNotEmpty) 'process': process,
+  };
 
   factory TargetSiteData.fromJson(Map<String, dynamic> json) => TargetSiteData(
-        host: json['host'] as String? ?? '',
-        upload: json['upload'] as int? ?? 0,
-        download: json['download'] as int? ?? 0,
-        count: json['count'] as int? ?? 1,
-        lastSeen: json['lastSeen'] as int? ?? 0,
-        process: json['process'] as String?,
-      );
+    host: json['host'] as String? ?? '',
+    upload: json['upload'] as int? ?? 0,
+    download: json['download'] as int? ?? 0,
+    count: json['count'] as int? ?? 1,
+    lastSeen: json['lastSeen'] as int? ?? 0,
+    process: json['process'] as String?,
+  );
 }
 
 class ChartBarPoint {
