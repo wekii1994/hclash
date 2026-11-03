@@ -456,6 +456,9 @@ proxy-providers:
 			if expected, ok := g["expected-status"].(string); !ok || expected != "200-204" {
 				t.Errorf("group %v expected-status = %v, want 200-204", g["name"], g["expected-status"])
 			}
+			if maxFailed, ok := g["max-failed-times"].(int); !ok || maxFailed != 3 {
+				t.Errorf("group %v max-failed-times = %v, want 3", g["name"], g["max-failed-times"])
+			}
 		}
 		if g["name"] == "auto" {
 			if tol, ok := g["tolerance"].(int); !ok || tol != 50 {

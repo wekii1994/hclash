@@ -105,6 +105,8 @@ const (
 	optimalTolerance           = 50  // 容差控制在 50ms，避免基站延迟波动时频繁横跳
 	maxAllowedTolerance        = 80  // 超过 80ms 的容差一律压低到 50ms
 	optimalHealthCheckInterval = 120 // 健康检查周期最高不超过 120 秒
+	defaultMaxFailedTimes      = 3   // 连续失败 3 次触发被动健康检查快测
+	maxAllowedMaxFailedTimes   = 5   // 被动健康检查触发阈值上限
 )
 
 func normalizeHealthCheckTimeout(timeout int) int {
@@ -270,10 +272,12 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 					ensureYAMLString(group, "expected-status", defaultExpectedStatus)
 					clampYAMLInt(group, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
 					clampYAMLInt(group, "tolerance", optimalTolerance, maxAllowedTolerance)
+					clampYAMLInt(group, "max-failed-times", defaultMaxFailedTimes, maxAllowedMaxFailedTimes)
 				case "fallback", "load-balance":
 					clampYAMLInt(group, "timeout", timeout, timeout)
 					ensureYAMLString(group, "expected-status", defaultExpectedStatus)
 					clampYAMLInt(group, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
+					clampYAMLInt(group, "max-failed-times", defaultMaxFailedTimes, maxAllowedMaxFailedTimes)
 				}
 			}
 		}

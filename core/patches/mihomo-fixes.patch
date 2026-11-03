@@ -1,7 +1,27 @@
 diff --git a/adapter/adapter.go b/adapter/adapter.go
+index 9cd4fa01..cb421720 100644
 --- a/adapter/adapter.go
 +++ b/adapter/adapter.go
-@@ -278,6 +278,10 @@
+@@ -3,6 +3,7 @@ package adapter
+ import (
+ 	"context"
+ 	"encoding/json"
++	"errors"
+ 	"fmt"
+ 	"net"
+ 	"net/url"
+@@ -167,6 +168,10 @@ func (p *Proxy) URLTest(ctx context.Context, url string, expectedStatus utils.In
+ 	var satisfied bool
+ 
+ 	defer func() {
++		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(err, context.Canceled) {
++			return
++		}
++
+ 		if UrlTestHook != nil {
+ 			UrlTestHook(url, p.Name(), t, ctx.Err() != nil)
+ 		}
+@@ -278,6 +283,10 @@ func (p *Proxy) URLTest(ctx context.Context, url string, expectedStatus utils.In
  	}
  
  	satisfied = resp != nil && (expectedStatus == nil || expectedStatus.Check(uint16(resp.StatusCode)))
@@ -12,26 +32,843 @@ diff --git a/adapter/adapter.go b/adapter/adapter.go
  	t = uint16(time.Since(start) / time.Millisecond)
  	if t == 0 {
  		// a zero delay means a failed test to callers, so report a test
+diff --git a/adapter/outboundgroup/failover_test.go b/adapter/outboundgroup/failover_test.go
+new file mode 100644
+index 00000000..6c02c541
+--- /dev/null
++++ b/adapter/outboundgroup/failover_test.go
+@@ -0,0 +1,425 @@
++package outboundgroup
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"net/netip"
++	"sync"
++	"sync/atomic"
++	"syscall"
++	"testing"
++	"time"
++
++	"github.com/metacubex/mihomo/adapter"
++	"github.com/metacubex/mihomo/adapter/outbound"
++	C "github.com/metacubex/mihomo/constant"
++	P "github.com/metacubex/mihomo/constant/provider"
++)
++
++func TestDialTimeoutCounting(t *testing.T) {
++	gb := NewGroupBase(GroupBaseOption{
++		Name:           "timeout-test",
++		Type:           C.URLTest,
++		TestTimeout:    5000,
++		MaxFailedTimes: 3,
++	})
++
++	var triggered atomic.Int32
++	mockHealthCheck := func() {
++		triggered.Add(1)
++	}
++
++	// 1. Client active cancellation must be ignored
++	canceledErr := fmt.Errorf("request aborted: %w", context.Canceled)
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "site-cancel.com"}, canceledErr, mockHealthCheck)
++	time.Sleep(50 * time.Millisecond)
++	if count := triggered.Load(); count != 0 {
++		t.Fatalf("expected 0 triggers on context.Canceled, got %d", count)
++	}
++
++	// 2. Real dial deadlines / timeouts (context.DeadlineExceeded) MUST be counted
++	timeoutErr1 := fmt.Errorf("dial tcp 1.1.1.1:443: i/o timeout: %w", context.DeadlineExceeded)
++	timeoutErr2 := fmt.Errorf("dial tcp 2.2.2.2:443: i/o timeout: %w", context.DeadlineExceeded)
++	timeoutErr3 := fmt.Errorf("dial tcp 3.3.3.3:443: i/o timeout: %w", context.DeadlineExceeded)
++
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "site1.com"}, timeoutErr1, mockHealthCheck)
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "site2.com"}, timeoutErr2, mockHealthCheck)
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "site3.com"}, timeoutErr3, mockHealthCheck)
++
++	time.Sleep(50 * time.Millisecond)
++	if count := triggered.Load(); count != 1 {
++		t.Fatalf("expected 1 trigger after 3 real dial timeouts, got %d", count)
++	}
++}
++
++func TestWindowsWSASocketErrorsRecognized(t *testing.T) {
++	// 1. Winsock 10061 (WSAECONNREFUSED)
++	wsaRefusedErr := fmt.Errorf("192.0.2.1:443 connect error: dial tcp: %w", syscall.Errno(10061))
++	if !isProxyServerHardFailure(wsaRefusedErr) {
++		t.Fatal("expected WSA 10061 to be recognized as hard failure")
++	}
++
++	// 2. Winsock 10054 (WSAECONNRESET)
++	wsaResetErr := fmt.Errorf("192.0.2.1:443 connect error: dial tcp: %w", syscall.Errno(10054))
++	if !isProxyServerHardFailure(wsaResetErr) {
++		t.Fatal("expected WSA 10054 to be recognized as hard failure")
++	}
++
++	// 3. Windows English localized WSA string
++	winRefusedStrErr := fmt.Errorf("192.0.2.1:443 connect error: dial tcp: No connection could be made because the target machine actively refused it.")
++	if !isProxyServerHardFailure(winRefusedStrErr) {
++		t.Fatal("expected Windows 'actively refused it' string to be recognized as hard failure")
++	}
++
++	winResetStrErr := fmt.Errorf("192.0.2.1:443 connect error: An existing connection was forcibly closed by the remote host.")
++	if !isProxyServerHardFailure(winResetStrErr) {
++		t.Fatal("expected Windows 'forcibly closed' string to be recognized as hard failure")
++	}
++
++	// 4. Target website rejection (NOT proxy server) -> MUST NOT be recognized as proxy hard failure
++	targetErr := fmt.Errorf("dial tcp 93.184.216.34:80: connectex: No connection could be made because the target machine actively refused it.")
++	if isProxyServerHardFailure(targetErr) {
++		t.Fatal("target site error without ' connect error: ' must NOT be recognized as proxy server hard failure")
++	}
++}
++
++func TestLRUEvictionPreservesRecentlyRefreshedHost(t *testing.T) {
++	gb := NewGroupBase(GroupBaseOption{
++		Name:           "lru-test",
++		Type:           C.URLTest,
++		TestTimeout:    5000,
++		MaxFailedTimes: 3,
++	})
++
++	var triggered atomic.Int32
++	mockHealthCheck := func() {
++		triggered.Add(1)
++	}
++
++	testErr := errors.New("timeout")
++
++	// Trigger initial probe to enter cooldown
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "init1.com"}, testErr, mockHealthCheck)
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "init2.com"}, testErr, mockHealthCheck)
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "init3.com"}, testErr, mockHealthCheck)
++
++	time.Sleep(50 * time.Millisecond)
++	if count := triggered.Load(); count != 1 {
++		t.Fatalf("expected 1 initial trigger, got %d", count)
++	}
++
++	// 1. Fill list with 16 hosts: A to P
++	for i := 0; i < 16; i++ {
++		hostName := fmt.Sprintf("host-%c.com", 'A'+i)
++		gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: hostName}, testErr, mockHealthCheck)
++	}
++
++	// Artificially simulate that host-A to host-P failed 4.5 seconds ago
++	gb.failedTestMux.Lock()
++	for i := range gb.failedTargets {
++		gb.failedTargets[i].at = time.Now().Add(-4500 * time.Millisecond)
++	}
++	gb.failedTestMux.Unlock()
++
++	// 2. host-A fails again NOW (refreshed timestamp, moved to MRU end)
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "host-A.com"}, testErr, mockHealthCheck)
++
++	// 3. New host Q fails (capacity full; oldest should be evicted, host-A MUST be preserved!)
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "host-Q.com"}, testErr, mockHealthCheck)
++
++	// Check that host-A is still present
++	gb.failedTestMux.Lock()
++	foundA := false
++	for _, target := range gb.failedTargets {
++		if target.host == "host-a.com" {
++			foundA = true
++			break
++		}
++	}
++	gb.failedTestMux.Unlock()
++	if !foundA {
++		t.Fatal("expected host-A to be preserved after LRU eviction of oldest entries")
++	}
++
++	// 4. Age the other entries so host-B to host-P expire (>5s), but host-A and host-Q are retained
++	gb.failedTestMux.Lock()
++	// Set lastTriggerTime to 11s ago so cooldown has elapsed
++	gb.lastTriggerTime = time.Now().Add(-11 * time.Second)
++	// host-B through host-P are older than 5s
++	for i := range gb.failedTargets {
++		if gb.failedTargets[i].host != "host-a.com" && gb.failedTargets[i].host != "host-q.com" {
++			gb.failedTargets[i].at = time.Now().Add(-6 * time.Second)
++		}
++	}
++	gb.failedTestMux.Unlock()
++
++	// 5. Host R fails -> now valid window has host-A, host-Q, host-R (3 targets) -> MUST trigger!
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "host-R.com"}, testErr, mockHealthCheck)
++
++	time.Sleep(50 * time.Millisecond)
++	if count := triggered.Load(); count != 2 {
++		t.Fatalf("expected re-trigger after LRU-preserved host-A, host-Q, and host-R, got %d", count)
++	}
++}
++
++type blockingMockProvider struct {
++	P.ProxyProvider
++	called atomic.Int32
++	enter  chan struct{}
++	block  chan struct{}
++}
++
++func (b *blockingMockProvider) HealthCheck() {
++	b.called.Add(1)
++	select {
++	case b.enter <- struct{}{}:
++	default:
++	}
++	<-b.block
++}
++
++func (b *blockingMockProvider) Touch() {}
++
++func TestProviderTestingMutualExclusionWithBlockingProvider(t *testing.T) {
++	bp := &blockingMockProvider{
++		enter: make(chan struct{}, 1),
++		block: make(chan struct{}),
++	}
++	t.Cleanup(func() {
++		select {
++		case <-bp.block:
++		default:
++			close(bp.block)
++		}
++	})
++
++	gb := NewGroupBase(GroupBaseOption{
++		Name:      "blocking-provider-test",
++		Type:      C.LoadBalance,
++		Providers: []P.ProxyProvider{bp},
++	})
++
++	var wg sync.WaitGroup
++	// Launch the first call that will block in HealthCheck
++	wg.Add(1)
++	go func() {
++		defer wg.Done()
++		gb.healthCheck()
++	}()
++
++	// Wait until the first call enters HealthCheck
++	select {
++	case <-bp.enter:
++	case <-time.After(2 * time.Second):
++		t.Fatal("timed out waiting for first healthCheck to enter")
++	}
++
++	// Launch 2 concurrent calls in separate goroutines that should be immediately rejected by CAS
++	rejectedWg := sync.WaitGroup{}
++	for i := 0; i < 2; i++ {
++		rejectedWg.Add(1)
++		go func() {
++			defer rejectedWg.Done()
++			gb.healthCheck()
++		}()
++	}
++
++	// Deterministically wait for the two rejected calls to complete
++	rejectedDone := make(chan struct{})
++	go func() {
++		rejectedWg.Wait()
++		close(rejectedDone)
++	}()
++
++	select {
++	case <-rejectedDone:
++	case <-time.After(2 * time.Second):
++		t.Fatal("timed out waiting for concurrent calls to be rejected")
++	}
++
++	// Only 1 should have been able to call bp.HealthCheck()
++	if count := bp.called.Load(); count != 1 {
++		t.Fatalf("expected exactly 1 Provider.HealthCheck call during concurrency, got %d", count)
++	}
++
++	// Unblock the first call
++	close(bp.block)
++	wg.Wait()
++
++	// After release, a new call should succeed
++	bp.block = make(chan struct{})
++	bp.enter = make(chan struct{}, 1)
++	go func() {
++		gb.healthCheck()
++	}()
++
++	select {
++	case <-bp.enter:
++	case <-time.After(2 * time.Second):
++		t.Fatal("timed out waiting for second healthCheck after release")
++	}
++
++	if count := bp.called.Load(); count != 2 {
++		t.Fatalf("expected second Provider.HealthCheck call after release, got %d", count)
++	}
++	close(bp.block)
++}
++
++func TestGroupBasePassiveFailureDetectionHostDeduplication(t *testing.T) {
++	gb := NewGroupBase(GroupBaseOption{
++		Name:           "auto-test",
++		Type:           C.URLTest,
++		TestTimeout:    5000,
++		MaxFailedTimes: 3,
++	})
++
++	var triggered atomic.Int32
++	mockHealthCheck := func() {
++		triggered.Add(1)
++	}
++
++	testErr := errors.New("i/o timeout")
++
++	// 1. Same host fails 5 times with case and trailing dot variants -> only 1 distinct host recorded, NOT trigger
++	hosts := []string{"dead-site.com", "DEAD-SITE.COM", "dead-site.com.", "Dead-Site.Com", "dead-site.com"}
++	for _, h := range hosts {
++		meta := &C.Metadata{Host: h}
++		gb.onDialFailed(C.Shadowsocks, meta, testErr, mockHealthCheck)
++	}
++
++	time.Sleep(50 * time.Millisecond)
++	if count := triggered.Load(); count != 0 {
++		t.Fatalf("expected 0 triggers for same host variants, got %d", count)
++	}
++
++	// 2. IP-based destination failure -> count = 2, still NOT trigger
++	ipMeta := &C.Metadata{DstIP: netip.MustParseAddr("1.2.3.4")}
++	gb.onDialFailed(C.Shadowsocks, ipMeta, testErr, mockHealthCheck)
++	time.Sleep(50 * time.Millisecond)
++	if count := triggered.Load(); count != 0 {
++		t.Fatalf("expected 0 triggers after 2 distinct destinations, got %d", count)
++	}
++
++	// 3. Third distinct destination fails -> count = 3 >= maxFailedTimes -> MUST trigger!
++	meta3 := &C.Metadata{Host: "third-dead-site.com"}
++	gb.onDialFailed(C.Shadowsocks, meta3, testErr, mockHealthCheck)
++	time.Sleep(100 * time.Millisecond)
++	if count := triggered.Load(); count != 1 {
++		t.Fatalf("expected 1 trigger after 3 distinct hosts, got %d", count)
++	}
++
++	// 4. Within 10s cooldown, another failure should NOT trigger again
++	meta4 := &C.Metadata{Host: "fourth-dead-site.com"}
++	gb.onDialFailed(C.Shadowsocks, meta4, testErr, mockHealthCheck)
++	time.Sleep(50 * time.Millisecond)
++	if count := triggered.Load(); count != 1 {
++		t.Fatalf("expected cooldown to prevent second trigger, got %d", count)
++	}
++}
++
++func TestGroupBaseSuccessResetsFailures(t *testing.T) {
++	gb := NewGroupBase(GroupBaseOption{
++		Name:           "success-reset-test",
++		Type:           C.URLTest,
++		TestTimeout:    5000,
++		MaxFailedTimes: 3,
++	})
++
++	var triggered atomic.Int32
++	mockHealthCheck := func() {
++		triggered.Add(1)
++	}
++
++	testErr := errors.New("timeout")
++
++	// 2 failures
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "site-a.com"}, testErr, mockHealthCheck)
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "site-b.com"}, testErr, mockHealthCheck)
++
++	// Successful connection occurs
++	gb.onDialSuccess()
++
++	// 1 more failure should NOT trigger (since count was reset to 0)
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "site-c.com"}, testErr, mockHealthCheck)
++	time.Sleep(50 * time.Millisecond)
++	if count := triggered.Load(); count != 0 {
++		t.Fatalf("expected 0 triggers after success reset, got %d", count)
++	}
++}
++
++func TestGroupBaseProbingMutualExclusion(t *testing.T) {
++	gb := NewGroupBase(GroupBaseOption{
++		Name:           "probing-test",
++		Type:           C.URLTest,
++		TestTimeout:    5000,
++		MaxFailedTimes: 3,
++	})
++
++	var triggered atomic.Int32
++	mockHealthCheck := func() {
++		triggered.Add(1)
++	}
++
++	// Simulate that a probe is currently in flight
++	gb.probing.Store(true)
++
++	testErr := errors.New("timeout")
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "s1.com"}, testErr, mockHealthCheck)
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "s2.com"}, testErr, mockHealthCheck)
++	gb.onDialFailed(C.Shadowsocks, &C.Metadata{Host: "s3.com"}, testErr, mockHealthCheck)
++
++	time.Sleep(50 * time.Millisecond)
++	if count := triggered.Load(); count != 0 {
++		t.Fatalf("expected 0 triggers while probing is active, got %d", count)
++	}
++}
++
++type canceledMockAdapter struct {
++	*outbound.Base
++}
++
++func (c *canceledMockAdapter) DialContext(ctx context.Context, metadata *C.Metadata) (C.Conn, error) {
++	// Returns a stringified canceled error without %w, simulating legacy VMess %s format
++	return nil, fmt.Errorf("proxy connect error: %s", context.Canceled.Error())
++}
++
++func (c *canceledMockAdapter) ListenPacketContext(ctx context.Context, metadata *C.Metadata) (C.PacketConn, error) {
++	return nil, fmt.Errorf("proxy connect error: %s", context.Canceled.Error())
++}
++
++func (c *canceledMockAdapter) SupportUDP() bool { return false }
++func (c *canceledMockAdapter) MarshalJSON() ([]byte, error) { return nil, nil }
++func (c *canceledMockAdapter) Unwrap(metadata *C.Metadata, touch bool) C.Proxy { return nil }
++func (c *canceledMockAdapter) Close() error { return nil }
++
++func TestProxyURLTestPreservesHealthStateOnStringifiedCancellation(t *testing.T) {
++	// Verify that when context is canceled, even if adapter severing error chain with %s,
++	// Proxy.URLTest does NOT mark the proxy as dead (alive=false) and does NOT record failed delay history.
++	mockAdapter := &canceledMockAdapter{
++		Base: outbound.NewBase(outbound.BaseOption{Name: "canceled-mock", Type: C.Vmess}),
++	}
++	proxy := adapter.NewProxy(mockAdapter)
++	testURL := "http://cp.cloudflare.com/generate_204"
++
++	// Pre-condition: proxy is alive and has no history
++	if !proxy.AliveForTestUrl(testURL) {
++		t.Fatal("expected initial proxy to be alive")
++	}
++
++	ctx, cancel := context.WithCancel(context.Background())
++	cancel() // Actively cancel
++
++	_, err := proxy.URLTest(ctx, testURL, nil)
++	if err == nil {
++		t.Fatal("expected URLTest to return error on canceled context")
++	}
++
++	// Verify: alive state remains true, and no delay record was stored
++	if !proxy.AliveForTestUrl(testURL) {
++		t.Errorf("expected proxy alive state to be preserved as true, got false")
++	}
++	if history := proxy.DelayHistory(); len(history) != 0 {
++		t.Errorf("expected 0 history records recorded on cancellation, got %d", len(history))
++	}
++}
 diff --git a/adapter/outboundgroup/fallback.go b/adapter/outboundgroup/fallback.go
+index d6f61348..5c917515 100644
 --- a/adapter/outboundgroup/fallback.go
 +++ b/adapter/outboundgroup/fallback.go
-@@ -180,3 +180,12 @@
+@@ -34,8 +34,11 @@ func (f *Fallback) DialContext(ctx context.Context, metadata *C.Metadata) (C.Con
+ 	c, err := proxy.DialContext(ctx, metadata)
+ 	if err == nil {
+ 		c.AppendToChains(f)
++		if !N.NeedHandshake(c) {
++			f.onDialSuccess()
++		}
+ 	} else {
+-		f.onDialFailed(proxy.Type(), err, f.healthCheck)
++		f.onDialFailed(proxy.Type(), metadata, err, f.healthCheck)
+ 	}
+ 
+ 	if N.NeedHandshake(c) {
+@@ -43,7 +46,7 @@ func (f *Fallback) DialContext(ctx context.Context, metadata *C.Metadata) (C.Con
+ 			if err == nil {
+ 				f.onDialSuccess()
+ 			} else {
+-				f.onDialFailed(proxy.Type(), err, f.healthCheck)
++				f.onDialFailed(proxy.Type(), metadata, err, f.healthCheck)
+ 			}
+ 		})
+ 	}
+@@ -180,3 +183,46 @@ func NewFallback(option GroupCommonOption, fallbackOption FallbackOption, emptyF
  		expectedStatus: option.ExpectedStatus,
  	}, nil
  }
 +
++func (f *Fallback) healthCheck() {
++	timeout := time.Duration(f.GroupBase.testTimeout) * time.Millisecond
++	if timeout <= 0 {
++		timeout = 3 * time.Second
++	}
++	ctx, cancel := context.WithTimeout(context.Background(), timeout)
++	defer cancel()
++	_, _ = f.HealthCheckContext(ctx)
++}
++
 +// HealthCheckContext refreshes all candidates, including currently unselected ones.
 +func (f *Fallback) HealthCheckContext(ctx context.Context) (map[string]uint16, error) {
++	if !f.probing.CompareAndSwap(false, true) {
++		return nil, nil
++	}
++	defer f.probing.Store(false)
++
++	before := f.Now()
 +	expected, err := utils.NewUnsignedRanges[uint16](f.expectedStatus)
 +	if err != nil {
 +		return nil, err
 +	}
-+	return f.GroupBase.URLTest(ctx, f.testUrl, expected)
++	result, err := f.GroupBase.URLTest(ctx, f.testUrl, expected)
++
++	// If the entire probe task was actively canceled, exit early without switching or triggering providers
++	if errors.Is(ctx.Err(), context.Canceled) {
++		return result, err
++	}
++
++	// If at least one candidate succeeded (even if dead nodes reached deadline), evaluate valid switch
++	if len(result) > 0 {
++		after := f.Now()
++		if _, verifiedAlive := result[after]; verifiedAlive {
++			if before != "" && after != "" && before != after && OnGroupNowChanged != nil {
++				OnGroupNowChanged(f, f.Name(), before, after)
++			}
++		}
++	}
++
++	go f.GroupBase.healthCheck()
++	return result, err
 +}
+\ No newline at end of file
+diff --git a/adapter/outboundgroup/groupbase.go b/adapter/outboundgroup/groupbase.go
+index 27900604..6614bcac 100644
+--- a/adapter/outboundgroup/groupbase.go
++++ b/adapter/outboundgroup/groupbase.go
+@@ -6,6 +6,7 @@ import (
+ 	"fmt"
+ 	"strings"
+ 	"sync"
++	"syscall"
+ 	"time"
+ 
+ 	"github.com/metacubex/mihomo/adapter/outbound"
+@@ -19,6 +20,17 @@ import (
+ 	"golang.org/x/exp/slices"
+ )
+ 
++const (
++	failSlidingWindow   = 5 * time.Second
++	failoverCooldown    = 10 * time.Second
++	maxFailedTargetsCap = 16
++)
++
++type failedTarget struct {
++	host string
++	at   time.Time
++}
++
+ type GroupBase struct {
+ 	*outbound.Base
+ 	hidden            bool
+@@ -28,9 +40,10 @@ type GroupBase struct {
+ 	excludeTypeArray  []string
+ 	providers         []P.ProxyProvider
+ 	failedTestMux     sync.Mutex
+-	failedTimes       int
+-	failedTime        time.Time
+-	failedTesting     atomic.Bool
++	failedTargets     []failedTarget
++	probing           atomic.Bool
++	providerTesting   atomic.Bool
++	lastTriggerTime   time.Time
+ 	testTimeout       int
+ 	maxFailedTimes    int
+ 	emptyFallback     C.Proxy
+@@ -57,6 +70,8 @@ type GroupBaseOption struct {
+ 	UsePosition    map[string]int
+ }
+ 
++var OnGroupNowChanged func(group C.ProxyAdapter, groupName, before, after string)
++
+ func NewGroupBase(opt GroupBaseOption) *GroupBase {
+ 	var excludeTypeArray []string
+ 	if opt.ExcludeType != "" {
+@@ -87,7 +102,8 @@ func NewGroupBase(opt GroupBaseOption) *GroupBase {
+ 		excludeFilterRegs: excludeFilterRegs,
+ 		excludeTypeArray:  excludeTypeArray,
+ 		providers:         opt.Providers,
+-		failedTesting:     atomic.NewBool(false),
++		probing:           atomic.NewBool(false),
++		providerTesting:   atomic.NewBool(false),
+ 		testTimeout:       opt.TestTimeout,
+ 		maxFailedTimes:    opt.MaxFailedTimes,
+ 		emptyFallback:     opt.EmptyFallback,
+@@ -266,49 +282,151 @@ func (gb *GroupBase) URLTest(ctx context.Context, url string, expectedStatus uti
+ 	}
+ }
+ 
+-func (gb *GroupBase) onDialFailed(adapterType C.AdapterType, err error, fn func()) {
++func isProxyServerHardFailure(err error) bool {
++	if err == nil {
++		return false
++	}
++	errMsg := err.Error()
++	if !strings.Contains(errMsg, " connect error: ") {
++		return false
++	}
++
++	// 1. POSIX syscall errnos
++	if errors.Is(err, syscall.ECONNREFUSED) ||
++		errors.Is(err, syscall.ECONNRESET) ||
++		errors.Is(err, syscall.EHOSTUNREACH) ||
++		errors.Is(err, syscall.ENETUNREACH) {
++		return true
++	}
++
++	// 2. Windows Winsock WSA error codes (e.g. 10061 WSAECONNREFUSED, 10054 WSAECONNRESET)
++	var errno syscall.Errno
++	if errors.As(err, &errno) {
++		switch uint32(errno) {
++		case 10061, // WSAECONNREFUSED: Connection refused
++			10054, // WSAECONNRESET: Connection reset by peer
++			10065, // WSAEHOSTUNREACH: No route to host
++			10051: // WSAENETUNREACH: Network unreachable
++			return true
++		}
++	}
++
++	// 3. String representations across OSes (including Windows localized English WSA messages)
++	lower := strings.ToLower(errMsg)
++	if strings.Contains(lower, "connection refused") ||
++		strings.Contains(lower, "actively refused it") || // Windows WSA 10061: "target machine actively refused it"
++		strings.Contains(lower, "connection reset") ||
++		strings.Contains(lower, "forcibly closed") || // Windows WSA 10054: "forcibly closed by the remote host"
++		strings.Contains(lower, "no route to host") ||
++		strings.Contains(lower, "network is unreachable") {
++		return true
++	}
++	return false
++}
++
++func (gb *GroupBase) onDialFailed(adapterType C.AdapterType, metadata *C.Metadata, err error, fn func()) {
+ 	if adapterType == C.Direct || adapterType == C.Compatible || adapterType == C.Reject || adapterType == C.Pass || adapterType == C.RejectDrop {
+ 		return
+ 	}
+ 
++	// Filter out client-side cancellation; dial deadlines/timeouts represent genuine node stalls
++	if errors.Is(err, context.Canceled) {
++		return
++	}
++
+ 	if errors.Is(err, C.ErrNotSupport) {
+ 		return
+ 	}
+ 
+-	go func() {
+-		if strings.Contains(err.Error(), "connection refused") {
+-			fn()
+-			return
+-		}
++	if metadata == nil {
++		return
++	}
++
++	var host string
++	if metadata.Host != "" {
++		host = strings.ToLower(strings.TrimRight(metadata.Host, "."))
++	} else if metadata.DstIP.IsValid() {
++		host = metadata.DstIP.Unmap().String()
++	}
++	if host == "" {
++		return
++	}
+ 
+-		gb.failedTestMux.Lock()
+-		defer gb.failedTestMux.Unlock()
++	gb.failedTestMux.Lock()
++	defer gb.failedTestMux.Unlock()
+ 
+-		gb.failedTimes++
+-		if gb.failedTimes == 1 {
+-			log.Debugln("ProxyGroup: %s first failed", gb.Name())
+-			gb.failedTime = time.Now()
++	now := time.Now()
++	isHardFail := isProxyServerHardFailure(err)
++
++	n := 0
++	existingIdx := -1
++	for _, target := range gb.failedTargets {
++		if now.Sub(target.at) <= failSlidingWindow {
++			if target.host == host {
++				existingIdx = n
++			}
++			gb.failedTargets[n] = target
++			n++
++		}
++	}
++	for i := n; i < len(gb.failedTargets); i++ {
++		gb.failedTargets[i] = failedTarget{}
++	}
++	gb.failedTargets = gb.failedTargets[:n]
++
++	if existingIdx >= 0 {
++		// Update timestamp and move to end (MRU: Most Recently Used)
++		target := gb.failedTargets[existingIdx]
++		target.at = now
++		copy(gb.failedTargets[existingIdx:], gb.failedTargets[existingIdx+1:])
++		gb.failedTargets[len(gb.failedTargets)-1] = target
++	} else {
++		if len(gb.failedTargets) < maxFailedTargetsCap {
++			gb.failedTargets = append(gb.failedTargets, failedTarget{host: host, at: now})
+ 		} else {
+-			if time.Since(gb.failedTime) > time.Duration(gb.testTimeout)*time.Millisecond {
+-				gb.failedTimes = 0
+-				return
++			// Find and evict the oldest entry
++			oldestIdx := 0
++			for i := 1; i < len(gb.failedTargets); i++ {
++				if gb.failedTargets[i].at.Before(gb.failedTargets[oldestIdx].at) {
++					oldestIdx = i
++				}
+ 			}
++			copy(gb.failedTargets[oldestIdx:], gb.failedTargets[oldestIdx+1:])
++			gb.failedTargets[len(gb.failedTargets)-1] = failedTarget{host: host, at: now}
++		}
++	}
+ 
+-			log.Debugln("ProxyGroup: %s failed count: %d", gb.Name(), gb.failedTimes)
+-			if gb.failedTimes >= gb.maxFailedTimes {
+-				log.Warnln("because %s failed multiple times, activate health check", gb.Name())
+-				fn()
+-			}
++	shouldTrigger := isHardFail || len(gb.failedTargets) >= gb.maxFailedTimes
++	if shouldTrigger {
++		if time.Since(gb.lastTriggerTime) < failoverCooldown || gb.probing.Load() {
++			return
+ 		}
+-	}()
++		gb.lastTriggerTime = now
++		for i := range gb.failedTargets {
++			gb.failedTargets[i] = failedTarget{}
++		}
++		gb.failedTargets = gb.failedTargets[:0]
++
++		log.Warnln("ProxyGroup: %s triggered fast health check (hardFail=%v, failures=%d)", gb.Name(), isHardFail, gb.maxFailedTimes)
++		go fn()
++	}
++}
++
++func (gb *GroupBase) onDialSuccess() {
++	gb.failedTestMux.Lock()
++	for i := range gb.failedTargets {
++		gb.failedTargets[i] = failedTarget{}
++	}
++	gb.failedTargets = gb.failedTargets[:0]
++	gb.failedTestMux.Unlock()
+ }
+ 
+ func (gb *GroupBase) healthCheck() {
+-	if gb.failedTesting.Load() {
++	if !gb.providerTesting.CompareAndSwap(false, true) {
+ 		return
+ 	}
++	defer gb.providerTesting.Store(false)
+ 
+-	gb.failedTesting.Store(true)
+ 	wg := sync.WaitGroup{}
+ 	for _, proxyProvider := range gb.providers {
+ 		wg.Add(1)
+@@ -318,14 +436,5 @@ func (gb *GroupBase) healthCheck() {
+ 			proxyProvider.HealthCheck()
+ 		}()
+ 	}
+-
+ 	wg.Wait()
+-	gb.failedTesting.Store(false)
+-	gb.failedTimes = 0
+-}
+-
+-func (gb *GroupBase) onDialSuccess() {
+-	if !gb.failedTesting.Load() {
+-		gb.failedTimes = 0
+-	}
+ }
+diff --git a/adapter/outboundgroup/loadbalance.go b/adapter/outboundgroup/loadbalance.go
+index aa2d41e4..b4cb1675 100644
+--- a/adapter/outboundgroup/loadbalance.go
++++ b/adapter/outboundgroup/loadbalance.go
+@@ -125,8 +125,11 @@ func (lb *LoadBalance) DialContext(ctx context.Context, metadata *C.Metadata) (c
+ 
+ 	if err == nil {
+ 		c.AppendToChains(lb)
++		if !N.NeedHandshake(c) {
++			lb.onDialSuccess()
++		}
+ 	} else {
+-		lb.onDialFailed(proxy.Type(), err, lb.healthCheck)
++		lb.onDialFailed(proxy.Type(), metadata, err, lb.healthCheck)
+ 	}
+ 
+ 	if N.NeedHandshake(c) {
+@@ -134,7 +137,7 @@ func (lb *LoadBalance) DialContext(ctx context.Context, metadata *C.Metadata) (c
+ 			if err == nil {
+ 				lb.onDialSuccess()
+ 			} else {
+-				lb.onDialFailed(proxy.Type(), err, lb.healthCheck)
++				lb.onDialFailed(proxy.Type(), metadata, err, lb.healthCheck)
+ 			}
+ 		})
+ 	}
 diff --git a/adapter/outboundgroup/urltest.go b/adapter/outboundgroup/urltest.go
+index 35bc687e..6cade1bc 100644
 --- a/adapter/outboundgroup/urltest.go
 +++ b/adapter/outboundgroup/urltest.go
-@@ -220,3 +220,16 @@
+@@ -59,8 +59,11 @@ func (u *URLTest) DialContext(ctx context.Context, metadata *C.Metadata) (c C.Co
+ 	c, err = proxy.DialContext(ctx, metadata)
+ 	if err == nil {
+ 		c.AppendToChains(u)
++		if !N.NeedHandshake(c) {
++			u.onDialSuccess()
++		}
+ 	} else {
+-		u.onDialFailed(proxy.Type(), err, u.healthCheck)
++		u.onDialFailed(proxy.Type(), metadata, err, u.healthCheck)
+ 	}
+ 
+ 	if N.NeedHandshake(c) {
+@@ -68,7 +71,7 @@ func (u *URLTest) DialContext(ctx context.Context, metadata *C.Metadata) (c C.Co
+ 			if err == nil {
+ 				u.onDialSuccess()
+ 			} else {
+-				u.onDialFailed(proxy.Type(), err, u.healthCheck)
++				u.onDialFailed(proxy.Type(), metadata, err, u.healthCheck)
+ 			}
+ 		})
+ 	}
+@@ -83,7 +86,7 @@ func (u *URLTest) ListenPacketContext(ctx context.Context, metadata *C.Metadata)
+ 	if err == nil {
+ 		pc.AppendToChains(u)
+ 	} else {
+-		u.onDialFailed(proxy.Type(), err, u.healthCheck)
++		u.onDialFailed(proxy.Type(), metadata, err, u.healthCheck)
+ 	}
+ 
+ 	return pc, err
+@@ -95,9 +98,13 @@ func (u *URLTest) Unwrap(metadata *C.Metadata, touch bool) C.Proxy {
+ }
+ 
+ func (u *URLTest) healthCheck() {
+-	u.fastSingle.Reset()
+-	u.GroupBase.healthCheck()
+-	u.fastSingle.Reset()
++	timeout := time.Duration(u.GroupBase.testTimeout) * time.Millisecond
++	if timeout <= 0 {
++		timeout = 3 * time.Second
++	}
++	ctx, cancel := context.WithTimeout(context.Background(), timeout)
++	defer cancel()
++	_, _ = u.HealthCheckContext(ctx)
+ }
+ 
+ func (u *URLTest) fast(touch bool) C.Proxy {
+@@ -220,3 +227,39 @@ func NewURLTest(option GroupCommonOption, urlTestOption URLTestOption, emptyFall
  
  	return urlTest, nil
  }
@@ -39,6 +876,12 @@ diff --git a/adapter/outboundgroup/urltest.go b/adapter/outboundgroup/urltest.go
 +// HealthCheckContext refreshes member health using this group's configured URL
 +// and expected-status policy, and invalidates its cached selection afterwards.
 +func (u *URLTest) HealthCheckContext(ctx context.Context) (map[string]uint16, error) {
++	if !u.probing.CompareAndSwap(false, true) {
++		return nil, nil
++	}
++	defer u.probing.Store(false)
++
++	before := u.Now()
 +	expected, err := utils.NewUnsignedRanges[uint16](u.expectedStatus)
 +	if err != nil {
 +		return nil, err
@@ -46,10 +889,28 @@ diff --git a/adapter/outboundgroup/urltest.go b/adapter/outboundgroup/urltest.go
 +	u.fastSingle.Reset()
 +	result, err := u.GroupBase.URLTest(ctx, u.testUrl, expected)
 +	u.fastSingle.Reset()
++
++	// If the entire probe task was actively canceled, exit early without switching or triggering providers
++	if errors.Is(ctx.Err(), context.Canceled) {
++		return result, err
++	}
++
++	// If at least one candidate succeeded (even if dead nodes reached deadline), evaluate valid switch
++	if len(result) > 0 {
++		after := u.Now()
++		if _, verifiedAlive := result[after]; verifiedAlive {
++			if before != "" && after != "" && before != after && OnGroupNowChanged != nil {
++				OnGroupNowChanged(u, u.Name(), before, after)
++			}
++		}
++	}
++
++	go u.GroupBase.healthCheck()
 +	return result, err
 +}
 diff --git a/adapter/urltest_expected_status_test.go b/adapter/urltest_expected_status_test.go
 new file mode 100644
+index 00000000..6e989722
 --- /dev/null
 +++ b/adapter/urltest_expected_status_test.go
 @@ -0,0 +1,39 @@

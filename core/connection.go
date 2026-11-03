@@ -12,9 +12,68 @@ import (
 	"github.com/metacubex/mihomo/component/resolver"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/dns"
+	"github.com/metacubex/mihomo/log"
 	"github.com/metacubex/mihomo/tunnel"
 	"github.com/metacubex/mihomo/tunnel/statistic"
 )
+
+func handleCloseGroupStaleConnections(groupName, oldProxyName string, switchTime time.Time) {
+	if groupName == "" || oldProxyName == "" {
+		return
+	}
+	statistic.DefaultManager.Range(func(c statistic.Tracker) bool {
+		info := c.Info()
+		if info == nil {
+			return true
+		}
+		if !switchTime.IsZero() && info.Start.After(switchTime) {
+			return true
+		}
+		hasGroup := false
+		hasOldProxy := false
+		for _, node := range info.Chain {
+			if node == groupName {
+				hasGroup = true
+			}
+			if node == oldProxyName {
+				hasOldProxy = true
+			}
+		}
+		if hasGroup && hasOldProxy {
+			_ = c.Close()
+		}
+		return true
+	})
+}
+
+func init() {
+	outboundgroup.OnGroupNowChanged = func(group C.ProxyAdapter, groupName, before, after string) {
+		configMu.Lock()
+		defer configMu.Unlock()
+		selectMu.Lock()
+		defer selectMu.Unlock()
+
+		activeProxy := tunnel.AllProxies()[groupName]
+		if activeProxy == nil {
+			return
+		}
+		if group != nil {
+			if p, ok := activeProxy.(*adapter.Proxy); ok {
+				if p.ProxyAdapter != group {
+					log.Debugln("[Failover] Suppressed stale failover from unloaded group instance %s", groupName)
+					return
+				}
+			} else if activeProxy != group {
+				log.Debugln("[Failover] Suppressed stale failover from unloaded group instance %s", groupName)
+				return
+			}
+		}
+
+		log.Infoln("[Failover] Proxy group %s auto switched from [%s] to [%s] via passive failure detection", groupName, before, after)
+		handleCloseGroupStaleConnections(groupName, before, time.Now())
+		refreshRouteLocked(routeMoved)
+	}
+}
 
 const (
 	networkSettleDelay      = 300 * time.Millisecond
