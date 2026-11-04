@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:fl_clash/common/app_update.dart';
 import 'package:fl_clash/common/constant.dart';
+import 'package:fl_clash/common/package.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -16,22 +17,22 @@ void main() {
       );
       expect(
         selfUpdateAssetSuffix(Abi.androidArm, windowsInstalled: false),
-        'android-armeabi-v7a.apk',
+        isNull,
       );
       expect(
         selfUpdateAssetSuffix(Abi.androidX64, windowsInstalled: false),
-        'android-x86_64.apk',
+        isNull,
       );
     });
 
-    test('names the Windows installer only for an installed build', () {
+    test('does not offer installers the fork does not publish', () {
       expect(
         selfUpdateAssetSuffix(Abi.windowsX64, windowsInstalled: true),
-        'windows-amd64-setup.exe',
+        isNull,
       );
       expect(
         selfUpdateAssetSuffix(Abi.windowsArm64, windowsInstalled: true),
-        'windows-arm64-setup.exe',
+        isNull,
       );
       expect(
         selfUpdateAssetSuffix(Abi.windowsX64, windowsInstalled: false),
@@ -56,6 +57,23 @@ void main() {
       releaseAssetName('v0.9.3', 'android-arm64-v8a.apk'),
       '$appName-0.9.3-android-arm64-v8a.apk',
     );
+  });
+
+  test('fork prereleases compare numerically and stay below stable', () {
+    expect(compareVersions('v0.9.3-pre10', 'v0.9.3-pre9'), greaterThan(0));
+    expect(compareVersions('v0.9.3-pre22', '0.9.3-pre22'), 0);
+    expect(compareVersions('0.9.3', '0.9.3-pre22'), greaterThan(0));
+    expect(compareVersions('0.9.3-pre1', '0.9.2-pre22'), greaterThan(0));
+    expect(compareVersions('0.9.3-pre1', '0.9.3'), lessThan(0));
+  });
+
+  test('fork assets and checksums use the published release paths', () {
+    final name = releaseAssetName('v0.9.3-pre1', 'android-arm64-v8a.apk');
+    expect(
+      releaseAssetUri('v0.9.3-pre1', name).toString(),
+      'https://github.com/wekii1994/hclash/releases/download/v0.9.3-pre1/hclash-0.9.3-pre1-android-arm64-v8a.apk',
+    );
+    expect(releaseChecksumsName, 'sha256sum.txt');
   });
 
   group('releaseChecksum', () {

@@ -37,9 +37,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   @override
   void initState() {
     super.initState();
-    TrafficStatsStore.instance.beginCoreEpoch(
-      ref.read(routeTrackerProvider).coreEpoch,
-    );
     unawaited(TrafficStatsStore.instance.init());
     coreEventManager.addListener(this);
     ref.read(updatingActionProvider.notifier);
@@ -96,6 +93,9 @@ class _CoreContainerState extends ConsumerState<CoreManager>
     });
     // Every Core process starts without a log stream.
     ref.listenManual(coreStatusProvider, (prev, next) {
+      if (next == CoreStatus.disconnected && prev == CoreStatus.connected) {
+        TrafficStatsStore.instance.beginCoreEpoch(Object());
+      }
       if (next == CoreStatus.connected && prev != CoreStatus.connected) {
         _syncLogStream();
       }
@@ -105,10 +105,8 @@ class _CoreContainerState extends ConsumerState<CoreManager>
         (state) => (state.coreEpoch, state.routeVersion),
       ),
       (prev, next) {
-        // Invalidate results that belong to an earlier route/configuration.
-        ref.read(proxiesActionProvider.notifier).cancelDelayTests();
         if (prev == null || prev.$1 != next.$1) {
-          TrafficStatsStore.instance.beginCoreEpoch(next.$1);
+          ref.read(proxiesActionProvider.notifier).cancelDelayTests();
         }
         if (prev != null && prev != next) {
           ref.read(proxiesActionProvider.notifier).updateGroupsDebounce();
@@ -184,16 +182,13 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   @override
   void onRequestTraffic(Map<String, RequestTraffic> traffic) {
     ref.read(requestsProvider.notifier).updateTraffic(traffic);
-    TrafficStatsStore.instance.recordRequestTraffic(traffic);
     super.onRequestTraffic(traffic);
   }
 
   @override
-  void onRequestsClosed(Set<String> ids) {
-    for (final id in ids) {
-      TrafficStatsStore.instance.recordClosedConnection(id);
-    }
-    super.onRequestsClosed(ids);
+  void onRequestTrafficSamples(List<RequestTrafficSample> samples) {
+    TrafficStatsStore.instance.recordRequestTrafficSamples(samples);
+    super.onRequestTrafficSamples(samples);
   }
 
   @override

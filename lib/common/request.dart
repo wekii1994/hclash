@@ -108,20 +108,27 @@ class Request {
   Future<Map<String, dynamic>?> checkForUpdate() async {
     final release = await latestRelease();
     final remoteVersion = release['tag_name'] as String;
-    final version = globalState.packageInfo.version;
-    final hasUpdate =
-        compareVersions(remoteVersion.replaceAll('v', ''), version) > 0;
+    final version = releaseTag.isNotEmpty
+        ? releaseTag
+        : globalState.packageInfo.version;
+    final hasUpdate = compareVersions(remoteVersion, version) > 0;
     return hasUpdate ? release : null;
   }
 
   /// The release page redirect still answers once the hourly API quota is spent.
   Future<Map<String, dynamic>> latestRelease() async {
     try {
-      final response = await dio.get<Map<String, dynamic>>(
-        'https://api.github.com/repos/$repository/releases/latest',
+      final response = await dio.get<List<dynamic>>(
+        'https://api.github.com/repos/$repository/releases?per_page=20',
         options: Options(responseType: ResponseType.json),
       );
-      return response.data!;
+      for (final release in response.data ?? const []) {
+        final data = Map<String, dynamic>.from(release as Map);
+        if (data['draft'] != true && data['tag_name'] is String) {
+          return data;
+        }
+      }
+      throw const FormatException('No published hclash release');
     } on DioException catch (error) {
       commonPrint.log(
         'latest release API failed: ${compactError(error)}',

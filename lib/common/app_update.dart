@@ -11,7 +11,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:path/path.dart';
 
-const releaseChecksumsName = 'SHA256SUMS';
+const releaseChecksumsName = 'sha256sum.txt';
 
 sealed class UpdateDownload {
   const UpdateDownload(this.tag);
@@ -42,14 +42,10 @@ String? Function() resolveSelfUpdateSuffix = () => selfUpdateAssetSuffix(
 
 String? get selfUpdateSuffix => resolveSelfUpdateSuffix();
 
-// The names follow the release matrix in .github/workflows/build.yaml.
+// The fork publishes only the arm64 APK in .github/workflows/android.yml.
 String? selfUpdateAssetSuffix(Abi abi, {required bool windowsInstalled}) {
   return switch (abi) {
     Abi.androidArm64 => 'android-arm64-v8a.apk',
-    Abi.androidArm => 'android-armeabi-v7a.apk',
-    Abi.androidX64 => 'android-x86_64.apk',
-    Abi.windowsX64 when windowsInstalled => 'windows-amd64-setup.exe',
-    Abi.windowsArm64 when windowsInstalled => 'windows-arm64-setup.exe',
     _ => null,
   };
 }

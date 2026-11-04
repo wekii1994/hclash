@@ -156,8 +156,9 @@ class _AppMediaQuery extends ConsumerWidget {
       return MediaQuery(data: mediaQueryData, child: child);
     }
     final isDefaultScale = (effectiveScale - 1.0).abs() < 0.001;
-    final scaledSize =
-        isDefaultScale ? originalSize : originalSize / effectiveScale;
+    final scaledSize = isDefaultScale
+        ? originalSize
+        : originalSize / effectiveScale;
     return MediaQuery(
       data: isDefaultScale
           ? mediaQueryData
@@ -167,24 +168,22 @@ class _AppMediaQuery extends ConsumerWidget {
               viewPadding: mediaQueryData.viewPadding / effectiveScale,
               viewInsets: mediaQueryData.viewInsets / effectiveScale,
             ),
-      child: isDefaultScale
-          ? child
-          : SizedBox(
-              width: originalSize.width,
-              height: originalSize.height,
-              child: OverflowBox(
-                minWidth: scaledSize.width,
-                maxWidth: scaledSize.width,
-                minHeight: scaledSize.height,
-                maxHeight: scaledSize.height,
-                alignment: Alignment.topLeft,
-                child: Transform.scale(
-                  scale: effectiveScale,
-                  alignment: Alignment.topLeft,
-                  child: child,
-                ),
-              ),
-            ),
+      child: SizedBox(
+        width: originalSize.width,
+        height: originalSize.height,
+        child: OverflowBox(
+          minWidth: scaledSize.width,
+          maxWidth: scaledSize.width,
+          minHeight: scaledSize.height,
+          maxHeight: scaledSize.height,
+          alignment: Alignment.topLeft,
+          child: Transform.scale(
+            scale: effectiveScale,
+            alignment: Alignment.topLeft,
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 }

@@ -206,11 +206,29 @@ jobs:
           echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
           flutter pub get
 
+      - name: Prepare release identity
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(sed -n 's/^version: *\([^ +]*\).*/\1/p' pubspec.yaml)
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            EXISTING_PRES=$(gh release list --limit 100 --json tagName --jq '.[].tagName' | sed -n "s/^v${VERSION//./\\.}-pre\([0-9][0-9]*\)$/\1/p" | sort -n | tail -n 1)
+            TAG="v${VERSION}-pre$(( ${EXISTING_PRES:-0} + 1 ))"
+          fi
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Unsupported release tag format"
+            exit 1
+          fi
+          echo "HCLASH_RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+
       - name: Build Android APK (arm64-v8a)
         env:
           ANDROID_NDK_HOME: ${{ steps.build-ndk.outputs.ndk-path }}
         run: |
           dart setup.dart android --arch arm64 --env stable -v
+          printf '%s\n' "$HCLASH_RELEASE_TAG" > dist/release-tag.txt
 
       - name: Android unit tests
         working-directory: android
@@ -260,21 +278,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION=$(sed -n 's/^version: *\([^ +]*\).*/\1/p' pubspec.yaml)
-          [ -z "$VERSION" ] && VERSION="0.9.1"
-          
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            TAG="$GITHUB_REF_NAME"
-          else
-            # Auto-increment pre-release tag: v0.9.1-pre1, v0.9.1-pre2, ...
-            EXISTING_PRES=$(gh release list --limit 100 2>/dev/null | grep -o "v${VERSION}-pre[0-9]*" | sed "s/v${VERSION}-pre//" | sort -n | tail -n 1 || true)
-            if [ -z "$EXISTING_PRES" ]; then
-              NEXT_PRE=1
-            else
-              NEXT_PRE=$((EXISTING_PRES + 1))
-            fi
-            TAG="v${VERSION}-pre${NEXT_PRE}"
-          fi
+          TAG=$(cat dist/release-tag.txt)
           
           if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
             echo "::error::Unsupported release tag format"

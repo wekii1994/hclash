@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:fl_clash/core/core.dart';
 import 'package:fl_clash/core/interface.dart';
 import 'package:fl_clash/enum/enum.dart';
+import 'package:fl_clash/features/traffic_stats/traffic_stats_store.dart';
 import 'package:fl_clash/l10n/l10n.dart';
 import 'package:fl_clash/manager/core_manager.dart';
 import 'package:fl_clash/models/models.dart';
@@ -485,6 +486,54 @@ void main() {
     expect(route.routeVersion, 42);
     expect(route.synced, isTrue);
 
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('route changes preserve traffic baselines and node tests', (
+    tester,
+  ) async {
+    final container = await _pumpCoreManager(tester, _coreInterface());
+    final store = TrafficStatsStore.instance;
+    final initialDownload = store.todayDownload;
+    final proxies = container.read(proxiesActionProvider.notifier);
+    void route(int epoch, int version) {
+      coreEventManager.sendEvent(
+        CoreEvent(
+          type: CoreEventType.routeChanged,
+          data: {'core-epoch': epoch, 'route-version': version},
+        ),
+      );
+    }
+
+    void sample(int download, {bool closed = false}) {
+      coreEventManager.sendEvent(
+        CoreEvent(
+          type: CoreEventType.requestTraffic,
+          data: [
+            {
+              'id': 'route-traffic-regression',
+              'upload': 0,
+              'download': download,
+              'host': 'route.example',
+              'closed': closed,
+            },
+          ],
+        ),
+      );
+    }
+
+    route(1, 1);
+    sample(100);
+    await tester.pump();
+    final generation = proxies.activeGeneration;
+    route(1, 2);
+    await tester.pump();
+    expect(proxies.activeGeneration, generation);
+    route(2, 3);
+    sample(150, closed: true);
+    await tester.pump();
+    expect(proxies.activeGeneration, greaterThan(generation));
+    expect(store.todayDownload - initialDownload, 150);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

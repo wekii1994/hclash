@@ -25,6 +25,13 @@ void main() {
       expect(setup.createBuildEnvironment('dev'), {'APP_ENV': 'dev'});
     });
 
+    test('release identity is embedded before packaging', () {
+      expect(
+        setup.createBuildEnvironment('stable', releaseTag: 'v0.9.3-pre2'),
+        {'APP_ENV': 'stable', 'HCLASH_RELEASE_TAG': 'v0.9.3-pre2'},
+      );
+    });
+
     test('omits verbose from flutter build args by default', () {
       final args = setup.createFlutterBuildArgs(
         platform: 'android',

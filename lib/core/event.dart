@@ -21,6 +21,15 @@ List<CoreEvent> coreEventsFromData(Object? data) {
   return events;
 }
 
+typedef RequestTrafficSample = ({
+  String id,
+  int upload,
+  int download,
+  String? host,
+  String? process,
+  bool closed,
+});
+
 abstract mixin class CoreEventListener {
   void onLog(Log log) {}
 
@@ -29,6 +38,8 @@ abstract mixin class CoreEventListener {
   void onRequest(TrackerInfo connection) {}
 
   void onRequestTraffic(Map<String, RequestTraffic> traffic) {}
+
+  void onRequestTrafficSamples(List<RequestTrafficSample> samples) {}
 
   /// Delivered after final cumulative counters in the same FIFO message.
   void onRequestsClosed(Set<String> ids) {}
@@ -74,16 +85,25 @@ class CoreEventManager {
               listener.onRequest(TrackerInfo.fromJson(event.data));
               break;
             case CoreEventType.requestTraffic:
-              listener.onRequestTraffic({
+              final samples = <RequestTrafficSample>[
                 for (final Map item in event.data)
-                  item['id'] as String: (
+                  (
+                    id: item['id'] as String,
                     upload: (item['upload'] as num).toInt(),
                     download: (item['download'] as num).toInt(),
+                    host: item['host'] as String?,
+                    process: item['process'] as String?,
+                    closed: item['closed'] == true,
                   ),
+              ];
+              listener.onRequestTrafficSamples(samples);
+              listener.onRequestTraffic({
+                for (final sample in samples)
+                  sample.id: (upload: sample.upload, download: sample.download),
               });
               final closedIds = <String>{
-                for (final Map item in event.data)
-                  if (item['closed'] == true) item['id'] as String,
+                for (final sample in samples)
+                  if (sample.closed) sample.id,
               };
               if (closedIds.isNotEmpty) listener.onRequestsClosed(closedIds);
               break;

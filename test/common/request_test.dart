@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:fl_clash/common/constant.dart';
+import 'package:fl_clash/common/app_update.dart';
 import 'package:fl_clash/common/exception.dart';
 import 'package:fl_clash/common/request.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -97,7 +98,7 @@ void main() {
     test('reads the release from the API', () async {
       final request = requestAnswering({
         'api.github.com': () => ResponseBody.fromString(
-          '{"tag_name":"v1.2.3","body":"notes"}',
+          '[{"tag_name":"v1.2.4","draft":true},{"tag_name":"v1.2.3-pre22","prerelease":true,"body":"notes"}]',
           200,
           headers: {
             Headers.contentTypeHeader: [Headers.jsonContentType],
@@ -106,7 +107,8 @@ void main() {
       });
 
       expect(await request.latestRelease(), {
-        'tag_name': 'v1.2.3',
+        'tag_name': 'v1.2.3-pre22',
+        'prerelease': true,
         'body': 'notes',
       });
     });
@@ -156,7 +158,7 @@ void main() {
     Request requestServing(String sums, List<int> asset) {
       return Request()
         ..releaseDio.httpClientAdapter = _PathAdapter({
-          '/$repository/releases/download/v1.2.3/SHA256SUMS': () =>
+          '/$repository/releases/download/v1.2.3/$releaseChecksumsName': () =>
               ResponseBody.fromString(sums, 200),
           '/$repository/releases/download/v1.2.3/$name': () =>
               ResponseBody.fromBytes(asset, 200),

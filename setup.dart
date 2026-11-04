@@ -125,8 +125,12 @@ List<String> createFlutterBuildArgs({
   return flutterBuildArgs;
 }
 
-Map<String, String> createBuildEnvironment(String env) {
-  return {'APP_ENV': env};
+Map<String, String> createBuildEnvironment(String env, {String? releaseTag}) {
+  return {
+    'APP_ENV': env,
+    if (releaseTag != null && releaseTag.isNotEmpty)
+      'HCLASH_RELEASE_TAG': releaseTag,
+  };
 }
 
 /// Packages whose build hook `pubspec.yaml` turns into a no-op.
@@ -165,7 +169,14 @@ Future<int> _package(
   required bool verbose,
 }) async {
   final file = File(p.join(rootDir, 'env.json'));
-  await file.writeAsString(jsonEncode(createBuildEnvironment(env)));
+  await file.writeAsString(
+    jsonEncode(
+      createBuildEnvironment(
+        env,
+        releaseTag: Platform.environment['HCLASH_RELEASE_TAG'],
+      ),
+    ),
+  );
 
   final flutterBuildArgs = createFlutterBuildArgs(
     platform: platform,
@@ -409,7 +420,9 @@ Future<int> _runLinuxDependencyCommand(List<String> command) async {
 }
 
 void _ensureMihomoPatch(String rootDir) {
-  final patchFile = File(p.join(rootDir, 'core', 'patches', 'mihomo-fixes.patch'));
+  final patchFile = File(
+    p.join(rootDir, 'core', 'patches', 'mihomo-fixes.patch'),
+  );
   final submoduleDir = Directory(p.join(rootDir, 'core', 'Clash.Meta'));
   if (!submoduleDir.existsSync()) {
     stderr.writeln(
@@ -421,26 +434,37 @@ void _ensureMihomoPatch(String rootDir) {
     stderr.writeln('Error: Patch file ${patchFile.path} not found.');
     exit(1);
   }
-  final checkResult = Process.runSync(
-    'git',
-    ['-C', submoduleDir.path, 'apply', '--check', patchFile.path],
-  );
+  final checkResult = Process.runSync('git', [
+    '-C',
+    submoduleDir.path,
+    'apply',
+    '--check',
+    patchFile.path,
+  ]);
   if (checkResult.exitCode == 0) {
-    stdout.writeln('Applying Mihomo companion patch to ${submoduleDir.path}...');
-    final applyResult = Process.runSync(
-      'git',
-      ['-C', submoduleDir.path, 'apply', patchFile.path],
+    stdout.writeln(
+      'Applying Mihomo companion patch to ${submoduleDir.path}...',
     );
+    final applyResult = Process.runSync('git', [
+      '-C',
+      submoduleDir.path,
+      'apply',
+      patchFile.path,
+    ]);
     if (applyResult.exitCode != 0) {
       stderr.writeln('Failed to apply Mihomo patch: ${applyResult.stderr}');
       exit(1);
     }
     stdout.writeln('Successfully applied Mihomo companion patch.');
   } else {
-    final reverseCheck = Process.runSync(
-      'git',
-      ['-C', submoduleDir.path, 'apply', '--reverse', '--check', patchFile.path],
-    );
+    final reverseCheck = Process.runSync('git', [
+      '-C',
+      submoduleDir.path,
+      'apply',
+      '--reverse',
+      '--check',
+      patchFile.path,
+    ]);
     if (reverseCheck.exitCode != 0) {
       stderr.writeln(
         'Error: Mihomo submodule has conflicts or cannot apply companion patch cleanly.',

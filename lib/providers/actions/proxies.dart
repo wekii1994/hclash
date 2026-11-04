@@ -183,6 +183,10 @@ class ProxiesAction extends _$ProxiesAction {
     if (generation != null && generation != _activeGeneration) {
       return;
     }
+    final route = ref.read(routeTrackerProvider);
+    if (route.synced && delay.epoch != null && delay.epoch! < route.coreEpoch) {
+      return;
+    }
     final groups = ref.read(groupsProvider);
     if (groups.isNotEmpty &&
         !groups.any(
@@ -455,18 +459,16 @@ class ProxiesAction extends _$ProxiesAction {
     final generation = _activeGeneration;
     final requestGeneration = _delayTestRequestPool.generation;
     try {
-      final delay = await _delayTestRequestPool.run((
-        target.proxyName,
-        target.testUrl,
-        job.timeout,
-        requestGeneration,
-      ), () => _core.testDelay(
-        TestDelayParams(
-          proxyName: target.proxyName,
-          testUrl: target.testUrl,
-          timeout: job.timeout.inMilliseconds,
+      final delay = await _delayTestRequestPool.run(
+        (target.proxyName, target.testUrl, job.timeout, requestGeneration),
+        () => _core.testDelay(
+          TestDelayParams(
+            proxyName: target.proxyName,
+            testUrl: target.testUrl,
+            timeout: job.timeout.inMilliseconds,
+          ),
         ),
-      ));
+      );
       if (!job.cancelled &&
           generation == _activeGeneration &&
           requestGeneration == _delayTestRequestPool.generation) {

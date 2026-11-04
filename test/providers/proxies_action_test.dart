@@ -12,6 +12,7 @@ import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/providers/core.dart';
+import 'package:fl_clash/providers/route_state.dart';
 import 'package:fl_clash/providers/database.dart';
 import 'package:fl_clash/providers/state.dart';
 import 'package:fl_clash/l10n/l10n.dart';
@@ -102,6 +103,25 @@ void main() {
 
   ProxiesAction actionOf(ProviderContainer container) =>
       container.read(proxiesActionProvider.notifier);
+
+  testWidgets('late delay events from an older core epoch are ignored', (
+    tester,
+  ) async {
+    final container = buildContainer();
+    container
+        .read(routeTrackerProvider.notifier)
+        .applySnapshot(const RouteSnapshot(coreEpoch: 7, routeVersion: 9));
+    final old = (const Delay(name: 'HK-01', url: _testUrl, value: 10))
+      ..epoch = 6;
+    final fresh = (const Delay(name: 'HK-02', url: _testUrl, value: 20))
+      ..epoch = 7;
+    actionOf(container).setDelay(old);
+    actionOf(container).setDelay(fresh);
+    await tester.pump(renderThrottleDuration);
+    final values = container.read(delayDataSourceProvider);
+    expect(values[_testUrl]?['HK-01'], isNull);
+    expect(values[_testUrl]?['HK-02'], 20);
+  });
 
   ProviderContainer runningContainer() {
     final container = buildContainer();
