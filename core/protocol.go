@@ -84,9 +84,6 @@ const (
 	failoverStatsMethod CoreMethod = "failover.stats"
 	failoverResetMethod CoreMethod = "failover.reset"
 
-	getFailoverStatsMethod   CoreMethod = "getFailoverStats"
-	resetFailoverStatsMethod CoreMethod = "resetFailoverStats"
-
 	// The envelope of a batch of events, which the Core sends and never receives.
 	messageMethod CoreMethod = "message"
 )

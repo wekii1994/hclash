@@ -158,8 +158,8 @@ func TestFailoverStatsIPCMethodCalls(t *testing.T) {
 	}
 	recordFailover("Group1", "A", "B")
 
-	// Call getFailoverStatsMethod
-	call := &MethodCall{ID: "req1", Method: getFailoverStatsMethod}
+	// Call failoverStatsMethod
+	call := &MethodCall{ID: "req1", Method: failoverStatsMethod}
 	frame := handleMethodCall(call)
 	var envelopeGet struct {
 		Result *FailoverStats `json:"result"`
@@ -169,14 +169,14 @@ func TestFailoverStatsIPCMethodCalls(t *testing.T) {
 		t.Fatalf("get response is not valid JSON: %v", err)
 	}
 	if envelopeGet.Error != nil {
-		t.Fatalf("expected getFailoverStatsMethod to succeed, got error: %v", envelopeGet.Error)
+		t.Fatalf("expected failoverStatsMethod to succeed, got error: %v", envelopeGet.Error)
 	}
 	if envelopeGet.Result == nil || envelopeGet.Result.Total != 1 || envelopeGet.Result.Today != 1 {
-		t.Fatalf("unexpected data from getFailoverStatsMethod: %+v", envelopeGet.Result)
+		t.Fatalf("unexpected data from failoverStatsMethod: %+v", envelopeGet.Result)
 	}
 
-	// Call resetFailoverStatsMethod (must return *FailoverStats, not bare bool!)
-	callReset := &MethodCall{ID: "req2", Method: resetFailoverStatsMethod}
+	// Call failoverResetMethod (must return *FailoverStats, not bare bool!)
+	callReset := &MethodCall{ID: "req2", Method: failoverResetMethod}
 	frameReset := handleMethodCall(callReset)
 	var envelopeReset struct {
 		Result *FailoverStats `json:"result"`

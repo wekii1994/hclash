@@ -45,6 +45,11 @@ jobs:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: plugins/rust_api/rust
+          cache-directories: .dart_tool/hooks_runner
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos
       - name: Skip the Go core build hook for Dart tests
