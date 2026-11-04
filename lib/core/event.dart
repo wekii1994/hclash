@@ -79,9 +79,6 @@ class CoreEventManager {
                   item['id'] as String: (
                     upload: (item['upload'] as num).toInt(),
                     download: (item['download'] as num).toInt(),
-                    host: item['host'] as String?,
-                    process: item['process'] as String?,
-                    closed: item['closed'] as bool?,
                   ),
               });
               final closedIds = <String>{

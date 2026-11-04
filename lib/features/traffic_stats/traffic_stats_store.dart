@@ -81,9 +81,6 @@ class TrafficStatsStore extends ChangeNotifier {
         id: entry.key,
         upload: entry.value.upload,
         download: entry.value.download,
-        host: entry.value.host,
-        process: entry.value.process,
-        isClosed: entry.value.closed ?? false,
       );
     }
   }

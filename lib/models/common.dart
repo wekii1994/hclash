@@ -144,28 +144,7 @@ List<TrackerInfo> trackerInfosOf(Object? data) {
   ];
 }
 
-typedef RequestTraffic = ({
-  int upload,
-  int download,
-  String? host,
-  String? process,
-  bool? closed,
-});
-
-RequestTraffic createRequestTraffic({
-  required int upload,
-  required int download,
-  String? host,
-  String? process,
-  bool? closed,
-}) =>
-    (
-      upload: upload,
-      download: download,
-      host: host,
-      process: process,
-      closed: closed,
-    );
+typedef RequestTraffic = ({int upload, int download});
 
 extension TrackerInfoExt on TrackerInfo {
   String get title {
