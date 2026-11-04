@@ -6,7 +6,7 @@ import 'package:fl_clash/ui/icons/icons.dart';
 import 'package:fl_clash/ui/ui.dart';
 import 'package:fl_clash/views/dashboard/style.dart';
 import 'package:fl_clash/widgets/widgets.dart';
-import 'package:material_ui/material_ui.dart';
+import 'package:flutter/widgets.dart';
 
 import 'domain_classifier.dart';
 import 'traffic_stats_models.dart';
@@ -147,46 +147,36 @@ class _TargetSitesViewState extends State<TargetSitesView> {
           ),
         ),
 
-        // List view
+        // Items list
         if (_isAggregated && displayGroups != null)
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: displayGroups.length,
-            separatorBuilder: (_, index) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final group = displayGroups[index];
-              final rank = index + 1;
-              final isExpanded = _expandedKeys.contains(group.key);
-              return _AggregatedGroupTile(
-                group: group,
-                rank: rank,
-                maxTotal: maxTotal,
-                isExpanded: isExpanded,
-                onToggleExpand: () {
-                  setState(() {
-                    if (isExpanded) {
-                      _expandedKeys.remove(group.key);
-                    } else {
-                      _expandedKeys.add(group.key);
-                    }
-                  });
-                },
-              );
-            },
-          )
+          for (var index = 0; index < displayGroups.length; index++) ...[
+            if (index > 0) const SizedBox(height: 8),
+            _AggregatedGroupTile(
+              group: displayGroups[index],
+              rank: index + 1,
+              maxTotal: maxTotal,
+              isExpanded: _expandedKeys.contains(displayGroups[index].key),
+              onToggleExpand: () {
+                setState(() {
+                  final key = displayGroups[index].key;
+                  if (_expandedKeys.contains(key)) {
+                    _expandedKeys.remove(key);
+                  } else {
+                    _expandedKeys.add(key);
+                  }
+                });
+              },
+            ),
+          ]
         else
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: displaySites.length,
-            separatorBuilder: (_, index) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final site = displaySites[index];
-              final rank = index + 1;
-              return _SiteTile(site: site, rank: rank, maxTotal: maxTotal);
-            },
-          ),
+          for (var index = 0; index < displaySites.length; index++) ...[
+            if (index > 0) const SizedBox(height: 8),
+            _SiteTile(
+              site: displaySites[index],
+              rank: index + 1,
+              maxTotal: maxTotal,
+            ),
+          ],
       ],
     );
   }
@@ -249,6 +239,34 @@ Color _rankColor(BuildContext context, int rank) {
   };
 }
 
+class _TrafficProgressBar extends StatelessWidget {
+  final double value;
+  final Color color;
+  final Color backgroundColor;
+
+  const _TrafficProgressBar({
+    required this.value,
+    required this.color,
+    required this.backgroundColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRSuperellipse(
+      borderRadius: AppRadius.full,
+      child: Container(
+        height: 4,
+        color: backgroundColor,
+        alignment: Alignment.centerLeft,
+        child: FractionallySizedBox(
+          widthFactor: value.clamp(0.0, 1.0),
+          child: Container(color: color),
+        ),
+      ),
+    );
+  }
+}
+
 class _AggregatedGroupTile extends StatelessWidget {
   final AggregatedSiteGroup group;
   final int rank;
@@ -273,219 +291,161 @@ class _AggregatedGroupTile extends StatelessWidget {
         ? Color(group.brandColor!)
         : colorScheme.primary;
 
+    final tile = Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              // Rank badge
+              SizedBox(
+                width: 24,
+                child: Text(
+                  '#$rank',
+                  style: AppTextStyle.caption1
+                      .of(context, emphasized: true)
+                      .copyWith(color: _rankColor(context, rank)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Brand / Monogram icon
+              Container(
+                width: 32,
+                height: 32,
+                decoration: ShapeDecoration(
+                  color: brandColor.withValues(alpha: 0.12),
+                  shape: AppShape.sm,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  group.iconText,
+                  style: AppTextStyle.custom(
+                    context,
+                    size: group.iconText.length > 2 ? 11 : 13,
+                    leading: group.iconText.length > 2 ? 11 : 13,
+                    weight: FontWeight.w600,
+                  ).copyWith(color: brandColor),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Display name & details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      group.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyle.body.of(
+                        context,
+                        emphasized: true,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      hasMultiple
+                          ? '↑ ${group.upload.traffic.show}   ↓ ${group.download.traffic.show}   (${group.subSites.length} 个域名)'
+                          : '↑ ${group.upload.traffic.show}   ↓ ${group.download.traffic.show}   (${group.count})',
+                      style: AppTextStyle.caption2
+                          .of(context)
+                          .copyWith(color: colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Total traffic
+              Text(
+                group.total.traffic.show,
+                style: AppTextStyle.subheadline
+                    .of(context, emphasized: true)
+                    .toTabular,
+              ),
+              if (hasMultiple) ...[
+                const SizedBox(width: 4),
+                GlyphIcon(
+                  isExpanded ? AppGlyphs.chevronUp : AppGlyphs.chevronDown,
+                  size: 14,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Percentage bar
+          _TrafficProgressBar(
+            value: fraction,
+            backgroundColor: colorScheme.surfaceContainerHighest.withValues(
+              alpha: 0.5,
+            ),
+            color: rank <= 3 ? _rankColor(context, rank) : colorScheme.primary,
+          ),
+          // Sub-domains expansion
+          if (hasMultiple && isExpanded) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.only(top: 8),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                    width: 0.5,
+                  ),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final sub in group.subSites) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const SizedBox(width: 32),
+                        Expanded(
+                          child: Text(
+                            sub.host,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyle.caption1.of(context).copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          sub.total.traffic.show,
+                          style: AppTextStyle.caption1
+                              .of(context, emphasized: true)
+                              .copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+
     return Container(
       decoration: ShapeDecoration(
         color: DashboardColors.of(context).tone,
         shape: AppShape.md,
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: hasMultiple ? onToggleExpand : null,
-          customBorder: AppShape.md,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    // Rank badge
-                    SizedBox(
-                      width: 24,
-                      child: Text(
-                        '#$rank',
-                        style: AppTextStyle.caption1
-                            .of(context, emphasized: true)
-                            .copyWith(color: _rankColor(context, rank)),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Brand / Monogram icon
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: ShapeDecoration(
-                        color: brandColor.withValues(alpha: 0.12),
-                        shape: AppShape.sm,
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        group.iconText,
-                        style: AppTextStyle.custom(
-                          context,
-                          size: group.iconText.length > 2 ? 11 : 13,
-                          leading: group.iconText.length > 2 ? 11 : 13,
-                          weight: FontWeight.w600,
-                        ).copyWith(color: brandColor),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Display name & details
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            group.displayName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyle.body.of(
-                              context,
-                              emphasized: true,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            hasMultiple
-                                ? '↑ ${group.upload.traffic.show}   ↓ ${group.download.traffic.show}   (${group.subSites.length} 个域名)'
-                                : '↑ ${group.upload.traffic.show}   ↓ ${group.download.traffic.show}   (${group.count})',
-                            style: AppTextStyle.caption2
-                                .of(context)
-                                .copyWith(color: colorScheme.onSurfaceVariant),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Total traffic
-                    Text(
-                      group.total.traffic.show,
-                      style: AppTextStyle.subheadline
-                          .of(context, emphasized: true)
-                          .toTabular,
-                    ),
-                    if (hasMultiple) ...[
-                      const SizedBox(width: 4),
-                      GlyphIcon(
-                        isExpanded
-                            ? AppGlyphs.chevronUp
-                            : AppGlyphs.chevronDown,
-                        size: 18,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Progress bar
-                LinearProgressIndicator(
-                  value: fraction,
-                  minHeight: 4,
-                  borderRadius: const BorderRadius.all(Radius.circular(2)),
-                  backgroundColor: colorScheme.surfaceContainerHighest
-                      .withValues(alpha: 0.5),
-                  valueColor: AlwaysStoppedAnimation(
-                    rank <= 3 ? _rankColor(context, rank) : colorScheme.primary,
-                  ),
-                ),
-                // Subsites breakdown when expanded
-                if (isExpanded && hasMultiple) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    decoration: ShapeDecoration(
-                      color: colorScheme.surfaceContainerHighest.withValues(
-                        alpha: 0.35,
-                      ),
-                      shape: AppShape.sm,
-                    ),
-                    child: Column(
-                      children: [
-                        for (int i = 0; i < group.subSites.length; i++) ...[
-                          if (i > 0)
-                            Divider(
-                              height: 12,
-                              thickness: 0.5,
-                              color: colorScheme.outlineVariant.withValues(
-                                alpha: 0.2,
-                              ),
-                            ),
-                          Builder(
-                            builder: (context) {
-                              final sub = group.subSites[i];
-                              final app = DomainClassifier.friendlyAppName(
-                                sub.process,
-                              );
-                              return Row(
-                                children: [
-                                  GlyphIcon(
-                                    AppGlyphs.chevronForward,
-                                    size: 14,
-                                    color: colorScheme.onSurfaceVariant
-                                        .withValues(alpha: 0.7),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Flexible(
-                                          child: Text(
-                                            sub.host,
-                                            style: AppTextStyle.caption1
-                                                .of(context)
-                                                .copyWith(
-                                                  color: colorScheme.onSurface,
-                                                ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        if (app != null && app.isNotEmpty) ...[
-                                          const SizedBox(width: 6),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 5,
-                                              vertical: 1,
-                                            ),
-                                            decoration: ShapeDecoration(
-                                              color: colorScheme
-                                                  .surfaceContainerHighest,
-                                              shape: AppShape.xs,
-                                            ),
-                                            child: Text(
-                                              app,
-                                              style: AppTextStyle.custom(
-                                                context,
-                                                size: 10,
-                                                leading: 12,
-                                              ).copyWith(
-                                                color: colorScheme
-                                                    .onSurfaceVariant,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    sub.total.traffic.show,
-                                    style: AppTextStyle.caption1
-                                        .of(context, emphasized: true)
-                                        .copyWith(
-                                          color: colorScheme.onSurfaceVariant,
-                                        ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
+      clipBehavior: Clip.antiAlias,
+      child: hasMultiple
+          ? PressRegion(
+              shape: AppShape.md,
+              overlay: PressRegion.hoverOverlay,
+              onTap: onToggleExpand,
+              child: tile,
+            )
+          : tile,
     );
   }
 }
@@ -597,16 +557,12 @@ class _SiteTile extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           // Percentage bar
-          LinearProgressIndicator(
+          _TrafficProgressBar(
             value: fraction,
-            minHeight: 4,
-            borderRadius: const BorderRadius.all(Radius.circular(2)),
             backgroundColor: colorScheme.surfaceContainerHighest.withValues(
               alpha: 0.5,
             ),
-            valueColor: AlwaysStoppedAnimation(
-              rank <= 3 ? _rankColor(context, rank) : colorScheme.primary,
-            ),
+            color: rank <= 3 ? _rankColor(context, rank) : colorScheme.primary,
           ),
         ],
       ),
