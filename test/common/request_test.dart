@@ -132,6 +132,22 @@ void main() {
     });
 
     test(
+      'falls back to releases feed when the API is rate limited',
+      () async {
+        final request = Request()
+          ..dio.httpClientAdapter = _PathAdapter({
+            '/repos/$repository/releases': () => ResponseBody.fromString('{}', 403),
+            '/$repository/releases.atom': () => ResponseBody.fromString(
+              '<feed><entry><link href="https://github.com/$repository/releases/tag/v0.9.3-pre2"/></entry></feed>',
+              200,
+            ),
+          });
+
+        expect(await request.latestRelease(), {'tag_name': 'v0.9.3-pre2'});
+      },
+    );
+
+    test(
       'falls back to the release page when the API is rate limited',
       () async {
         final request = requestAnswering({

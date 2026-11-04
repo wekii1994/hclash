@@ -62,10 +62,10 @@ index 9cd4fa01..71ea9dd7 100644
  		// that completed in under a millisecond as 1 ms
 diff --git a/adapter/outboundgroup/failover_test.go b/adapter/outboundgroup/failover_test.go
 new file mode 100644
-index 00000000..d0dc5692
+index 00000000..71cbd132
 --- /dev/null
 +++ b/adapter/outboundgroup/failover_test.go
-@@ -0,0 +1,870 @@
+@@ -0,0 +1,926 @@
 +package outboundgroup
 +
 +import (
@@ -936,6 +936,62 @@ index 00000000..d0dc5692
 +
 +	require.Equal(t, int32(0), caller2MisCanceled.Load(), "caller 2 with Background must never be canceled across %d runs", runs)
 +}
++
++func TestReview2QueuedHealthyNodesGetTheirOwnTimeout(t *testing.T) {
++	proxies := make([]C.Proxy, 20)
++	for i := range proxies {
++		proxies[i] = &controllableMockAdapter{
++			name: fmt.Sprintf("healthy-%d", i), delay: 200,
++			probeHook: func(ctx context.Context) {
++				select {
++				case <-time.After(200 * time.Millisecond):
++				case <-ctx.Done():
++				}
++			},
++		}
++	}
++	gb := NewGroupBase(GroupBaseOption{
++		Name: "queued", Type: C.URLTest, TestTimeout: 300,
++		Providers: []P.ProxyProvider{&concurrencyMockProvider{proxies: proxies}},
++	})
++	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
++	defer cancel()
++	results, err := gb.URLTest(ctx, "http://example.test", nil)
++	if len(results) != len(proxies) {
++		t.Fatalf("20 healthy nodes each need 200ms (<300ms timeout); only %d passed: %v", len(results), err)
++	}
++}
++
++func TestReview2LongTimeoutDoesNotInheritShortProbe(t *testing.T) {
++	started := make(chan struct{}, 1)
++	proxy := &controllableMockAdapter{
++		name: "shared", delay: 200,
++		probeHook: func(ctx context.Context) {
++			select {
++			case started <- struct{}{}:
++			default:
++			}
++			select {
++			case <-time.After(200 * time.Millisecond):
++			case <-ctx.Done():
++			}
++		},
++	}
++	provider := &concurrencyMockProvider{proxies: []C.Proxy{proxy}}
++	short := NewGroupBase(GroupBaseOption{Name: "short", Type: C.URLTest, TestTimeout: 100, Providers: []P.ProxyProvider{provider}})
++	long := NewGroupBase(GroupBaseOption{Name: "long", Type: C.URLTest, TestTimeout: 1000, Providers: []P.ProxyProvider{provider}})
++	done := make(chan struct{})
++	go func() {
++		_, _ = short.URLTest(context.Background(), "http://example.test", nil)
++		close(done)
++	}()
++	<-started
++	results, err := long.URLTest(context.Background(), "http://example.test", nil)
++	<-done
++	if len(results) != 1 {
++		t.Fatalf("200ms healthy proxy failed under 1000ms policy; actual probes=%d, error=%v", proxy.callCount.Load(), err)
++	}
++}
 diff --git a/adapter/outboundgroup/fallback.go b/adapter/outboundgroup/fallback.go
 index d6f61348..84884dbd 100644
 --- a/adapter/outboundgroup/fallback.go
@@ -1010,7 +1066,7 @@ index d6f61348..84884dbd 100644
 +}
 \ No newline at end of file
 diff --git a/adapter/outboundgroup/groupbase.go b/adapter/outboundgroup/groupbase.go
-index 27900604..99f1d988 100644
+index 27900604..a5f02ade 100644
 --- a/adapter/outboundgroup/groupbase.go
 +++ b/adapter/outboundgroup/groupbase.go
 @@ -6,6 +6,7 @@ import (
@@ -1072,7 +1128,7 @@ index 27900604..99f1d988 100644
  		testTimeout:       opt.TestTimeout,
  		maxFailedTimes:    opt.MaxFailedTimes,
  		emptyFallback:     opt.EmptyFallback,
-@@ -238,23 +254,171 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
+@@ -238,23 +254,172 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
  	return proxies
  }
  
@@ -1123,7 +1179,7 @@ index 27900604..99f1d988 100644
 +	for {
 +		t, exists := p.tasks[key]
 +		if !exists {
-+			workCtx, cancel := context.WithTimeout(context.Background(), timeout)
++			workCtx, cancel := context.WithCancel(context.Background())
 +			task = &probeTask{
 +				cancel:  cancel,
 +				waiters: 1,
@@ -1217,12 +1273,11 @@ index 27900604..99f1d988 100644
 +			if expectedStatus != nil {
 +				expectedStr = expectedStatus.String()
 +			}
-+			sfKey := fmt.Sprintf("%p|%v|%s|%s|%s", proxy, roundVal, proxy.Name(), url, expectedStr)
-+
 +			timeout := time.Duration(gb.testTimeout) * time.Millisecond
 +			if timeout <= 0 {
 +				timeout = 5 * time.Second
 +			}
++			sfKey := fmt.Sprintf("%p|%v|%s|%s|%s|%v", proxy, roundVal, proxy.Name(), url, expectedStr, timeout)
 +
 +			val, err := globalProbePool.Do(ctx, sfKey, timeout, func(workCtx context.Context) (uint16, error) {
 +				select {
@@ -1234,7 +1289,9 @@ index 27900604..99f1d988 100644
 +				case <-workCtx.Done():
 +					return 0, workCtx.Err()
 +				}
-+				return proxy.URLTest(workCtx, url, expectedStatus)
++				dialCtx, dialCancel := context.WithTimeout(workCtx, timeout)
++				defer dialCancel()
++				return proxy.URLTest(dialCtx, url, expectedStatus)
 +			})
 +
  			if err == nil {
@@ -1248,7 +1305,7 @@ index 27900604..99f1d988 100644
  		}()
  	}
  	wg.Wait()
-@@ -266,49 +430,151 @@ func (gb *GroupBase) URLTest(ctx context.Context, url string, expectedStatus uti
+@@ -266,49 +431,151 @@ func (gb *GroupBase) URLTest(ctx context.Context, url string, expectedStatus uti
  	}
  }
  
@@ -1423,7 +1480,7 @@ index 27900604..99f1d988 100644
  	wg := sync.WaitGroup{}
  	for _, proxyProvider := range gb.providers {
  		wg.Add(1)
-@@ -318,14 +584,5 @@ func (gb *GroupBase) healthCheck() {
+@@ -318,14 +585,5 @@ func (gb *GroupBase) healthCheck() {
  			proxyProvider.HealthCheck()
  		}()
  	}
@@ -1487,10 +1544,10 @@ index ad38e4a5..ba1ad78b 100644
  func namedProxy(name string) C.Proxy {
  	return adapter.NewProxy(outbound.NewDirectWithOption(outbound.DirectOption{Name: name}))
 diff --git a/adapter/outboundgroup/urltest.go b/adapter/outboundgroup/urltest.go
-index 35bc687e..7850a322 100644
+index 791d10f3..24c72d00 100644
 --- a/adapter/outboundgroup/urltest.go
 +++ b/adapter/outboundgroup/urltest.go
-@@ -59,8 +59,11 @@ func (u *URLTest) DialContext(ctx context.Context, metadata *C.Metadata) (c C.Co
+@@ -62,8 +62,11 @@ func (u *URLTest) DialContext(ctx context.Context, metadata *C.Metadata) (c C.Co
  	c, err = proxy.DialContext(ctx, metadata)
  	if err == nil {
  		c.AppendToChains(u)
@@ -1503,7 +1560,7 @@ index 35bc687e..7850a322 100644
  	}
  
  	if N.NeedHandshake(c) {
-@@ -68,7 +71,7 @@ func (u *URLTest) DialContext(ctx context.Context, metadata *C.Metadata) (c C.Co
+@@ -71,7 +74,7 @@ func (u *URLTest) DialContext(ctx context.Context, metadata *C.Metadata) (c C.Co
  			if err == nil {
  				u.onDialSuccess()
  			} else {
@@ -1512,7 +1569,7 @@ index 35bc687e..7850a322 100644
  			}
  		})
  	}
-@@ -83,7 +86,7 @@ func (u *URLTest) ListenPacketContext(ctx context.Context, metadata *C.Metadata)
+@@ -86,7 +89,7 @@ func (u *URLTest) ListenPacketContext(ctx context.Context, metadata *C.Metadata)
  	if err == nil {
  		pc.AppendToChains(u)
  	} else {
@@ -1521,7 +1578,7 @@ index 35bc687e..7850a322 100644
  	}
  
  	return pc, err
-@@ -95,9 +98,13 @@ func (u *URLTest) Unwrap(metadata *C.Metadata, touch bool) C.Proxy {
+@@ -98,9 +101,13 @@ func (u *URLTest) Unwrap(metadata *C.Metadata, touch bool) C.Proxy {
  }
  
  func (u *URLTest) healthCheck() {
@@ -1538,7 +1595,7 @@ index 35bc687e..7850a322 100644
  }
  
  func (u *URLTest) fast(touch bool) C.Proxy {
-@@ -220,3 +227,38 @@ func NewURLTest(option GroupCommonOption, urlTestOption URLTestOption, emptyFall
+@@ -230,3 +237,38 @@ func NewURLTest(option GroupCommonOption, urlTestOption URLTestOption, emptyFall
  
  	return urlTest, nil
  }
