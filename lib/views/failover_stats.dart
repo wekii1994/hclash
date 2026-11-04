@@ -4,7 +4,6 @@ import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/ui/icons/icons.dart';
 import 'package:fl_clash/ui/ui.dart';
 import 'package:fl_clash/views/dashboard/style.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -230,16 +229,16 @@ class _FailoverRecordItem extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
+            decoration: ShapeDecoration(
               color: colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(4),
+              shape: AppShape.xs,
             ),
             child: Text(
               record.group,
-              style: AppTextStyle.caption2.of(context).copyWith(
-                color: colorScheme.onPrimaryContainer,
-                fontWeight: FontWeight.bold,
-              ),
+              style:
+                  AppTextStyle.caption2.of(context, emphasized: true).copyWith(
+                        color: colorScheme.onPrimaryContainer,
+                      ),
             ),
           ),
           const SizedBox(width: 8),
@@ -280,10 +279,11 @@ class _FailoverRecordItem extends StatelessWidget {
             Expanded(
               child: Text(
                 record.after.isEmpty ? '—' : record.after,
-                style: AppTextStyle.subheadline.of(context).copyWith(
-                  color: colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: AppTextStyle.subheadline
+                    .of(context, emphasized: true)
+                    .copyWith(
+                      color: colorScheme.primary,
+                    ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
