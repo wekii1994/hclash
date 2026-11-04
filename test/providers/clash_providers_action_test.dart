@@ -104,32 +104,34 @@ void main() {
     final cacheRoot = Directory(await appPath.providerCacheRootPath);
     if (cacheRoot.existsSync()) cacheRoot.deleteSync(recursive: true);
     final core = _MockCoreHandlerInterface();
-    when(() => core.updateExternalProvider(any()))
-        .thenAnswer((invocation) async {
-          reloads.add(invocation.positionalArguments.single as String);
-          if (reloadError case final error?) throw error;
-          return '';
-        });
-    when(() => core.compileRuleSet(any(), url: any(named: 'url')))
-        .thenAnswer((invocation) async {
-          final name = invocation.positionalArguments.single as String;
-          final url = invocation.namedArguments[#url] as String;
-          await compileGate?.future;
-          compiles.add((name: name, url: url));
-          if (compileError case final error?) throw error;
-          final source = File(await appPath.getProviderCachePath(name));
-          if (url.isNotEmpty) {
-            source
-              ..createSync(recursive: true)
-              ..writeAsStringSync('downloaded');
-          }
-          if (compiled.behavior != RuleProviderBehavior.classical &&
-              compiled.format != RuleProviderFormat.mrs) {
-            File('${source.path}.mrs')
-                .writeAsStringSync('mrs of ${source.readAsStringSync()}');
-          }
-          return compiled;
-        });
+    when(() => core.updateExternalProvider(any())).thenAnswer((
+      invocation,
+    ) async {
+      reloads.add(invocation.positionalArguments.single as String);
+      if (reloadError case final error?) throw error;
+    });
+    when(() => core.compileRuleSet(any(), url: any(named: 'url'))).thenAnswer((
+      invocation,
+    ) async {
+      final name = invocation.positionalArguments.single as String;
+      final url = invocation.namedArguments[#url] as String;
+      await compileGate?.future;
+      compiles.add((name: name, url: url));
+      if (compileError case final error?) throw error;
+      final source = File(await appPath.getProviderCachePath(name));
+      if (url.isNotEmpty) {
+        source
+          ..createSync(recursive: true)
+          ..writeAsStringSync('downloaded');
+      }
+      if (compiled.behavior != RuleProviderBehavior.classical &&
+          compiled.format != RuleProviderFormat.mrs) {
+        File(
+          '${source.path}.mrs',
+        ).writeAsStringSync('mrs of ${source.readAsStringSync()}');
+      }
+      return compiled;
+    });
     container = ProviderContainer(
       overrides: [
         profilesProvider.overrideWith(

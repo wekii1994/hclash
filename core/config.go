@@ -1,7 +1,6 @@
 package core
 
 import (
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -19,12 +18,12 @@ import (
 	"github.com/metacubex/mihomo/config"
 	"github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/hub"
+	"github.com/metacubex/mihomo/hub/executor"
 	"github.com/metacubex/mihomo/hub/route"
 	authStore "github.com/metacubex/mihomo/listener/auth"
 	LC "github.com/metacubex/mihomo/listener/config"
 	"github.com/metacubex/mihomo/log"
 	"github.com/metacubex/mihomo/tunnel"
-	"go.yaml.in/yaml/v3"
 )
 
 var (
@@ -35,26 +34,6 @@ var (
 	errNotInitialized   = errors.New("not initialized")
 )
 
-func defaultSetupParams() *SetupParams {
-	return &SetupParams{
-		TestURL:            defaultTestURL,
-		SelectedMap:        map[string]string{},
-		HealthCheckTimeout: defaultHealthCheckTimeout,
-	}
-}
-
-// A missing test-url means the built-in probe, while an empty one keeps the
-// URL already in force, so the defaults have to be in place before the decode.
-func (params *SetupParams) UnmarshalJSON(data []byte) error {
-	type wire SetupParams
-	decoded := wire(*defaultSetupParams())
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return err
-	}
-	*params = SetupParams(decoded)
-	return nil
-}
-
 var setupConfig = applyConfig
 
 func handleSetupConfig(params *SetupParams) error {
@@ -64,7 +43,11 @@ func handleSetupConfig(params *SetupParams) error {
 	return setupConfig(params)
 }
 
-func handleGetConfig(path string) (*config.RawConfig, error) {
+func handleReadConfig(params PathParams) (*config.RawConfig, error) {
+	return readRawConfig(params.Path)
+}
+
+func readRawConfig(path string) (*config.RawConfig, error) {
 	defer scheduleLoadMemoryRelease()
 	buf, err := os.ReadFile(path)
 	if err != nil {
@@ -73,8 +56,9 @@ func handleGetConfig(path string) (*config.RawConfig, error) {
 	return unmarshalRawConfig(buf)
 }
 
-func handleGetProxyDefinition(name string) (map[string]any, error) {
-	raw, err := handleGetConfig(runningConfigPath())
+func handleGetProxyDefinition(params NameParams) (map[string]any, error) {
+	name := params.Name
+	raw, err := readRawConfig(runningConfigPath())
 	if err != nil {
 		return nil, err
 	}
@@ -96,9 +80,12 @@ func handleGetProxyDefinition(name string) (map[string]any, error) {
 	return nil, nil
 }
 
-func handleValidateConfig(path string) error {
-	_, err := handleGetConfig(path)
-	return err
+func handleValidateConfig(params PathParams) *string {
+	if _, err := readRawConfig(params.Path); err != nil {
+		message := err.Error()
+		return &message
+	}
+	return nil
 }
 
 func handleDecryptConfig(params DecryptConfigParams) (string, error) {
@@ -118,19 +105,15 @@ func handleDecryptConfig(params DecryptConfigParams) (string, error) {
 var systemTimeWritable = runtime.GOOS != "android"
 
 func loadConfig(path string) (*config.Config, error) {
-	return loadConfigWithTimeout(path, defaultHealthCheckTimeout)
-}
-
-func loadConfigWithTimeout(path string, healthCheckTimeout int) (*config.Config, error) {
 	buf, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	var document yaml.Node
-	if err := yaml.Unmarshal(buf, &document); err != nil {
+	cfg, err := executor.ParseWithBytes(buf)
+	if err != nil {
 		return nil, err
 	}
-	return decodeAndBuildConfig(&document, "", healthCheckTimeout)
+	return withPlatformLimits(cfg), nil
 }
 
 func withPlatformLimits(cfg *config.Config) *config.Config {
@@ -148,9 +131,9 @@ func runningConfigPath() string {
 func loadSetupConfig(params *SetupParams) (*config.Config, error) {
 	path := runningConfigPath()
 	if params.Base != nil {
-		return loadConfigWithBaseAndTimeout(params.Base, path, params.HealthCheckTimeout)
+		return loadConfigWithBase(params.Base, path)
 	}
-	return loadConfigWithTimeout(path, params.HealthCheckTimeout)
+	return loadConfig(path)
 }
 
 func applyConfig(params *SetupParams) error {
@@ -158,8 +141,7 @@ func applyConfig(params *SetupParams) error {
 	configMu.Lock()
 	defer configMu.Unlock()
 
-	setTestURL(params.TestURL)
-	skipCertVerify.Store(params.SkipCertVerify)
+	applyOptions(params.Options)
 	cfg, err := loadSetupConfig(params)
 	if err != nil {
 		// The fallback is what keeps the listeners serving while the host
@@ -185,7 +167,11 @@ func applyConfig(params *SetupParams) error {
 	updateListeners(cfg)
 	reconcileGeoUpdater()
 	scheduleLoadMemoryRelease()
-	return err
+	if err != nil {
+		// The host tells this apart from a call that failed: the default config runs.
+		return &MethodError{Code: "config_rejected", Message: err.Error()}
+	}
+	return nil
 }
 
 func updateConfig(params *UpdateParams) error {
@@ -242,8 +228,8 @@ func updateConfig(params *UpdateParams) error {
 	if params.Authentication != nil {
 		applyAuthentication(currentConfig, *params.Authentication)
 	}
-	if params.SkipCertVerify != nil {
-		skipCertVerify.Store(*params.SkipCertVerify)
+	if params.Options != nil {
+		applyOptions(*params.Options)
 	}
 
 	updateListeners(currentConfig)
@@ -255,6 +241,12 @@ func updateConfig(params *UpdateParams) error {
 		changeRoute(routeChange)
 	}
 	return nil
+}
+
+func applyOptions(options CoreOptions) {
+	setTestURL(options.TestURL)
+	provider.SetDefaultTestTimeout(timeoutFromMillis(options.DelayTestTimeout, 0))
+	skipCertVerify.Store(options.SkipCertVerify)
 }
 
 func patchTun(target *LC.Tun, params *tunSchema) {

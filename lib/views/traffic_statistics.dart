@@ -8,7 +8,6 @@ import 'package:fl_clash/ui/ui.dart';
 import 'package:fl_clash/views/dashboard/style.dart';
 import 'package:fl_clash/views/dashboard/widgets/card.dart';
 import 'package:fl_clash/widgets/widgets.dart';
-import 'package:material_ui/material_ui.dart';
 
 class TrafficStatisticsView extends StatefulWidget {
   const TrafficStatisticsView({super.key});
@@ -86,7 +85,7 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
     final uploadColor = DashboardColors.of(context).series2;
     final downloadColor = colorScheme.primary;
 
-    return CommonScaffold(
+    return Scaffold(
       title: l.trafficUsage,
       iconActions: [
         IconButtonData(

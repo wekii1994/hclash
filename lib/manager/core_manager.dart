@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/core/core.dart';
 import 'package:fl_clash/enum/enum.dart';
-import 'package:fl_clash/features/traffic_stats/traffic_stats.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/providers/app.dart';
@@ -12,8 +11,9 @@ import 'package:fl_clash/providers/core.dart';
 import 'package:fl_clash/providers/database.dart';
 import 'package:fl_clash/providers/route_state.dart';
 import 'package:fl_clash/providers/state.dart';
-import 'package:material_ui/material_ui.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:prism_ui/banner.dart';
 
 class CoreManager extends ConsumerStatefulWidget {
   final Widget child;
@@ -36,10 +36,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   @override
   void initState() {
     super.initState();
-    TrafficStatsStore.instance.beginCoreEpoch(
-      ref.read(routeTrackerProvider).coreEpoch,
-    );
-    unawaited(TrafficStatsStore.instance.init());
     coreEventManager.addListener(this);
     ref.read(updatingActionProvider.notifier);
     // A rejected profile stays selected on purpose: silently reverting to
@@ -57,18 +53,32 @@ class _CoreContainerState extends ConsumerState<CoreManager>
     });
     ref.listenManual(setupPatchProvider, (prev, next) {
       if (prev != next) {
-        ref.read(setupActionProvider.notifier).applyProfileDebounce(
-              silence: true,
-              // The test URL changes no YAML, so only a forced apply hands
-              // it over.
-              force: prev != null &&
-                  prev.patchConfig.testUrl != next.patchConfig.testUrl,
-            );
+        ref
+            .read(setupActionProvider.notifier)
+            .applyProfileDebounce(silence: true);
       }
     });
     ref.listenManual(globalRulesProvider, (prev, next) {
       if (prev?.value != null && next.hasValue) {
         ref.read(setupActionProvider.notifier).applyIfGlobalRulesUsed();
+      }
+    });
+    ref.listenManual(
+      patchClashConfigProvider.select((state) => state.mitm.enable),
+      (prev, next) {
+        if (prev == false && next) {
+          unawaited(ref.read(mitmModulesActionProvider.notifier).autoUpdate());
+        }
+      },
+    );
+    ref.listenManual(mitmModulesProvider, (prev, next) {
+      if (mitmFeature &&
+          prev?.value != null &&
+          next.hasValue &&
+          ref.read(patchClashConfigProvider).mitm.enable) {
+        ref
+            .read(setupActionProvider.notifier)
+            .applyProfileDebounce(silence: true);
       }
     });
     ref.listenManual(appSettingProvider.select((state) => state.openLogs), (
@@ -79,25 +89,10 @@ class _CoreContainerState extends ConsumerState<CoreManager>
         _syncLogStream();
       }
     });
-    ref.listenManual(
-      routeTrackerProvider.select(
-        (state) => (state.coreEpoch, state.routeVersion),
-      ),
-      (prev, next) {
-        // Invalidate results that belong to an earlier route/configuration.
-        ref.read(proxiesActionProvider.notifier).cancelDelayTests();
-        if (prev != null && prev != next) {
-          ref.read(proxiesActionProvider.notifier).updateGroupsDebounce();
-        }
-      },
-    );
     // Every Core process starts without a log stream.
     ref.listenManual(coreStatusProvider, (prev, next) {
       if (next == CoreStatus.connected && prev != CoreStatus.connected) {
         _syncLogStream();
-        TrafficStatsStore.instance.beginCoreEpoch(
-          DateTime.now().microsecondsSinceEpoch,
-        );
       }
     }, fireImmediately: true);
   }
@@ -115,7 +110,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
 
   @override
   void dispose() {
-    TrafficStatsStore.instance.save();
     coreEventManager.removeListener(this);
     super.dispose();
   }
@@ -123,13 +117,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   @override
   Future<void> onDelay(Delay delay) async {
     super.onDelay(delay);
-    if (ref.read(coreStatusProvider) != CoreStatus.connected) {
-      return;
-    }
-    final currentEpoch = ref.read(routeTrackerProvider).coreEpoch;
-    if (delay.epoch != null && delay.epoch != currentEpoch) {
-      return;
-    }
     final proxiesAction = ref.read(proxiesActionProvider.notifier);
     proxiesAction.setDelay(delay);
     debouncer.call(FunctionTag.updateDelay, () async {
@@ -143,7 +130,7 @@ class _CoreContainerState extends ConsumerState<CoreManager>
     if (log.logLevel == LogLevel.error) {
       throttler.call(
         FunctionTag.coreErrorNotifier,
-        () => dialogs.showNotifier(log.payload, level: MessageLevel.error),
+        () => dialogs.showBanner(log.payload, level: BannerLevel.error),
         duration: const Duration(seconds: 3),
         fire: true,
       );
@@ -155,9 +142,9 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   void onDialerLoop(String proxyName) {
     throttler.call(
       FunctionTag.dialerLoopNotifier,
-      () => dialogs.showNotifier(
+      () => dialogs.showBanner(
         currentAppLocalizations.dialerProxyLoopStopped(proxyName),
-        level: MessageLevel.error,
+        level: BannerLevel.error,
       ),
       duration: const Duration(seconds: 3),
       fire: true,
@@ -169,23 +156,13 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   void onRequest(TrackerInfo trackerInfo) async {
     ref.read(requestsProvider.notifier).addRequest(trackerInfo);
     ref.read(requestCountProvider.notifier).update((count) => count + 1);
-    TrafficStatsStore.instance.recordRequest(trackerInfo);
     super.onRequest(trackerInfo);
   }
 
   @override
   void onRequestTraffic(Map<String, RequestTraffic> traffic) {
     ref.read(requestsProvider.notifier).updateTraffic(traffic);
-    TrafficStatsStore.instance.recordRequestTraffic(traffic);
     super.onRequestTraffic(traffic);
-  }
-
-  @override
-  void onRequestsClosed(Set<String> ids) {
-    for (final id in ids) {
-      TrafficStatsStore.instance.recordClosedConnection(id);
-    }
-    super.onRequestsClosed(ids);
   }
 
   @override
@@ -218,7 +195,7 @@ class _CoreContainerState extends ConsumerState<CoreManager>
     }
     ref.read(coreStatusProvider.notifier).value = CoreStatus.disconnected;
     if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-      context.showNotifier(message, level: MessageLevel.error);
+      dialogs.showBanner(message, level: BannerLevel.error);
     }
     super.onCrash(message);
   }

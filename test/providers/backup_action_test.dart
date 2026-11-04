@@ -50,8 +50,9 @@ void main() {
     await testDatabase.close();
   });
 
+  // AppStateManager's listen keeps the settings alive while a restore awaits.
   ProviderContainer buildContainer() {
-    final container = ProviderContainer();
+    final container = ProviderContainer()..listen(configProvider, (_, _) {});
     addTearDown(container.dispose);
     return container;
   }
@@ -94,15 +95,16 @@ void main() {
       final profileFile = File(await appPath.getProfilePath('1'))
         ..createSync(recursive: true)
         ..writeAsStringSync('proxies: []');
-      final source = buildContainer()..listen(configProvider, (_, _) {});
+      final source = buildContainer();
       source.read(excludeSSIDsProvider.notifier).value = ['home-wifi'];
       final archivePath = await backupToKept(actionOf(source));
 
       await testDatabase.delete(testDatabase.profiles).go();
       profileFile.deleteSync();
-      final target = buildContainer()..listen(configProvider, (_, _) {});
-      final restored = await actionOf(target)
-          .restore(RestoreOption.all, (_) async => archivePath);
+      final target = buildContainer();
+      final restored = await actionOf(
+        target,
+      ).restore(RestoreOption.all, (_) async => archivePath);
 
       expect(restored, isTrue);
       final stored = await testDatabase.profilesDao.query().get();
@@ -112,12 +114,43 @@ void main() {
       expect(workDirs(), isEmpty);
     });
 
+    test('brings back the attachments of local modules and cleans the '
+        'rest', () async {
+      final module = MitmModule(
+        id: 9,
+        name: 'Mine',
+        resources: const {'own.json': 'own.json'},
+        lastUpdateTime: DateTime(2026),
+      );
+      await testDatabase.mitmModulesDao.putAll([module.toCompanion()]);
+      File(join(home.path, 'mitm', 'modules', module.fileName))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('[Map Local]\n^https://a data="own.json"\n');
+      final resources = join(home.path, 'mitm', 'resources');
+      final own = File(join(resources, 'own.json'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('{}');
+      final archivePath = await backupToKept(actionOf(buildContainer()));
+
+      own.deleteSync();
+      final stale = File(join(resources, 'stale.json'))..writeAsStringSync('');
+      final target = buildContainer();
+      final restored = await actionOf(
+        target,
+      ).restore(RestoreOption.all, (_) async => archivePath);
+
+      expect(restored, isTrue);
+      expect(own.readAsStringSync(), '{}');
+      expect(stale.existsSync(), isFalse);
+    });
+
     test('removes the work directory when delivery fails', () async {
       final container = buildContainer();
 
       await expectLater(
-        actionOf(container)
-            .backup((_) async => throw const SocketException('offline')),
+        actionOf(
+          container,
+        ).backup((_) async => throw const SocketException('offline')),
         throwsA(isA<SocketException>()),
       );
 
@@ -127,8 +160,9 @@ void main() {
     test('a cancelled fetch changes nothing', () async {
       final container = buildContainer();
 
-      final restored = await actionOf(container)
-          .restore(RestoreOption.all, (_) async => null);
+      final restored = await actionOf(
+        container,
+      ).restore(RestoreOption.all, (_) async => null);
 
       expect(restored, isFalse);
     });
@@ -343,8 +377,9 @@ void main() {
       final configMap = configMapOf(source);
 
       final target = buildContainer();
-      await actionOf(target)
-          .applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
+      await actionOf(
+        target,
+      ).applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
 
       expect(target.read(currentProfileIdProvider), 42);
       expect(target.read(appSettingProvider).autoLaunch, isTrue);
@@ -357,8 +392,9 @@ void main() {
       final target = buildContainer();
       target.read(davSettingProvider.notifier).value = dav;
 
-      await actionOf(target)
-          .applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
+      await actionOf(
+        target,
+      ).applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
 
       expect(target.read(davSettingProvider), dav);
     });
@@ -375,8 +411,9 @@ void main() {
           .read(vpnSettingProvider.notifier)
           .update((state) => state.copyWith(accessControlProps: picked));
 
-      await actionOf(target)
-          .applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
+      await actionOf(
+        target,
+      ).applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
 
       expect(target.read(vpnSettingProvider).accessControlProps, picked);
     });
@@ -402,8 +439,9 @@ void main() {
             ),
           );
 
-      await actionOf(target)
-          .applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
+      await actionOf(
+        target,
+      ).applyRestore(MigrationData(configMap: configMap), RestoreOption.all);
 
       expect(target.read(vpnSettingProvider).accessControlProps, listed);
     });

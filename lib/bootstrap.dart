@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:dynamic_color/dynamic_color.dart';
 import 'package:fl_clash/common/boot_guard.dart';
 import 'package:fl_clash/common/boot_record.dart';
 import 'package:fl_clash/common/common.dart';
@@ -16,10 +15,10 @@ import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/views/navigation.dart';
-import 'package:material_ui/material_ui.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:material_color_utilities/palettes/tonal_palette.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 class Bootstrap {
@@ -47,10 +46,10 @@ class Bootstrap {
   }
 
   Future<DynamicColorSeeds> _initDynamicColor() async {
-    TonalPalette? primaryPalette;
+    ({Color light, Color dark})? systemSeeds;
     Color? accentColor;
     try {
-      primaryPalette = await _getSystemPrimaryPalette();
+      systemSeeds = await DynamicColorPlugin.getSystemSeeds();
     } catch (error) {
       commonPrint.log(
         'Failed to get core palette: $error',
@@ -66,8 +65,8 @@ class Bootstrap {
       );
     }
     return (
-      lightSeed: primaryPalette != null ? Color(primaryPalette.get(40)) : null,
-      darkSeed: primaryPalette != null ? Color(primaryPalette.get(80)) : null,
+      lightSeed: systemSeeds?.light,
+      darkSeed: systemSeeds?.dark,
       accentColor: accentColor ?? const Color(defaultPrimaryColor),
     );
   }
@@ -80,18 +79,6 @@ class Bootstrap {
     }
     commonPrint.log('another instance owns the data directory, exiting');
     exit(0);
-  }
-
-  Future<TonalPalette?> _getSystemPrimaryPalette() async {
-    final raw = await DynamicColorPlugin.channel.invokeMethod<List<dynamic>>(
-      DynamicColorPlugin.methodName,
-    );
-    if (raw == null || raw.length < TonalPalette.commonSize) {
-      return null;
-    }
-    return TonalPalette.fromList(
-      raw.sublist(0, TonalPalette.commonSize).cast<int>(),
-    );
   }
 
   Future<ProviderContainer> _initData(
@@ -164,6 +151,7 @@ class Bootstrap {
     unawaited(
       _container.read(profilesActionProvider.notifier).autoUpdateProfiles(),
     );
+    unawaited(clearUpdateDownloads());
     unawaited(_container.read(commonActionProvider.notifier).autoCheckUpdate());
     unawaited(
       autoLaunch?.updateStatus(_container.read(appSettingProvider).autoLaunch),
@@ -184,6 +172,7 @@ class Bootstrap {
     }
     _container.read(initProvider.notifier).value = true;
     unawaited(_container.read(resourcesActionProvider.notifier).autoUpdate());
+    unawaited(_container.read(mitmModulesActionProvider.notifier).autoUpdate());
     await bootGuard.markRunning();
     unawaited(_container.read(locationPermissionsProvider.notifier).refresh());
   }

@@ -5,7 +5,6 @@ import 'package:fl_clash/ui/icons/icons.dart';
 import 'package:fl_clash/ui/ui.dart';
 import 'package:fl_clash/views/dashboard/style.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:material_ui/material_ui.dart';
 
 class FailoverStatsView extends ConsumerWidget {
   const FailoverStatsView({super.key});
@@ -22,7 +21,7 @@ class FailoverStatsView extends ConsumerWidget {
 
     final records = stats.records;
 
-    return CommonScaffold(
+    return Scaffold(
       title: isZh ? '故障转移统计' : 'Failover Statistics',
       isLoading: isLoading,
       iconActions: [

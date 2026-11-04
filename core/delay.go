@@ -2,11 +2,13 @@ package core
 
 import (
 	"context"
+	"slices"
 	"sync/atomic"
 	"time"
 
 	"github.com/metacubex/mihomo/common/utils"
 	"github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/tunnel"
 )
 
 const (
@@ -91,7 +93,10 @@ func handleTestDelay(params *TestDelayParams) *Delay {
 		return result
 	}
 
-	timeout := timeoutFromMillis(params.Timeout, defaultDelayTestTimeout)
+	timeout, configured := configuredTestTimeout(proxy.Name(), url)
+	if !configured {
+		timeout = timeoutFromMillis(params.Timeout, defaultDelayTestTimeout)
+	}
 	if !delayTestSlots.acquireWithin(context.Background(), timeout) {
 		return nil
 	}
@@ -113,4 +118,27 @@ func handleTestDelay(params *TestDelayParams) *Delay {
 	result.Value = delayValue(delay, ctx.Err() != nil)
 	result.Epoch = startEpoch
 	return result
+}
+
+type testTimeoutProvider interface {
+	TestTimeout(url string) (time.Duration, bool)
+}
+
+// The longest stands, so no scheduled check passes a node the manual test fails.
+func configuredTestTimeout(name, url string) (time.Duration, bool) {
+	var longest time.Duration
+	for _, pd := range tunnel.ProvidersSnapshot() {
+		timed, ok := pd.(testTimeoutProvider)
+		if !ok {
+			continue
+		}
+		timeout, ok := timed.TestTimeout(url)
+		if !ok || timeout <= longest {
+			continue
+		}
+		if slices.ContainsFunc(pd.Proxies(), func(p constant.Proxy) bool { return p.Name() == name }) {
+			longest = timeout
+		}
+	}
+	return longest, longest > 0
 }

@@ -1,39 +1,15 @@
-import 'dart:math';
-
 import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/state.dart';
-import 'package:fl_clash/ui/icons/icons.dart';
 import 'package:fl_clash/ui/ui.dart';
-import 'package:material_ui/material_ui.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/state.dart';
-
-const _pageTransitionsTheme = PageTransitionsTheme(
-  builders: <TargetPlatform, PageTransitionsBuilder>{
-    TargetPlatform.android: commonSharedXPageTransitions,
-    TargetPlatform.windows: commonSharedXPageTransitions,
-    TargetPlatform.linux: commonSharedXPageTransitions,
-    TargetPlatform.macOS: commonSharedXPageTransitions,
-  },
-);
-
-const _actionIconTheme = ActionIconThemeData(
-  backButtonIconBuilder: _backButtonIcon,
-  closeButtonIconBuilder: _closeButtonIcon,
-);
-
-Widget _backButtonIcon(BuildContext context) =>
-    GlyphIcon(AppGlyphs.backFor(Theme.of(context).platform));
-
-Widget _closeButtonIcon(BuildContext context) =>
-    const GlyphIcon(AppGlyphs.close);
 
 /// A rebuilt ThemeData never equals the last, and ThemeCrossFade fades on that.
 final _appThemes = <Brightness, ({Object inputs, ThemeData theme})>{};
@@ -54,14 +30,13 @@ ThemeData watchAppTheme(WidgetRef ref, Brightness brightness) {
     colorScheme: colorScheme,
     locales: locales.join(','),
   );
-  if (_appThemes[brightness] case (inputs: final cached, :final theme)
-      when cached == inputs) {
+  if (_appThemes[brightness] case (
+    inputs: final cached,
+    :final theme,
+  ) when cached == inputs) {
     return theme;
   }
   final theme = ThemeData(
-    useMaterial3: true,
-    pageTransitionsTheme: _pageTransitionsTheme,
-    actionIconTheme: _actionIconTheme,
     colorScheme: colorScheme,
     fontFamily: fontFamily,
     fontFamilyFallback: appFontFamilyFallback(
@@ -69,11 +44,10 @@ ThemeData watchAppTheme(WidgetRef ref, Brightness brightness) {
       locales: locales,
       fontFamily: fontFamily,
     ),
-    extensions: [
-      if (brightness == Brightness.dark)
-        ElevatedColorScheme(colorScheme.elevated),
-    ],
-  ).withAppShapes.withAppSurfaces.withAppTypography;
+    elevatedColorScheme: brightness == Brightness.dark
+        ? colorScheme.elevated
+        : null,
+  );
   _appThemes[brightness] = (inputs: inputs, theme: theme);
   return theme;
 }
@@ -113,39 +87,22 @@ class ThemeManager extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
-    final pageScale = ref.watch(
-      themeSettingProvider.select((state) => state.pageScale),
-    );
-    final textScale = ref.watch(
-      themeSettingProvider.select((state) => state.textScale),
-    );
-    final double textScaleFactor = max(
-      min(
-        textScale.enable ? textScale.scale : systemTextScaleOf(context),
-        maxTextScale,
-      ),
-      minTextScale,
-    );
-
-    final measure = Measure.of(context, textScaleFactor);
-    globalState.measure = measure;
-    return MeasureScope(
-      measure: measure,
-      child: AppViewScope(
-        child: _AppMediaQuery(
-          textScaler: TextScaler.linear(textScaleFactor),
-          pageScale: pageScale,
-          child: _LiquidGlassSetting(
-            child: LayoutBuilder(
-              builder: (_, constraints) {
-                ref
-                    .read(themeActionProvider.notifier)
-                    .updateViewSize(
-                      Size(constraints.maxWidth, constraints.maxHeight),
-                    );
-                return _buildSystemUi(child);
-              },
-            ),
+    globalState.measure = MeasureScope.of(context);
+    return AppViewScope(
+      child: _AppMediaQuery(
+        // Every rebuild outside a nearer LayoutBuilder, a route transition's
+        // on each of its frames, relays this one out; the boundaries keep
+        // that from repainting the app from the root.
+        child: RepaintBoundary(
+          child: LayoutBuilder(
+            builder: (_, constraints) {
+              ref
+                  .read(themeActionProvider.notifier)
+                  .updateViewSize(
+                    Size(constraints.maxWidth, constraints.maxHeight),
+                  );
+              return RepaintBoundary(child: _buildSystemUi(child));
+            },
           ),
         ),
       ),
@@ -174,46 +131,19 @@ class AppViewScope extends ConsumerWidget {
   }
 }
 
-class _LiquidGlassSetting extends ConsumerWidget {
-  const _LiquidGlassSetting({required this.child});
+class _AppMediaQuery extends ConsumerWidget {
+  const _AppMediaQuery({required this.child});
 
   final Widget child;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mode = ref.watch(
-      themeSettingProvider.select((state) => state.liquidGlass),
+    final pageScale = ref.watch(
+      themeSettingProvider.select((state) => state.pageScale),
     );
-    return LiquidGlassScope(
-      enabled: mode != LiquidGlassMode.none,
-      quality: mode == LiquidGlassMode.ultra
-          ? LiquidGlassQuality.ultra
-          : LiquidGlassQuality.standard,
-      child: LiquidGlassHost(
-        enabled: mode != LiquidGlassMode.none,
-        child: child,
-      ),
-    );
-  }
-}
-
-class _AppMediaQuery extends StatelessWidget {
-  const _AppMediaQuery({
-    required this.textScaler,
-    required this.pageScale,
-    required this.child,
-  });
-
-  final TextScaler textScaler;
-  final double pageScale;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
     final data = MediaQuery.of(context);
     final padding = data.padding;
     final mediaQueryData = data.copyWith(
-      textScaler: textScaler,
       padding: padding.copyWith(
         top: padding.top > data.size.height * 0.3 ? 20.0 : padding.top,
       ),
@@ -226,7 +156,8 @@ class _AppMediaQuery extends StatelessWidget {
       return MediaQuery(data: mediaQueryData, child: child);
     }
     final isDefaultScale = (effectiveScale - 1.0).abs() < 0.001;
-    final scaledSize = isDefaultScale ? originalSize : originalSize / effectiveScale;
+    final scaledSize =
+        isDefaultScale ? originalSize : originalSize / effectiveScale;
     return MediaQuery(
       data: isDefaultScale
           ? mediaQueryData
@@ -236,22 +167,24 @@ class _AppMediaQuery extends StatelessWidget {
               viewPadding: mediaQueryData.viewPadding / effectiveScale,
               viewInsets: mediaQueryData.viewInsets / effectiveScale,
             ),
-      child: SizedBox(
-        width: originalSize.width,
-        height: originalSize.height,
-        child: OverflowBox(
-          minWidth: scaledSize.width,
-          maxWidth: scaledSize.width,
-          minHeight: scaledSize.height,
-          maxHeight: scaledSize.height,
-          alignment: Alignment.topLeft,
-          child: Transform.scale(
-            scale: effectiveScale,
-            alignment: Alignment.topLeft,
-            child: child,
-          ),
-        ),
-      ),
+      child: isDefaultScale
+          ? child
+          : SizedBox(
+              width: originalSize.width,
+              height: originalSize.height,
+              child: OverflowBox(
+                minWidth: scaledSize.width,
+                maxWidth: scaledSize.width,
+                minHeight: scaledSize.height,
+                maxHeight: scaledSize.height,
+                alignment: Alignment.topLeft,
+                child: Transform.scale(
+                  scale: effectiveScale,
+                  alignment: Alignment.topLeft,
+                  child: child,
+                ),
+              ),
+            ),
     );
   }
 }
