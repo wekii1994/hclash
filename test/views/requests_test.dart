@@ -148,7 +148,13 @@ void main() {
     expect(find.text('251.8KB'), findsNothing);
 
     container.read(requestsProvider.notifier).updateTraffic({
-      'a': (upload: 460, download: 257835),
+      'a': (
+        upload: 460,
+        download: 257835,
+        host: null,
+        process: null,
+        closed: null,
+      ),
     });
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();

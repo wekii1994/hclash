@@ -16,6 +16,8 @@ type RequestTraffic struct {
 	Upload   int64  `json:"upload"`
 	Download int64  `json:"download"`
 	Closed   bool   `json:"closed,omitempty"`
+	Host     string `json:"host,omitempty"`
+	Process  string `json:"process,omitempty"`
 }
 
 type watchedRequest struct {
@@ -27,6 +29,8 @@ type watchedRequest struct {
 	fresh bool
 	// A closed tracker is released immediately; only final scalar totals are retried.
 	terminal *RequestTraffic
+	host     string
+	process  string
 }
 
 type requestTrafficWatch struct {
@@ -43,11 +47,22 @@ func (w *requestTrafficWatch) add(tracker statistic.Tracker) (start bool) {
 	info := tracker.Info()
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	host := ""
+	process := ""
+	if info != nil && info.Metadata != nil {
+		host = info.Metadata.Host
+		if host == "" && info.Metadata.DstIP.IsValid() {
+			host = info.Metadata.DstIP.String()
+		}
+		process = info.Metadata.Process
+	}
 	w.requests[tracker.ID()] = &watchedRequest{
 		tracker:  tracker,
 		upload:   info.UploadTotal.Load(),
 		download: info.DownloadTotal.Load(),
 		fresh:    true,
+		host:     host,
+		process:  process,
 	}
 	start = !w.running
 	w.running = true
@@ -70,7 +85,14 @@ func (w *requestTrafficWatch) collect(
 		request.fresh = false
 		info := request.tracker.Info()
 		upload, download := info.UploadTotal.Load(), info.DownloadTotal.Load()
-		sample := RequestTraffic{Id: id, Upload: upload, Download: download, Closed: closed}
+		sample := RequestTraffic{
+			Id:       id,
+			Upload:   upload,
+			Download: download,
+			Closed:   closed,
+			Host:     request.host,
+			Process:  request.process,
+		}
 		if closed {
 			request.terminal = &sample
 			request.tracker = nil

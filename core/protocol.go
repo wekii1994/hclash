@@ -196,6 +196,7 @@ type Delay struct {
 	Url   string `json:"url"`
 	Name  string `json:"name"`
 	Value int32  `json:"value"`
+	Epoch uint64 `json:"epoch,omitempty"`
 }
 
 type ProbeParams struct {

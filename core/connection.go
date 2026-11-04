@@ -2,15 +2,19 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/adapter/outboundgroup"
+	"github.com/metacubex/mihomo/common/utils"
 	"github.com/metacubex/mihomo/component/resolver"
 	C "github.com/metacubex/mihomo/constant"
+	cp "github.com/metacubex/mihomo/constant/provider"
 	"github.com/metacubex/mihomo/dns"
 	"github.com/metacubex/mihomo/log"
 	"github.com/metacubex/mihomo/tunnel"
@@ -85,6 +89,7 @@ const (
 var (
 	resetNetworkMu     sync.Mutex
 	resetNetworkCancel context.CancelFunc
+	networkProbeRound  atomic.Uint64
 )
 
 func handleGetTraffic(onlyStatisticsProxy bool) Traffic {
@@ -299,6 +304,64 @@ func cancelResetNetwork() {
 	resetNetworkMu.Unlock()
 }
 
+func probeProvidersFallback(ctx context.Context, providerMap map[string]cp.ProxyProvider) {
+	type providerProbeItem struct {
+		proxy          C.Proxy
+		url            string
+		expectedStatus utils.IntRanges[uint16]
+		timeout        time.Duration
+	}
+	var items []providerProbeItem
+	seen := make(map[string]bool)
+	for _, p := range providerMap {
+		if p == nil {
+			continue
+		}
+		p.Touch()
+		url := p.HealthCheckURL()
+		if url == "" {
+			url = defaultTestURL
+		}
+		expectedStatus := p.HealthCheckExpectedStatus()
+		timeout := p.HealthCheckTimeout()
+		if timeout <= 0 {
+			timeout = 5 * time.Second
+		}
+
+		expectedStr := ""
+		if expectedStatus != nil {
+			expectedStr = expectedStatus.String()
+		}
+
+		for _, proxy := range p.Proxies() {
+			if proxy == nil {
+				continue
+			}
+			// Deduplicate by instance pointer identity + check conditions
+			dedupKey := fmt.Sprintf("%p|%s|%s", proxy, url, expectedStr)
+			if !seen[dedupKey] {
+				seen[dedupKey] = true
+				items = append(items, providerProbeItem{
+					proxy:          proxy,
+					url:            url,
+					expectedStatus: expectedStatus,
+					timeout:        timeout,
+				})
+			}
+		}
+	}
+	_ = runBoundedProbes(ctx, len(items), primaryProbeConcurrency, func(probeCtx context.Context, idx int) bool {
+		if probeCtx.Err() != nil {
+			return false
+		}
+		item := items[idx]
+		nodeCtx, nodeCancel := context.WithTimeout(probeCtx, item.timeout)
+		defer nodeCancel()
+		_, _ = item.proxy.URLTest(nodeCtx, item.url, item.expectedStatus)
+		return true
+	})
+}
+
 func handleResetNetwork() {
 	handleCloseConnections()
 	handleClearDnsCache()
@@ -312,7 +375,9 @@ func handleResetNetwork() {
 	resetNetworkMu.Unlock()
 
 	startEpoch, _ := routeStamp()
+	probeRound := networkProbeRound.Add(1)
 
+	resetCtx := outboundgroup.WithProbeRound(ctx, probeRound)
 	go func(resetCtx context.Context) {
 		defer cancel()
 
@@ -339,17 +404,7 @@ func handleResetNetwork() {
 				}
 			}
 		} else {
-			for _, pd := range tunnel.ProvidersSnapshot() {
-				if resetCtx.Err() != nil {
-					break
-				}
-				if endEpoch, _ := routeStamp(); endEpoch != startEpoch {
-					break
-				}
-				go func(provider interface{ HealthCheck() }) {
-					provider.HealthCheck()
-				}(pd)
-			}
+			probeProvidersFallback(resetCtx, tunnel.ProvidersSnapshot())
 		}
 
 		if resetCtx.Err() != nil {
@@ -359,11 +414,17 @@ func handleResetNetwork() {
 			return
 		}
 
-		if hasSelectionChanged(beforeSelections, primaryGroups) {
-			handleCloseConnections()
+		for _, g := range primaryGroups {
+			if pg, ok := g.ProxyAdapter.(outboundgroup.ProxyGroup); ok {
+				before := beforeSelections[g.Name()]
+				after := pg.Now()
+				if before != "" && after != "" && before != after {
+					handleCloseGroupStaleConnections(g.Name(), before, time.Now())
+				}
+			}
 		}
 		changeRoute(routeMoved)
-	}(ctx)
+	}(resetCtx)
 }
 
 func handleCloseConnection(connectionId string) bool {

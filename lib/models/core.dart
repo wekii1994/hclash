@@ -223,6 +223,17 @@ abstract class Delay with _$Delay {
   factory Delay.fromJson(Map<String, Object?> json) => _$DelayFromJson(json);
 }
 
+final delayEpochs = Expando<int>('delayEpoch');
+
+extension DelayEpochExtension on Delay {
+  int? get epoch => delayEpochs[this];
+  set epoch(int? value) {
+    if (value != null) {
+      delayEpochs[this] = value;
+    }
+  }
+}
+
 @freezed
 abstract class ProbeParams with _$ProbeParams {
   const factory ProbeParams({

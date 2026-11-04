@@ -1,6 +1,12 @@
 package core
 
 import (
+	"context"
+	"fmt"
+	"sync/atomic"
+	"time"
+
+	"github.com/metacubex/mihomo/common/utils"
 	"io"
 	"net"
 	"testing"
@@ -9,6 +15,7 @@ import (
 	"github.com/metacubex/mihomo/adapter/outbound"
 	"github.com/metacubex/mihomo/adapter/outboundgroup"
 	"github.com/metacubex/mihomo/constant"
+	cp "github.com/metacubex/mihomo/constant/provider"
 	"github.com/metacubex/mihomo/tunnel"
 	"github.com/metacubex/mihomo/tunnel/statistic"
 )
@@ -203,5 +210,191 @@ func TestStaleGroupInstanceCallbackSuppressedOnConfigReload(t *testing.T) {
 	_, endVersion := routeStamp()
 	if endVersion != startVersion {
 		t.Errorf("route version incremented by stale callback: start=%d, end=%d", startVersion, endVersion)
+	}
+}
+
+type cancelableMockProxy struct {
+	constant.Proxy
+	name       string
+	probeCount *atomic.Int32
+	started    chan struct{}
+}
+
+func (m *cancelableMockProxy) Name() string { return m.name }
+func (m *cancelableMockProxy) URLTest(ctx context.Context, url string, expectedStatus utils.IntRanges[uint16]) (uint16, error) {
+	m.probeCount.Add(1)
+	select {
+	case <-m.started:
+	default:
+		close(m.started)
+	}
+	<-ctx.Done()
+	return 0, ctx.Err()
+}
+
+func TestProviderProbeCancelsMidwayWithoutStartingRemaining(t *testing.T) {
+	var probeCount atomic.Int32
+	started := make(chan struct{})
+
+	const totalProxies = 10
+	proxies := make([]constant.Proxy, totalProxies)
+	for i := 0; i < totalProxies; i++ {
+		proxies[i] = &cancelableMockProxy{
+			name:       fmt.Sprintf("mock-prov-node-%d", i),
+			probeCount: &probeCount,
+			started:    started,
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = runBoundedProbes(ctx, len(proxies), 1, func(probeCtx context.Context, idx int) bool {
+			if probeCtx.Err() != nil {
+				return false
+			}
+			_, _ = proxies[idx].URLTest(probeCtx, "http://test.com", nil)
+			return true
+		})
+	}()
+
+	// Wait until the first proxy has started
+	<-started
+
+	// Cancel context midway
+	cancel()
+
+	// Wait for pool to exit
+	select {
+	case <-done:
+	case <-time.After(1 * time.Second):
+		t.Fatal("runBoundedProbes did not return promptly after context cancellation")
+	}
+
+	// Verify: Only 1 proxy was ever started; remaining 9 were never probed
+	if count := probeCount.Load(); count != 1 {
+		t.Fatalf("expected exactly 1 probe to start before cancel, got %d", count)
+	}
+}
+
+
+type mockStatusProxy struct {
+	constant.Proxy
+	name           string
+	receivedStatus utils.IntRanges[uint16]
+	called         atomic.Int32
+}
+
+func (m *mockStatusProxy) Name() string { return m.name }
+func (m *mockStatusProxy) URLTest(ctx context.Context, url string, expectedStatus utils.IntRanges[uint16]) (uint16, error) {
+	m.called.Add(1)
+	m.receivedStatus = expectedStatus
+	return 100, nil
+}
+
+type mockFallbackProvider struct {
+	cp.ProxyProvider
+	name           string
+	proxies        []constant.Proxy
+	url            string
+	expectedStatus utils.IntRanges[uint16]
+	timeout        time.Duration
+}
+
+func (m *mockFallbackProvider) Name() string                                            { return m.name }
+func (m *mockFallbackProvider) Proxies() []constant.Proxy                               { return m.proxies }
+func (m *mockFallbackProvider) Touch()                                                  {}
+func (m *mockFallbackProvider) HealthCheckURL() string                                  { return m.url }
+func (m *mockFallbackProvider) HealthCheckExpectedStatus() utils.IntRanges[uint16]     { return m.expectedStatus }
+func (m *mockFallbackProvider) HealthCheckTimeout() time.Duration                      { return m.timeout }
+
+func TestProviderFallbackExpectedStatusPropagated(t *testing.T) {
+	exp, err := utils.NewUnsignedRanges[uint16]("204")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	proxy := &mockStatusProxy{name: "node-with-expected-status"}
+	p := &mockFallbackProvider{
+		name:           "prov-status",
+		proxies:        []constant.Proxy{proxy},
+		url:            "http://example.com/check",
+		expectedStatus: exp,
+		timeout:        1 * time.Second,
+	}
+
+	providerMap := map[string]cp.ProxyProvider{
+		"prov-status": p,
+	}
+
+	probeProvidersFallback(context.Background(), providerMap)
+
+	if proxy.called.Load() != 1 {
+		t.Fatalf("expected proxy to be called once, got %d", proxy.called.Load())
+	}
+	if proxy.receivedStatus == nil || proxy.receivedStatus.String() != "204" {
+		t.Fatalf("expected proxy to receive expectedStatus 204, got %v", proxy.receivedStatus)
+	}
+}
+
+func TestProviderFallbackPerNodeTimeoutEnforced(t *testing.T) {
+	slowProxy := &cancelableMockProxy{
+		name:       "slow-node",
+		probeCount: new(atomic.Int32),
+		started:    make(chan struct{}),
+	}
+
+	p := &mockFallbackProvider{
+		name:    "prov-timeout",
+		proxies: []constant.Proxy{slowProxy},
+		url:     "http://example.com/check",
+		timeout: 50 * time.Millisecond,
+	}
+
+	providerMap := map[string]cp.ProxyProvider{
+		"prov-timeout": p,
+	}
+
+	start := time.Now()
+	probeProvidersFallback(context.Background(), providerMap)
+	timeoutElapsed := time.Since(start)
+
+	if timeoutElapsed > 300*time.Millisecond {
+		t.Fatalf("probeProvidersFallback did not enforce 50ms provider timeout, took %v", timeoutElapsed)
+	}
+}
+
+func TestProviderFallbackDifferentInstancesWithSameNameAreBothProbed(t *testing.T) {
+	// Two different proxy instances with the same name "HK-01"
+	p1 := &mockStatusProxy{name: "HK-01"}
+	p2 := &mockStatusProxy{name: "HK-01"}
+
+	prov1 := &mockFallbackProvider{
+		name:    "prov-1",
+		proxies: []constant.Proxy{p1},
+		url:     "http://check1.com",
+		timeout: 1 * time.Second,
+	}
+	prov2 := &mockFallbackProvider{
+		name:    "prov-2",
+		proxies: []constant.Proxy{p2},
+		url:     "http://check2.com",
+		timeout: 1 * time.Second,
+	}
+
+	providerMap := map[string]cp.ProxyProvider{
+		"prov-1": prov1,
+		"prov-2": prov2,
+	}
+
+	probeProvidersFallback(context.Background(), providerMap)
+
+	if p1.called.Load() != 1 {
+		t.Fatalf("expected p1 to be probed once, got %d", p1.called.Load())
+	}
+	if p2.called.Load() != 1 {
+		t.Fatalf("expected p2 to be probed once, got %d", p2.called.Load())
 	}
 }

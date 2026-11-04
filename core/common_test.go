@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/metacubex/mihomo/common/utils"
 	"github.com/metacubex/mihomo/constant"
@@ -214,6 +215,8 @@ func (f *fakeProxyProvider) Version() uint32             { return 0 }
 func (f *fakeProxyProvider) RegisterHealthCheckTask(string, utils.IntRanges[uint16], string, uint) {
 }
 func (f *fakeProxyProvider) HealthCheckURL() string { return "" }
+func (f *fakeProxyProvider) HealthCheckExpectedStatus() utils.IntRanges[uint16] { return nil }
+func (f *fakeProxyProvider) HealthCheckTimeout() time.Duration { return 5 * time.Second }
 
 type fakeRuleProvider struct {
 	name    string

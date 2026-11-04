@@ -57,14 +57,11 @@ class _CoreContainerState extends ConsumerState<CoreManager>
     });
     ref.listenManual(setupPatchProvider, (prev, next) {
       if (prev != next) {
-        ref
-            .read(setupActionProvider.notifier)
-            .applyProfileDebounce(
+        ref.read(setupActionProvider.notifier).applyProfileDebounce(
               silence: true,
               // The test URL changes no YAML, so only a forced apply hands
               // it over.
-              force:
-                  prev != null &&
+              force: prev != null &&
                   prev.patchConfig.testUrl != next.patchConfig.testUrl,
             );
       }
@@ -89,9 +86,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
       (prev, next) {
         // Invalidate results that belong to an earlier route/configuration.
         ref.read(proxiesActionProvider.notifier).cancelDelayTests();
-        if (prev == null || prev.$1 != next.$1) {
-          TrafficStatsStore.instance.beginCoreEpoch(next.$1);
-        }
         if (prev != null && prev != next) {
           ref.read(proxiesActionProvider.notifier).updateGroupsDebounce();
         }
@@ -101,6 +95,9 @@ class _CoreContainerState extends ConsumerState<CoreManager>
     ref.listenManual(coreStatusProvider, (prev, next) {
       if (next == CoreStatus.connected && prev != CoreStatus.connected) {
         _syncLogStream();
+        TrafficStatsStore.instance.beginCoreEpoch(
+          DateTime.now().microsecondsSinceEpoch,
+        );
       }
     }, fireImmediately: true);
   }
@@ -129,8 +126,12 @@ class _CoreContainerState extends ConsumerState<CoreManager>
     if (ref.read(coreStatusProvider) != CoreStatus.connected) {
       return;
     }
+    final currentEpoch = ref.read(routeTrackerProvider).coreEpoch;
+    if (delay.epoch != null && delay.epoch != currentEpoch) {
+      return;
+    }
     final proxiesAction = ref.read(proxiesActionProvider.notifier);
-    proxiesAction.setDelay(delay, proxiesAction.activeGeneration);
+    proxiesAction.setDelay(delay);
     debouncer.call(FunctionTag.updateDelay, () async {
       proxiesAction.updateGroupsDebounce();
     }, duration: const Duration(milliseconds: 5000));

@@ -12,9 +12,9 @@ class TrafficStatsEngine {
     DateTime Function()? now,
     void Function(String)? log,
     this.onChanged,
-  }) : _persistence = persistence,
-       _now = now ?? DateTime.now,
-       _log = log ?? _discardLog;
+  })  : _persistence = persistence,
+        _now = now ?? DateTime.now,
+        _log = log ?? _discardLog;
 
   static void _discardLog(String message) {}
   final void Function(String) _log;
@@ -54,16 +54,15 @@ class TrafficStatsEngine {
 
   int get trackedConnections => _counters.length;
   Map<String, DailyTrafficData> get dailySummaries => Map.unmodifiable({
-    for (final entry in _dailySummaries.entries)
-      entry.key: DailyTrafficData.fromJson(entry.value.toJson()),
-  });
+        for (final entry in _dailySummaries.entries)
+          entry.key: DailyTrafficData.fromJson(entry.value.toJson()),
+      });
   Map<String, TargetSiteData> get targetSiteUsages => Map.unmodifiable({
-    for (final entry in _targetSiteUsages.entries)
-      entry.key: TargetSiteData.fromJson(entry.value.toJson()),
-  });
+        for (final entry in _targetSiteUsages.entries)
+          entry.key: TargetSiteData.fromJson(entry.value.toJson()),
+      });
 
-  String _dateKey(DateTime date) =>
-      '${date.year.toString().padLeft(4, '0')}-'
+  String _dateKey(DateTime date) => '${date.year.toString().padLeft(4, '0')}-'
       '${date.month.toString().padLeft(2, '0')}-'
       '${date.day.toString().padLeft(2, '0')}';
   DateTime _dayOffset(DateTime date, int offset) =>
@@ -204,12 +203,13 @@ class TrafficStatsEngine {
   }
 
   Map<String, dynamic> _snapshot() => {
-    'schemaVersion': 1,
-    'daily': _dailySummaries.map((key, value) => MapEntry(key, value.toJson())),
-    'sites': _targetSiteUsages.map(
-      (key, value) => MapEntry(key, value.toJson()),
-    ),
-  };
+        'schemaVersion': 1,
+        'daily':
+            _dailySummaries.map((key, value) => MapEntry(key, value.toJson())),
+        'sites': _targetSiteUsages.map(
+          (key, value) => MapEntry(key, value.toJson()),
+        ),
+      };
 
   void scheduleSave() {
     if (_disposed || _saveTimer != null) return;
@@ -322,13 +322,23 @@ class TrafficStatsEngine {
     required String id,
     required int upload,
     required int download,
+    String? host,
+    String? process,
+    bool isClosed = false,
+    bool? baselineIfUnknown,
   }) {
+    final effectiveBaseline = baselineIfUnknown ??
+        (!isClosed && (host == null || host.isEmpty));
     _accept(
       _counters.observe(
         id: id,
         upload: upload,
         download: download,
-        baselineIfUnknown: true,
+        host: host != null && host.isNotEmpty
+            ? DomainClassifier.stripPort(host)
+            : null,
+        process: process?.trim(),
+        baselineIfUnknown: effectiveBaseline,
       ),
     );
     // A batch is NOT assumed to be a complete active-connection snapshot.
@@ -482,7 +492,9 @@ class TrafficStatsEngine {
     if (_cachedTopSites != null &&
         _cachedTopSitesRevision == _revision &&
         _cachedTopSitesLimit == effectiveLimit) {
-      return _cachedTopSites!;
+      return List<TargetSiteData>.unmodifiable(
+        _cachedTopSites!.map((s) => s.clone()).toList(),
+      );
     }
     final sorted = _targetSiteUsages.values.toList()
       ..sort((a, b) => b.total.compareTo(a.total));
@@ -492,7 +504,9 @@ class TrafficStatsEngine {
     _cachedTopSites = result;
     _cachedTopSitesRevision = _revision;
     _cachedTopSitesLimit = effectiveLimit;
-    return result;
+    return List<TargetSiteData>.unmodifiable(
+      result.map((s) => s.clone()).toList(),
+    );
   }
 
   List<AggregatedSiteGroup> getAggregatedSites({int limit = 50}) {
@@ -500,7 +514,19 @@ class TrafficStatsEngine {
     if (_cachedAggregatedSites != null &&
         _cachedAggregatedRevision == _revision &&
         _cachedAggregatedLimit == effectiveLimit) {
-      return _cachedAggregatedSites!;
+      return List<AggregatedSiteGroup>.unmodifiable(
+        _cachedAggregatedSites!
+            .map(
+              (g) => AggregatedSiteGroup(
+                key: g.key,
+                displayName: g.displayName,
+                iconText: g.iconText,
+                brandColor: g.brandColor,
+                subSites: g.subSites.map((s) => s.clone()).toList(),
+              ),
+            )
+            .toList(),
+      );
     }
     final groups = DomainClassifier.aggregateSites(_targetSiteUsages.values);
     final result = List<AggregatedSiteGroup>.unmodifiable(
@@ -509,7 +535,19 @@ class TrafficStatsEngine {
     _cachedAggregatedSites = result;
     _cachedAggregatedRevision = _revision;
     _cachedAggregatedLimit = effectiveLimit;
-    return result;
+    return List<AggregatedSiteGroup>.unmodifiable(
+      result
+          .map(
+            (g) => AggregatedSiteGroup(
+              key: g.key,
+              displayName: g.displayName,
+              iconText: g.iconText,
+              brandColor: g.brandColor,
+              subSites: g.subSites.map((s) => s.clone()).toList(),
+            ),
+          )
+          .toList(),
+    );
   }
 
   void dispose() {

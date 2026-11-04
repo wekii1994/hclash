@@ -1,5 +1,5 @@
 diff --git a/adapter/adapter.go b/adapter/adapter.go
-index 9cd4fa01..cb421720 100644
+index 9cd4fa01..71ea9dd7 100644
 --- a/adapter/adapter.go
 +++ b/adapter/adapter.go
 @@ -3,6 +3,7 @@ package adapter
@@ -10,7 +10,12 @@ index 9cd4fa01..cb421720 100644
  	"fmt"
  	"net"
  	"net/url"
-@@ -167,6 +168,10 @@ func (p *Proxy) URLTest(ctx context.Context, url string, expectedStatus utils.In
+@@ -164,11 +165,17 @@ func (p *Proxy) MarshalJSON() ([]byte, error) {
+ // URLTest get the delay for the specified URL
+ // implements C.Proxy
+ func (p *Proxy) URLTest(ctx context.Context, url string, expectedStatus utils.IntRanges[uint16]) (t uint16, err error) {
++	probeStartedAt := time.Now()
++	measurementStart := probeStartedAt
  	var satisfied bool
  
  	defer func() {
@@ -19,25 +24,48 @@ index 9cd4fa01..cb421720 100644
 +		}
 +
  		if UrlTestHook != nil {
- 			UrlTestHook(url, p.Name(), t, ctx.Err() != nil)
+-			UrlTestHook(url, p.Name(), t, ctx.Err() != nil)
++			UrlTestHook(url, p.Name(), t, ctx.Err() != nil, probeStartedAt)
  		}
-@@ -278,6 +283,10 @@ func (p *Proxy) URLTest(ctx context.Context, url string, expectedStatus utils.In
+ 
+ 		alive := err == nil
+@@ -210,7 +217,7 @@ func (p *Proxy) URLTest(ctx context.Context, url string, expectedStatus utils.In
+ 		return
+ 	}
+ 
+-	start := time.Now()
++	measurementStart = time.Now()
+ 	instance, err := p.DialContext(ctx, &addr)
+ 	if err != nil {
+ 		return
+@@ -268,7 +275,7 @@ func (p *Proxy) URLTest(ctx context.Context, url string, expectedStatus utils.In
+ 		if ignoredErr == nil {
+ 			resp = secondResp
+ 			_ = resp.Body.Close()
+-			start = second
++			measurementStart = second
+ 		} else {
+ 			if strings.HasPrefix(url, "http://") {
+ 				log.Errorln("%s failed to get the second response from %s: %v", p.Name(), url, ignoredErr)
+@@ -278,7 +285,11 @@ func (p *Proxy) URLTest(ctx context.Context, url string, expectedStatus utils.In
  	}
  
  	satisfied = resp != nil && (expectedStatus == nil || expectedStatus.Check(uint16(resp.StatusCode)))
+-	t = uint16(time.Since(start) / time.Millisecond)
 +	if !satisfied {
 +		// Also drives UrlTestHook and the global/per-URL health history as failed.
 +		return 0, fmt.Errorf("delay test response does not match expected status")
 +	}
- 	t = uint16(time.Since(start) / time.Millisecond)
++	t = uint16(time.Since(measurementStart) / time.Millisecond)
  	if t == 0 {
  		// a zero delay means a failed test to callers, so report a test
+ 		// that completed in under a millisecond as 1 ms
 diff --git a/adapter/outboundgroup/failover_test.go b/adapter/outboundgroup/failover_test.go
 new file mode 100644
-index 00000000..6c02c541
+index 00000000..d0dc5692
 --- /dev/null
 +++ b/adapter/outboundgroup/failover_test.go
-@@ -0,0 +1,425 @@
+@@ -0,0 +1,870 @@
 +package outboundgroup
 +
 +import (
@@ -55,6 +83,9 @@ index 00000000..6c02c541
 +	"github.com/metacubex/mihomo/adapter/outbound"
 +	C "github.com/metacubex/mihomo/constant"
 +	P "github.com/metacubex/mihomo/constant/provider"
++	"github.com/metacubex/mihomo/common/utils"
++
++	"github.com/stretchr/testify/require"
 +)
 +
 +func TestDialTimeoutCounting(t *testing.T) {
@@ -220,6 +251,8 @@ index 00000000..6c02c541
 +}
 +
 +func (b *blockingMockProvider) Touch() {}
++func (b *blockingMockProvider) HealthCheckExpectedStatus() utils.IntRanges[uint16] { return nil }
++func (b *blockingMockProvider) HealthCheckTimeout() time.Duration { return 5 * time.Second }
 +
 +func TestProviderTestingMutualExclusionWithBlockingProvider(t *testing.T) {
 +	bp := &blockingMockProvider{
@@ -463,8 +496,448 @@ index 00000000..6c02c541
 +		t.Errorf("expected 0 history records recorded on cancellation, got %d", len(history))
 +	}
 +}
++
++
++type concurrencyMockAdapter struct {
++	*outbound.Base
++	active *atomic.Int32
++	peak   *atomic.Int32
++}
++
++func (c *concurrencyMockAdapter) DialContext(ctx context.Context, metadata *C.Metadata) (C.Conn, error) {
++	curr := c.active.Add(1)
++	for {
++		oldPeak := c.peak.Load()
++		if curr <= oldPeak || c.peak.CompareAndSwap(oldPeak, curr) {
++			break
++		}
++	}
++	defer c.active.Add(-1)
++	time.Sleep(20 * time.Millisecond)
++	return nil, errors.New("mock dial error")
++}
++
++func (c *concurrencyMockAdapter) ListenPacketContext(ctx context.Context, metadata *C.Metadata) (C.PacketConn, error) {
++	return nil, errors.New("not implemented")
++}
++
++func (c *concurrencyMockAdapter) SupportUDP() bool { return false }
++func (c *concurrencyMockAdapter) MarshalJSON() ([]byte, error) { return nil, nil }
++func (c *concurrencyMockAdapter) Unwrap(metadata *C.Metadata, touch bool) C.Proxy { return nil }
++func (c *concurrencyMockAdapter) Close() error { return nil }
++
++type concurrencyMockProvider struct {
++	P.ProxyProvider
++	proxies []C.Proxy
++}
++
++func (p *concurrencyMockProvider) Proxies() []C.Proxy {
++	return p.proxies
++}
++
++func (p *concurrencyMockProvider) Touch() {}
++func (p *concurrencyMockProvider) Version() uint32 { return 1 }
++func (p *concurrencyMockProvider) HealthCheck() {}
++func (p *concurrencyMockProvider) HealthCheckExpectedStatus() utils.IntRanges[uint16] { return nil }
++func (p *concurrencyMockProvider) HealthCheckTimeout() time.Duration { return 5 * time.Second }
++
++func TestGroupBaseURLTestConcurrencyBudget(t *testing.T) {
++	var active atomic.Int32
++	var peak atomic.Int32
++
++	const totalProxies = 60
++	proxies := make([]C.Proxy, totalProxies)
++	for i := 0; i < totalProxies; i++ {
++		name := fmt.Sprintf("concurrency-node-%02d", i)
++		mock := &concurrencyMockAdapter{
++			Base:   outbound.NewBase(outbound.BaseOption{Name: name, Type: C.Vmess}),
++			active: &active,
++			peak:   &peak,
++		}
++		proxies[i] = adapter.NewProxy(mock)
++	}
++
++	gb := NewGroupBase(GroupBaseOption{
++		Name:      "concurrency-test",
++		Type:      C.URLTest,
++		Providers: []P.ProxyProvider{&concurrencyMockProvider{proxies: proxies}},
++	})
++
++	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
++	defer cancel()
++
++	_, _ = gb.URLTest(ctx, "http://test.com", nil)
++
++	maxPeak := peak.Load()
++	if maxPeak > maxConcurrentProxyProbes {
++		t.Fatalf("expected peak concurrent probes <= %d, got %d", maxConcurrentProxyProbes, maxPeak)
++	}
++	t.Logf("Verified concurrency budget: total=%d, peakConcurrent=%d (budget=%d)", totalProxies, maxPeak, maxConcurrentProxyProbes)
++}
++
++type controllableMockAdapter struct {
++	C.Proxy
++	name      string
++	delay     uint16
++	probeHook func(ctx context.Context)
++	callCount atomic.Int32
++}
++
++func (c *controllableMockAdapter) Name() string { return c.name }
++func (c *controllableMockAdapter) Type() C.AdapterType { return C.Vmess }
++
++func (c *controllableMockAdapter) URLTest(ctx context.Context, url string, expectedStatus utils.IntRanges[uint16]) (uint16, error) {
++	c.callCount.Add(1)
++	if c.probeHook != nil {
++		c.probeHook(ctx)
++	}
++	if ctx.Err() != nil {
++		return 0, ctx.Err()
++	}
++	return c.delay, nil
++}
++
++func TestGroupBaseURLTestInstanceIsolation(t *testing.T) {
++	p1Block := make(chan struct{})
++	p1Started := make(chan struct{})
++
++	mock1 := &controllableMockAdapter{
++		name:  "same-node-name",
++		delay: 111,
++		probeHook: func(ctx context.Context) {
++			close(p1Started)
++			<-p1Block
++		},
++	}
++
++	mock2 := &controllableMockAdapter{
++		name:  "same-node-name",
++		delay: 222,
++	}
++
++	gb1 := NewGroupBase(GroupBaseOption{
++		Name:      "gb1",
++		Type:      C.URLTest,
++		Providers: []P.ProxyProvider{&concurrencyMockProvider{proxies: []C.Proxy{mock1}}},
++	})
++	gb2 := NewGroupBase(GroupBaseOption{
++		Name:      "gb2",
++		Type:      C.URLTest,
++		Providers: []P.ProxyProvider{&concurrencyMockProvider{proxies: []C.Proxy{mock2}}},
++	})
++
++	var res1 map[string]uint16
++	var err1 error
++	done1 := make(chan struct{})
++	go func() {
++		res1, err1 = gb1.URLTest(context.Background(), "http://test.com", nil)
++		close(done1)
++	}()
++
++	<-p1Started
++
++	// Now probe gb2 with mock2 (same name, different instance)
++	res2, err2 := gb2.URLTest(context.Background(), "http://test.com", nil)
++	require.NoError(t, err2)
++	require.Equal(t, uint16(222), res2["same-node-name"], "gb2 must probe mock2 independently and get 222")
++	require.Equal(t, int32(1), mock2.callCount.Load(), "mock2 must have been tested")
++
++	// Unblock mock1 and finish gb1
++	close(p1Block)
++	<-done1
++	require.NoError(t, err1)
++	require.Equal(t, uint16(111), res1["same-node-name"], "gb1 must get 111 from mock1")
++	require.Equal(t, int32(1), mock1.callCount.Load(), "mock1 must have been tested")
++}
++
++func TestGroupBaseURLTestCallerCancelDoesNotBlock(t *testing.T) {
++	slowGate := make(chan struct{})
++	slowStarted := make(chan struct{})
++
++	slowMock := &controllableMockAdapter{
++		name:  "slow-node",
++		delay: 99,
++		probeHook: func(ctx context.Context) {
++			select {
++			case <-slowStarted:
++			default:
++				close(slowStarted)
++			}
++			select {
++			case <-slowGate:
++			case <-ctx.Done():
++			}
++		},
++	}
++
++	gb := NewGroupBase(GroupBaseOption{
++		Name:      "caller-cancel-test",
++		Type:      C.URLTest,
++		Providers: []P.ProxyProvider{&concurrencyMockProvider{proxies: []C.Proxy{slowMock}}},
++	})
++
++	// Caller 1 starts long-running probe
++	done1 := make(chan struct{})
++	go func() {
++		ctx1, cancel1 := context.WithTimeout(context.Background(), 2*time.Second)
++		defer cancel1()
++		_, _ = gb.URLTest(ctx1, "http://test.com", nil)
++		close(done1)
++	}()
++
++	<-slowStarted
++
++	// Caller 2 joins with short deadline (80ms)
++	ctx2, cancel2 := context.WithTimeout(context.Background(), 80*time.Millisecond)
++	defer cancel2()
++
++	start := time.Now()
++	_, err2 := gb.URLTest(ctx2, "http://test.com", nil)
++	elapsed := time.Since(start)
++
++	// Caller 2 must return promptly when ctx2 expires (under 300ms), not waiting for slowGate
++	require.Error(t, err2, "caller 2 should report error when its context expires")
++	require.Less(t, elapsed, 300*time.Millisecond, "caller 2 must not be blocked by slow probe")
++
++	// Release slow probe
++	close(slowGate)
++	<-done1
++}
++
++
++func TestGroupBaseURLTestAllCallersCancelAbortsWorkAndAllowsNextRound(t *testing.T) {
++	slowGate := make(chan struct{})
++	probeStarted := make(chan struct{})
++	var workCtxErr atomic.Pointer[error]
++
++	mock := &controllableMockAdapter{
++		name:  "reprobe-node",
++		delay: 111,
++		probeHook: func(ctx context.Context) {
++			select {
++			case <-probeStarted:
++			default:
++				close(probeStarted)
++			}
++			select {
++			case <-slowGate:
++			case <-ctx.Done():
++				err := ctx.Err()
++				workCtxErr.Store(&err)
++			}
++		},
++	}
++
++	gb := NewGroupBase(GroupBaseOption{
++		Name:      "reprobe-gb",
++		Type:      C.URLTest,
++		Providers: []P.ProxyProvider{&concurrencyMockProvider{proxies: []C.Proxy{mock}}},
++	})
++
++	// Round 1: single caller with 60ms timeout
++	ctx1, cancel1 := context.WithTimeout(context.Background(), 60*time.Millisecond)
++	defer cancel1()
++
++	_, err1 := gb.URLTest(ctx1, "http://test.com", nil)
++	require.Error(t, err1, "caller 1 should fail with timeout")
++
++	// Wait up to 100ms for underlying workCtx to be canceled after caller abandoned
++	time.Sleep(50 * time.Millisecond)
++	pErr := workCtxErr.Load()
++	require.NotNil(t, pErr, "underlying workCtx must have been canceled when caller abandoned")
++	require.Equal(t, context.Canceled, *pErr)
++
++	// Round 2: caller on SAME proxy instance with new delay
++	mock.delay = 222
++	mock.probeHook = nil // no more blocking
++
++	ctx2, cancel2 := context.WithTimeout(context.Background(), 1*time.Second)
++	defer cancel2()
++
++	res2, err2 := gb.URLTest(ctx2, "http://test.com", nil)
++	require.NoError(t, err2)
++	require.Equal(t, uint16(222), res2["reprobe-node"], "round 2 must perform fresh probe and return 222")
++	require.Equal(t, int32(2), mock.callCount.Load(), "total probe count must be 2")
++}
++
++func TestGroupBaseURLTestQueuedNodesDoNotExecuteWhenCancelled(t *testing.T) {
++	// Occupy all 10 semaphore slots
++	occupySlots := make(chan struct{})
++	for i := 0; i < maxConcurrentProxyProbes; i++ {
++		globalProbeSem <- struct{}{}
++	}
++	defer func() {
++		// Drain any remaining slots
++		for len(globalProbeSem) > 0 {
++			<-globalProbeSem
++		}
++	}()
++
++	var node11Called atomic.Int32
++	queuedMock := &controllableMockAdapter{
++		name:  "queued-node-11",
++		delay: 50,
++		probeHook: func(ctx context.Context) {
++			node11Called.Add(1)
++		},
++	}
++
++	gb := NewGroupBase(GroupBaseOption{
++		Name:      "queued-gb",
++		Type:      C.URLTest,
++		Providers: []P.ProxyProvider{&concurrencyMockProvider{proxies: []C.Proxy{queuedMock}}},
++	})
++
++	// Caller for node 11 with short 50ms timeout
++	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
++	defer cancel()
++
++	_, err := gb.URLTest(ctx, "http://test.com", nil)
++	require.Error(t, err, "caller should fail with timeout while queued")
++
++	// Now release the 10 slots
++	for i := 0; i < maxConcurrentProxyProbes; i++ {
++		<-globalProbeSem
++	}
++
++	// Give a moment to confirm node 11 was NOT executed
++	time.Sleep(50 * time.Millisecond)
++	require.Equal(t, int32(0), node11Called.Load(), "queued node must not execute after caller cancelled")
++	_ = occupySlots
++}
++
++
++func TestCancellableProbePoolJoinRetiringRaceStress(t *testing.T) {
++	pool := &cancellableProbePool{tasks: make(map[string]*probeTask)}
++	const iterations = 1000
++
++	for i := 0; i < iterations; i++ {
++		key := fmt.Sprintf("stress-probe-%d", i)
++		ctx1, cancel1 := context.WithCancel(context.Background())
++
++		started := make(chan struct{})
++		gate := make(chan struct{})
++
++		go func() {
++			_, _ = pool.Do(ctx1, key, 5*time.Second, func(workCtx context.Context) (uint16, error) {
++				close(started)
++				select {
++				case <-workCtx.Done():
++					return 0, workCtx.Err()
++				case <-gate:
++					return 100, nil
++				}
++			})
++		}()
++
++		<-started
++
++		var wg sync.WaitGroup
++		wg.Add(2)
++
++		var res2 uint16
++		var err2 error
++
++		go func() {
++			defer wg.Done()
++			cancel1()
++		}()
++
++		go func() {
++			defer wg.Done()
++			res2, err2 = pool.Do(context.Background(), key, 5*time.Second, func(workCtx context.Context) (uint16, error) {
++				select {
++				case <-workCtx.Done():
++					return 0, workCtx.Err()
++				case <-gate:
++					return 200, nil
++				}
++			})
++		}()
++
++		time.Sleep(100 * time.Microsecond)
++		close(gate)
++		wg.Wait()
++
++		if errors.Is(err2, context.Canceled) {
++			t.Fatalf("iteration %d: caller 2 with Background context was mis-canceled with context.Canceled! (res=%d)", i, res2)
++		}
++		if err2 != nil {
++			t.Fatalf("iteration %d: caller 2 failed with unexpected error: %v", i, err2)
++		}
++		if res2 != 100 && res2 != 200 {
++			t.Fatalf("iteration %d: unexpected result: %d", i, res2)
++		}
++	}
++}
++
++func TestGroupBaseURLTestJoinRetiringInterleaved(t *testing.T) {
++	var caller2MisCanceled atomic.Int32
++	const runs = 200
++
++	for i := 0; i < runs; i++ {
++		gate := make(chan struct{})
++		started := make(chan struct{})
++
++		mock := &controllableMockAdapter{
++			name:  "race-node",
++			delay: 88,
++			probeHook: func(ctx context.Context) {
++				select {
++				case <-started:
++				default:
++					close(started)
++				}
++				select {
++				case <-ctx.Done():
++				case <-gate:
++				}
++			},
++		}
++
++		gb := NewGroupBase(GroupBaseOption{
++			Name:      "race-gb",
++			Type:      C.URLTest,
++			Providers: []P.ProxyProvider{&concurrencyMockProvider{proxies: []C.Proxy{mock}}},
++		})
++
++		ctx1, cancel1 := context.WithCancel(context.Background())
++		go func() {
++			_, _ = gb.URLTest(ctx1, "http://test.com", nil)
++		}()
++
++		<-started
++
++		var wg sync.WaitGroup
++		wg.Add(2)
++
++		var res2 map[string]uint16
++		var err2 error
++
++		go func() {
++			defer wg.Done()
++			cancel1()
++		}()
++
++		go func() {
++			defer wg.Done()
++			res2, err2 = gb.URLTest(context.Background(), "http://test.com", nil)
++			if err2 != nil {
++				caller2MisCanceled.Add(1)
++			}
++		}()
++
++		time.Sleep(200 * time.Microsecond)
++		close(gate)
++		wg.Wait()
++
++		_ = res2
++	}
++
++	require.Equal(t, int32(0), caller2MisCanceled.Load(), "caller 2 with Background must never be canceled across %d runs", runs)
++}
 diff --git a/adapter/outboundgroup/fallback.go b/adapter/outboundgroup/fallback.go
-index d6f61348..5c917515 100644
+index d6f61348..84884dbd 100644
 --- a/adapter/outboundgroup/fallback.go
 +++ b/adapter/outboundgroup/fallback.go
 @@ -34,8 +34,11 @@ func (f *Fallback) DialContext(ctx context.Context, metadata *C.Metadata) (C.Con
@@ -489,7 +962,7 @@ index d6f61348..5c917515 100644
  			}
  		})
  	}
-@@ -180,3 +183,46 @@ func NewFallback(option GroupCommonOption, fallbackOption FallbackOption, emptyF
+@@ -180,3 +183,45 @@ func NewFallback(option GroupCommonOption, fallbackOption FallbackOption, emptyF
  		expectedStatus: option.ExpectedStatus,
  	}, nil
  }
@@ -533,12 +1006,11 @@ index d6f61348..5c917515 100644
 +		}
 +	}
 +
-+	go f.GroupBase.healthCheck()
 +	return result, err
 +}
 \ No newline at end of file
 diff --git a/adapter/outboundgroup/groupbase.go b/adapter/outboundgroup/groupbase.go
-index 27900604..6614bcac 100644
+index 27900604..99f1d988 100644
 --- a/adapter/outboundgroup/groupbase.go
 +++ b/adapter/outboundgroup/groupbase.go
 @@ -6,6 +6,7 @@ import (
@@ -600,7 +1072,183 @@ index 27900604..6614bcac 100644
  		testTimeout:       opt.TestTimeout,
  		maxFailedTimes:    opt.MaxFailedTimes,
  		emptyFallback:     opt.EmptyFallback,
-@@ -266,49 +282,151 @@ func (gb *GroupBase) URLTest(ctx context.Context, url string, expectedStatus uti
+@@ -238,23 +254,171 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
+ 	return proxies
+ }
+ 
++const maxConcurrentProxyProbes = 10
++
++var globalProbeSem = make(chan struct{}, maxConcurrentProxyProbes)
++
++type probeTask struct {
++	cancel   context.CancelFunc
++	waiters  int
++	done     chan struct{}
++	val      uint16
++	err      error
++	retiring bool
++}
++
++type cancellableProbePool struct {
++	mu    sync.Mutex
++	tasks map[string]*probeTask
++}
++
++var globalProbePool = &cancellableProbePool{
++	tasks: make(map[string]*probeTask),
++}
++
++type probeRoundCtxKey struct{}
++
++func WithProbeRound(ctx context.Context, round any) context.Context {
++	return context.WithValue(ctx, probeRoundCtxKey{}, round)
++}
++
++func ProbeRoundFromContext(ctx context.Context) any {
++	return ctx.Value(probeRoundCtxKey{})
++}
++
++func (p *cancellableProbePool) Do(
++	ctx context.Context,
++	key string,
++	timeout time.Duration,
++	run func(workCtx context.Context) (uint16, error),
++) (uint16, error) {
++	if err := ctx.Err(); err != nil {
++		return 0, err
++	}
++
++	p.mu.Lock()
++	var task *probeTask
++	for {
++		t, exists := p.tasks[key]
++		if !exists {
++			workCtx, cancel := context.WithTimeout(context.Background(), timeout)
++			task = &probeTask{
++				cancel:  cancel,
++				waiters: 1,
++				done:    make(chan struct{}),
++			}
++			p.tasks[key] = task
++			p.mu.Unlock()
++
++			go func() {
++				defer func() {
++					task.cancel()
++					p.mu.Lock()
++					if p.tasks[key] == task {
++						delete(p.tasks, key)
++					}
++					task.retiring = true
++					close(task.done)
++					p.mu.Unlock()
++				}()
++
++				val, err := run(workCtx)
++				task.val = val
++				task.err = err
++			}()
++			break
++		}
++
++		if t.retiring {
++			if p.tasks[key] == t {
++				delete(p.tasks, key)
++			}
++			continue
++		}
++
++		t.waiters++
++		task = t
++		p.mu.Unlock()
++		break
++	}
++
++	select {
++	case <-ctx.Done():
++		var toCancel context.CancelFunc
++		p.mu.Lock()
++		task.waiters--
++		if task.waiters == 0 && !task.retiring {
++			task.retiring = true
++			if p.tasks[key] == task {
++				delete(p.tasks, key)
++			}
++			toCancel = task.cancel
++		}
++		p.mu.Unlock()
++
++		if toCancel != nil {
++			toCancel()
++		}
++		return 0, ctx.Err()
++
++	case <-task.done:
++		p.mu.Lock()
++		task.waiters--
++		p.mu.Unlock()
++
++		if err := ctx.Err(); err != nil {
++			return 0, err
++		}
++		return task.val, task.err
++	}
++}
++
+ func (gb *GroupBase) URLTest(ctx context.Context, url string, expectedStatus utils.IntRanges[uint16]) (map[string]uint16, error) {
+ 	var wg sync.WaitGroup
+ 	var lock sync.Mutex
+ 	mp := map[string]uint16{}
+ 	proxies := gb.GetProxies(false)
++	roundVal := ProbeRoundFromContext(ctx)
++
+ 	for _, proxy := range proxies {
+ 		proxy := proxy
+ 		wg.Add(1)
+ 		go func() {
+-			delay, err := proxy.URLTest(ctx, url, expectedStatus)
++			defer wg.Done()
++
++			if ctx.Err() != nil {
++				return
++			}
++
++			expectedStr := ""
++			if expectedStatus != nil {
++				expectedStr = expectedStatus.String()
++			}
++			sfKey := fmt.Sprintf("%p|%v|%s|%s|%s", proxy, roundVal, proxy.Name(), url, expectedStr)
++
++			timeout := time.Duration(gb.testTimeout) * time.Millisecond
++			if timeout <= 0 {
++				timeout = 5 * time.Second
++			}
++
++			val, err := globalProbePool.Do(ctx, sfKey, timeout, func(workCtx context.Context) (uint16, error) {
++				select {
++				case globalProbeSem <- struct{}{}:
++					defer func() { <-globalProbeSem }()
++					if err := workCtx.Err(); err != nil {
++						return 0, err
++					}
++				case <-workCtx.Done():
++					return 0, workCtx.Err()
++				}
++				return proxy.URLTest(workCtx, url, expectedStatus)
++			})
++
+ 			if err == nil {
+ 				lock.Lock()
+-				mp[proxy.Name()] = delay
++				mp[proxy.Name()] = val
+ 				lock.Unlock()
+ 			}
+-
+-			wg.Done()
+ 		}()
+ 	}
+ 	wg.Wait()
+@@ -266,49 +430,151 @@ func (gb *GroupBase) URLTest(ctx context.Context, url string, expectedStatus uti
  	}
  }
  
@@ -775,7 +1423,7 @@ index 27900604..6614bcac 100644
  	wg := sync.WaitGroup{}
  	for _, proxyProvider := range gb.providers {
  		wg.Add(1)
-@@ -318,14 +436,5 @@ func (gb *GroupBase) healthCheck() {
+@@ -318,14 +584,5 @@ func (gb *GroupBase) healthCheck() {
  			proxyProvider.HealthCheck()
  		}()
  	}
@@ -816,8 +1464,30 @@ index aa2d41e4..b4cb1675 100644
  			}
  		})
  	}
+diff --git a/adapter/outboundgroup/patch_test.go b/adapter/outboundgroup/patch_test.go
+index ad38e4a5..ba1ad78b 100644
+--- a/adapter/outboundgroup/patch_test.go
++++ b/adapter/outboundgroup/patch_test.go
+@@ -2,6 +2,8 @@ package outboundgroup
+ 
+ import (
+ 	"testing"
++	"time"
++	"github.com/metacubex/mihomo/common/utils"
+ 
+ 	"github.com/metacubex/mihomo/adapter"
+ 	"github.com/metacubex/mihomo/adapter/outbound"
+@@ -23,6 +25,8 @@ func (f *fakeProvider) Proxies() []C.Proxy         { return f.proxies }
+ func (f *fakeProvider) Version() uint32            { return 1 }
+ func (f *fakeProvider) Touch()                     {}
+ func (f *fakeProvider) HealthCheckURL() string     { return "" }
++func (f *fakeProvider) HealthCheckExpectedStatus() utils.IntRanges[uint16] { return nil }
++func (f *fakeProvider) HealthCheckTimeout() time.Duration { return 5 * time.Second }
+ 
+ func namedProxy(name string) C.Proxy {
+ 	return adapter.NewProxy(outbound.NewDirectWithOption(outbound.DirectOption{Name: name}))
 diff --git a/adapter/outboundgroup/urltest.go b/adapter/outboundgroup/urltest.go
-index 35bc687e..6cade1bc 100644
+index 35bc687e..7850a322 100644
 --- a/adapter/outboundgroup/urltest.go
 +++ b/adapter/outboundgroup/urltest.go
 @@ -59,8 +59,11 @@ func (u *URLTest) DialContext(ctx context.Context, metadata *C.Metadata) (c C.Co
@@ -868,7 +1538,7 @@ index 35bc687e..6cade1bc 100644
  }
  
  func (u *URLTest) fast(touch bool) C.Proxy {
-@@ -220,3 +227,39 @@ func NewURLTest(option GroupCommonOption, urlTestOption URLTestOption, emptyFall
+@@ -220,3 +227,38 @@ func NewURLTest(option GroupCommonOption, urlTestOption URLTestOption, emptyFall
  
  	return urlTest, nil
  }
@@ -905,9 +1575,48 @@ index 35bc687e..6cade1bc 100644
 +		}
 +	}
 +
-+	go u.GroupBase.healthCheck()
 +	return result, err
 +}
+diff --git a/adapter/patch.go b/adapter/patch.go
+index f946f31a..cce4d9c7 100644
+--- a/adapter/patch.go
++++ b/adapter/patch.go
+@@ -1,7 +1,9 @@
+ package adapter
+ 
++import "time"
++
+ // timedOut follows hub/route's getProxyDelay, which answers 504 rather than 503
+ // once the test's context is done.
+-type UrlTestCheck func(url string, name string, delay uint16, timedOut bool)
++type UrlTestCheck func(url string, name string, delay uint16, timedOut bool, start time.Time)
+ 
+ var UrlTestHook UrlTestCheck
+diff --git a/adapter/provider/provider.go b/adapter/provider/provider.go
+index fa7d56bc..b259acb5 100644
+--- a/adapter/provider/provider.go
++++ b/adapter/provider/provider.go
+@@ -96,6 +96,20 @@ func (bp *baseProvider) HealthCheckURL() string {
+ 	return bp.healthCheck.url
+ }
+ 
++func (bp *baseProvider) HealthCheckExpectedStatus() utils.IntRanges[uint16] {
++	if bp.healthCheck != nil {
++		return bp.healthCheck.expectedStatus
++	}
++	return nil
++}
++
++func (bp *baseProvider) HealthCheckTimeout() time.Duration {
++	if bp.healthCheck != nil && bp.healthCheck.timeout > 0 {
++		return bp.healthCheck.timeout
++	}
++	return 5 * time.Second
++}
++
+ func (bp *baseProvider) RegisterHealthCheckTask(url string, expectedStatus utils.IntRanges[uint16], filter string, interval uint) {
+ 	bp.healthCheck.registerHealthCheckTask(url, expectedStatus, filter, interval)
+ }
 diff --git a/adapter/urltest_expected_status_test.go b/adapter/urltest_expected_status_test.go
 new file mode 100644
 index 00000000..6e989722
@@ -953,3 +1662,24 @@ index 00000000..6e989722
 +		})
 +	}
 +}
+diff --git a/constant/provider/interface.go b/constant/provider/interface.go
+index b4e24b59..04b765db 100644
+--- a/constant/provider/interface.go
++++ b/constant/provider/interface.go
+@@ -3,6 +3,7 @@ package provider
+ import (
+ 	"context"
+ 	"fmt"
++	"time"
+ 
+ 	"github.com/metacubex/mihomo/common/utils"
+ 	"github.com/metacubex/mihomo/constant"
+@@ -84,6 +85,8 @@ type ProxyProvider interface {
+ 	Version() uint32
+ 	RegisterHealthCheckTask(url string, expectedStatus utils.IntRanges[uint16], filter string, interval uint)
+ 	HealthCheckURL() string
++	HealthCheckExpectedStatus() utils.IntRanges[uint16]
++	HealthCheckTimeout() time.Duration
+ }
+ 
+ // RuleProvider interface

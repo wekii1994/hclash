@@ -307,12 +307,32 @@ void main() {
       );
       addTearDown(subscription.close);
 
-      notifier.updateTraffic({'gone': (upload: 1, download: 1)});
+      notifier.updateTraffic({
+        'gone': (
+          upload: 1,
+          download: 1,
+          host: null,
+          process: null,
+          closed: null,
+        ),
+      });
       expect(notifications, 0);
 
       notifier.updateTraffic({
-        'a': (upload: 520, download: 257835),
-        'gone': (upload: 1, download: 1),
+        'a': (
+          upload: 520,
+          download: 257835,
+          host: null,
+          process: null,
+          closed: null,
+        ),
+        'gone': (
+          upload: 1,
+          download: 1,
+          host: null,
+          process: null,
+          closed: null,
+        ),
       });
 
       expect(notifications, 1);

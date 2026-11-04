@@ -583,5 +583,216 @@ Future<void> main() async {
     },
   );
 
+  await test(
+    'unnotified burst connection attributes properly when terminal sample arrives without request event',
+    () async {
+      final disk = MemoryPersistence();
+      final e = TrafficStatsEngine(
+        persistence: disk,
+        now: () => DateTime(2026, 11, 2, 12),
+      );
+      try {
+        await e.init();
+
+        // No recordRequestSample was ever called (simulating dropped RequestMessage under congestion)
+        // Directly deliver terminal sample with isClosed: true and host metadata
+        e.recordTrafficSample(
+          id: 'burst-conn-1',
+          upload: 200,
+          download: 1000,
+          host: 'burst-site.com',
+          isClosed: true,
+        );
+        e.recordClosedConnection('burst-conn-1');
+
+        check(
+          e.todayTotal == 1200,
+          'todayTotal must be 1200 for terminal burst connection, got ${e.todayTotal}',
+        );
+        check(e.todayUpload == 200, 'todayUpload must be 200');
+        check(e.todayDownload == 1000, 'todayDownload must be 1000');
+        check(
+          e.targetSiteUsages['burst-site.com']?.total == 1200,
+          'site total must be 1200',
+        );
+      } finally {
+        e.dispose();
+      }
+    },
+  );
+
+  await test(
+    'live connection continues accumulative accounting across config reloads without losing site attribution',
+    () async {
+      final disk = MemoryPersistence();
+      final e = TrafficStatsEngine(
+        persistence: disk,
+        now: () => DateTime(2026, 11, 2, 12),
+      );
+      try {
+        await e.init();
+
+        // Initial connection established
+        e.recordRequestSample(
+          id: 'live-1',
+          upload: 0,
+          download: 100,
+          host: 'example.com',
+        );
+        check(e.todayTotal == 100, 'initial total 100');
+        check(
+          e.targetSiteUsages['example.com']?.total == 100,
+          'site total 100',
+        );
+
+        // Config is reloaded, but core process stays alive (engine connection book not cleared)
+        e.recordTrafficSample(id: 'live-1', upload: 0, download: 150);
+        e.recordTrafficSample(id: 'live-1', upload: 0, download: 200);
+
+        check(
+          e.todayTotal == 200,
+          'todayTotal must be 200 across config reload, got ${e.todayTotal}',
+        );
+        check(
+          e.targetSiteUsages['example.com']?.total == 200,
+          'site total must be 200, got ${e.targetSiteUsages['example.com']?.total}',
+        );
+      } finally {
+        e.dispose();
+      }
+    },
+  );
+
+  await test(
+    'cached top sites return clones so caller in-place mutation does not pollute cache',
+    () async {
+      final disk = MemoryPersistence();
+      final e = TrafficStatsEngine(
+        persistence: disk,
+        now: () => DateTime(2026, 11, 2, 12),
+      );
+      try {
+        await e.init();
+        e.recordRequestSample(
+          id: 'c1',
+          upload: 0,
+          download: 10,
+          host: 'site.com',
+        );
+
+        final read1 = e.getTopSites();
+        check(read1.single.download == 10, 'initial download must be 10');
+
+        // Caller mutates returned element
+        read1.single.download = 999;
+
+        final read2 = e.getTopSites();
+        check(
+          read2.single.download == 10,
+          'subsequent cache hit must return 10, not polluted 999',
+        );
+      } finally {
+        e.dispose();
+      }
+    },
+  );
+
+  await test(
+    'unnotified normal connection preserves initial sample bytes across isClosed false then true sequence',
+    () async {
+      final disk = MemoryPersistence();
+      final e = TrafficStatsEngine(
+        persistence: disk,
+        now: () => DateTime(2026, 11, 2, 12),
+      );
+      try {
+        await e.init();
+
+        // Simulate lost RequestMessage: first regular (non-terminal) sample arrives with host metadata
+        e.recordTrafficSample(
+          id: 'test-conn-seq',
+          upload: 0,
+          download: 1000,
+          host: 'example.com',
+          isClosed: false,
+        );
+
+        check(
+          e.todayTotal == 1000,
+          'initial non-terminal sample for tracked connection must record 1000 bytes, got ${e.todayTotal}',
+        );
+        check(
+          e.targetSiteUsages['example.com']?.total == 1000,
+          'site total must be 1000 after first sample',
+        );
+
+        // Next tick delivers terminal sample with same cumulative totals
+        e.recordTrafficSample(
+          id: 'test-conn-seq',
+          upload: 0,
+          download: 1000,
+          host: 'example.com',
+          isClosed: true,
+        );
+        e.recordClosedConnection('test-conn-seq');
+
+        check(
+          e.todayTotal == 1000,
+          'todayTotal must remain 1000 after terminal sample, got ${e.todayTotal}',
+        );
+        check(
+          e.targetSiteUsages['example.com']?.total == 1000,
+          'site total must remain 1000 after close',
+        );
+      } finally {
+        e.dispose();
+      }
+    },
+  );
+
+  await test(
+    'untracked connection without host metadata establishes baseline without charging past traffic',
+    () async {
+      final disk = MemoryPersistence();
+      final e = TrafficStatsEngine(
+        persistence: disk,
+        now: () => DateTime(2026, 11, 2, 12),
+      );
+      try {
+        await e.init();
+
+        // Sample without host (e.g. ancient connection from before session)
+        e.recordTrafficSample(
+          id: 'ancient-conn',
+          upload: 0,
+          download: 50000,
+          host: null,
+          isClosed: false,
+        );
+
+        check(
+          e.todayTotal == 0,
+          'sample without host must establish baseline and not charge past 50000 bytes, got ${e.todayTotal}',
+        );
+
+        // Next sample transfers 500 new bytes
+        e.recordTrafficSample(
+          id: 'ancient-conn',
+          upload: 0,
+          download: 50500,
+          host: null,
+          isClosed: false,
+        );
+
+        check(
+          e.todayTotal == 500,
+          'subsequent sample must charge only delta 500 bytes, got ${e.todayTotal}',
+        );
+      } finally {
+        e.dispose();
+      }
+    },
+  );
+
   stdout.writeln('$count regression scenarios passed.');
 }

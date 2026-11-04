@@ -1,8 +1,13 @@
 package core
 
 import (
+	"encoding/binary"
+	"io"
+	"net"
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/adapter/outbound"
@@ -155,4 +160,69 @@ func TestManualRegistryReleaseIsIdempotent(t *testing.T) {
 		t.Fatal("stale release of a removed new registration c")
 	}
 	c()
+}
+
+func readTestFrame(r net.Conn, timeout time.Duration) (string, error) {
+	_ = r.SetReadDeadline(time.Now().Add(timeout))
+	var lenBuf [4]byte
+	if _, err := io.ReadFull(r, lenBuf[:]); err != nil {
+		return "", err
+	}
+	length := binary.LittleEndian.Uint32(lenBuf[:])
+	data := make([]byte, length)
+	if _, err := io.ReadFull(r, data); err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func TestUrlTestHookDropsStaleEpochResults(t *testing.T) {
+	nodeName := "epoch-hook-node"
+	testURL := "http://example.test/204"
+
+	direct := outbound.NewDirectWithOption(outbound.DirectOption{Name: nodeName})
+	tunnel.UpdateProxies(map[string]constant.Proxy{
+		nodeName: adapter.NewProxy(direct),
+	}, nil)
+	t.Cleanup(func() { tunnel.UpdateProxies(nil, nil) })
+
+	// Connect a pipe so send() writes to r
+	l, r := net.Pipe()
+	connMu.Lock()
+	conn = l
+	connMu.Unlock()
+	t.Cleanup(func() {
+		connMu.Lock()
+		conn = nil
+		connMu.Unlock()
+		_ = l.Close()
+		_ = r.Close()
+	})
+
+	// Set epoch bump time
+	t0 := time.Now()
+	bumpTime := t0.Add(50 * time.Millisecond)
+	lastEpochBumpNano.Store(bumpTime.UnixNano())
+	t.Cleanup(func() { lastEpochBumpNano.Store(0) })
+
+	// 1. Probe started before bumpTime: MUST BE DROPPED
+	adapter.UrlTestHook(testURL, nodeName, 100, false, t0)
+
+	// Read frame with timeout - must not receive anything for nodeName
+	msg, err := readTestFrame(r, 60*time.Millisecond)
+	if err == nil && strings.Contains(msg, nodeName) {
+		t.Fatalf("expected stale probe starting at t0 < bumpTime to be dropped, got %s", msg)
+	}
+
+	// 2. Probe started AFTER bumpTime (e.g. bumpTime + 10ms): MUST BE DELIVERED
+	tAfter := bumpTime.Add(10 * time.Millisecond)
+	adapter.UrlTestHook(testURL, nodeName, 120, false, tAfter)
+
+	msg, err = readTestFrame(r, 300*time.Millisecond)
+	if err != nil {
+		t.Fatalf("expected fresh probe starting after bumpTime to be delivered, read error: %v", err)
+	}
+	if !strings.Contains(msg, nodeName) || !strings.Contains(msg, "120") {
+		t.Fatalf("expected delivered delay message for %s with value 120, got: %s", nodeName, msg)
+	}
 }

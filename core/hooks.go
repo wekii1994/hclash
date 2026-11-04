@@ -15,24 +15,28 @@ import (
 
 func init() {
 	mihomoHttp.TLSConfigHook = relaxCertVerify
-	adapter.UrlTestHook = func(url string, name string, delay uint16, timedOut bool) {
+	adapter.UrlTestHook = func(url string, name string, delay uint16, timedOut bool, start time.Time) {
 		if isManualTest(name, url) {
 			return
 		}
 		if lookupProxy(name) == nil {
 			return
 		}
+		startNano := start.UnixNano()
 		bumpTime := lastEpochBumpNano.Load()
-		if bumpTime > 0 {
-			duration := time.Duration(delay) * time.Millisecond
-			if timedOut || delay == 0 {
-				duration = defaultDelayTestTimeout
-			}
-			if time.Now().Add(-duration).UnixNano() < bumpTime {
-				return
-			}
+		if bumpTime > 0 && startNano < bumpTime {
+			return
 		}
-		sendMessage(DelayMessage, &Delay{Url: url, Name: name, Value: delayValue(delay, timedOut)})
+		epoch, _ := routeStamp()
+		if afterBump := lastEpochBumpNano.Load(); afterBump > 0 && startNano < afterBump {
+			return
+		}
+		sendMessage(DelayMessage, &Delay{
+			Url:   url,
+			Name:  name,
+			Value: delayValue(delay, timedOut),
+			Epoch: epoch,
+		})
 	}
 	statistic.DefaultRequestNotify = func(c statistic.Tracker) {
 		notifyProbeRoute(c)

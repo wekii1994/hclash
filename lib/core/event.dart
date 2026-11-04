@@ -63,7 +63,12 @@ class CoreEventManager {
               listener.onLog(Log.fromJson(event.data));
               break;
             case CoreEventType.delay:
-              listener.onDelay(Delay.fromJson(event.data));
+              final delay = Delay.fromJson(event.data);
+              final epoch = (event.data['epoch'] as num?)?.toInt();
+              if (epoch != null) {
+                delay.epoch = epoch;
+              }
+              listener.onDelay(delay);
               break;
             case CoreEventType.request:
               listener.onRequest(TrackerInfo.fromJson(event.data));
@@ -74,6 +79,9 @@ class CoreEventManager {
                   item['id'] as String: (
                     upload: (item['upload'] as num).toInt(),
                     download: (item['download'] as num).toInt(),
+                    host: item['host'] as String?,
+                    process: item['process'] as String?,
+                    closed: item['closed'] as bool?,
                   ),
               });
               final closedIds = <String>{

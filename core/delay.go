@@ -111,5 +111,6 @@ func handleTestDelay(params *TestDelayParams) *Delay {
 		return nil
 	}
 	result.Value = delayValue(delay, ctx.Err() != nil)
+	result.Epoch = startEpoch
 	return result
 }
