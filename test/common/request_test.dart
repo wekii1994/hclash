@@ -113,6 +113,24 @@ void main() {
       });
     });
 
+    test('reads a single release object when answered directly', () async {
+      final request = requestAnswering({
+        'api.github.com': () => ResponseBody.fromString(
+          '{"tag_name":"v1.2.3-pre22","prerelease":true,"body":"notes"}',
+          200,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        ),
+      });
+
+      expect(await request.latestRelease(), {
+        'tag_name': 'v1.2.3-pre22',
+        'prerelease': true,
+        'body': 'notes',
+      });
+    });
+
     test(
       'falls back to the release page when the API is rate limited',
       () async {

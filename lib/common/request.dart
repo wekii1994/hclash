@@ -118,15 +118,21 @@ class Request {
   /// The release page redirect still answers once the hourly API quota is spent.
   Future<Map<String, dynamic>> latestRelease() async {
     try {
-      final response = await dio.get<List<dynamic>>(
+      final response = await dio.get<dynamic>(
         'https://api.github.com/repos/$repository/releases?per_page=20',
         options: Options(responseType: ResponseType.json),
       );
-      for (final release in response.data ?? const []) {
-        final data = Map<String, dynamic>.from(release as Map);
-        if (data['draft'] != true && data['tag_name'] is String) {
-          return data;
+      final raw = response.data;
+      if (raw is List) {
+        for (final release in raw) {
+          if (release is Map &&
+              release['draft'] != true &&
+              release['tag_name'] is String) {
+            return Map<String, dynamic>.from(release);
+          }
         }
+      } else if (raw is Map && raw['tag_name'] is String) {
+        return Map<String, dynamic>.from(raw);
       }
       throw const FormatException('No published hclash release');
     } on DioException catch (error) {
