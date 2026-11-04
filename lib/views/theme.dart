@@ -1152,30 +1152,27 @@ class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    ElasticPress(
-                      child: InkWell(
-                        onTap: () => _showCustomInputDialog(context, scale),
-                        customBorder: AppShape.all(16),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: ShapeDecoration(
-                            color: level.next.colorOf(colorScheme),
-                            shape: AppShape.full,
-                          ),
-                          child: Text(
-                            percent,
-                            style: AppTextStyle.subheadline
-                                .of(context, emphasized: true)
-                                .copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures(),
-                                  ],
-                                ),
-                          ),
+                    GestureDetector(
+                      onTap: () => _showCustomInputDialog(context, scale),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: ShapeDecoration(
+                          color: level.next.colorOf(colorScheme),
+                          shape: AppShape.full,
+                        ),
+                        child: Text(
+                          percent,
+                          style: AppTextStyle.subheadline
+                              .of(context, emphasized: true)
+                              .copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
+                                ],
+                              ),
                         ),
                       ),
                     ),
@@ -1194,19 +1191,15 @@ class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
                       ),
                     ),
                     Expanded(
-                      child: SliderTheme(
-                        data: SliderDefaultsM3(context),
-                        child: Slider(
-                          padding: EdgeInsets.zero,
-                          min: minPageScale,
-                          max: maxPageScale,
-                          divisions: divisions,
-                          value: scale,
-                          label: percent,
-                          onChanged: (value) => setState(() => _draft = value),
-                          onChangeEnd: (value) =>
-                              _update((value * 100).round() / 100),
-                        ),
+                      child: Slider(
+                        min: minPageScale,
+                        max: maxPageScale,
+                        divisions: divisions,
+                        value: scale,
+                        label: percent,
+                        onChanged: (value) => setState(() => _draft = value),
+                        onChangeEnd: (value) =>
+                            _update((value * 100).round() / 100),
                       ),
                     ),
                     ExcludeSemantics(

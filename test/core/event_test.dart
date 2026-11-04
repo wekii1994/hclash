@@ -91,20 +91,8 @@ void main() {
 
     expect(listener.requestTraffic, [
       {
-        'a': (
-          upload: 460,
-          download: 257835,
-          host: null,
-          process: null,
-          closed: null,
-        ),
-        'b': (
-          upload: 0,
-          download: 12,
-          host: null,
-          process: null,
-          closed: null,
-        ),
+        'a': (upload: 460, download: 257835),
+        'b': (upload: 0, download: 12),
       },
     ]);
   });

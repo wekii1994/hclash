@@ -23,7 +23,7 @@ class _DelayTestJob {
   bool cancelled = false;
 }
 
-class DelayTestRequestPool extends SingleFlight<Object, Delay?> {
+class DelayTestRequestPool extends SingleFlight<Object, Delay> {
   void clear() => invalidate();
 }
 
