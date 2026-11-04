@@ -366,6 +366,14 @@ class CoreController {
   Future<String> clearEffect(int profileId) async {
     return _interface.clearEffect(profileId);
   }
+
+  Future<FailoverStats?> getFailoverStats() async {
+    return _interface.getFailoverStats();
+  }
+
+  Future<FailoverStats?> resetFailoverStats() async {
+    return _interface.resetFailoverStats();
+  }
 }
 
 final coreController = CoreController();

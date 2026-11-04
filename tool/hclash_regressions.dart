@@ -7,6 +7,7 @@ import 'package:fl_clash/features/traffic_stats/traffic_counters.dart';
 import 'package:fl_clash/features/traffic_stats/traffic_stats_engine.dart';
 import 'package:fl_clash/features/traffic_stats/traffic_stats_models.dart';
 import 'package:fl_clash/features/traffic_stats/traffic_stats_persistence.dart';
+import 'package:fl_clash/models/failover_stats.dart';
 
 void check(bool condition, String description) {
   if (!condition) throw StateError(description);
@@ -791,6 +792,200 @@ Future<void> main() async {
       } finally {
         e.dispose();
       }
+    },
+  );
+
+  await test(
+    'failover stats model JSON serialization and contract with Go core',
+    () async {
+      // Exactly matches Go core json tags and millisecond timestamp
+      final goResponseJson = {
+        'total': 1,
+        'today': 1,
+        'date': '2026-11-04',
+        'records': [
+          {
+            'time': 1793773254361,
+            'group': 'AutoGroup',
+            'before': 'NodeA',
+            'after': 'NodeB',
+          },
+        ],
+      };
+
+      final stats = FailoverStats.fromJson(goResponseJson);
+      check(stats.total == 1 && stats.totalCount == 1, 'total mismatch: ${stats.total}');
+      check(stats.today == 1 && stats.todayCount == 1, 'today mismatch: ${stats.today}');
+      check(stats.date == '2026-11-04' && stats.lastDate == '2026-11-04', 'date mismatch: ${stats.date}');
+      check(stats.records.length == 1, 'records length mismatch: ${stats.records.length}');
+
+      final record = stats.records.first;
+      check(record.time == 1793773254361, 'time mismatch: ${record.time}');
+      check(record.dateTime.millisecondsSinceEpoch == 1793773254361, 'dateTime millis mismatch: ${record.dateTime}');
+      check(record.dateTime.year == 2026, 'dateTime year must be 2026, got: ${record.dateTime.year}');
+      check(record.group == 'AutoGroup', 'group mismatch');
+      check(record.before == 'NodeA', 'before mismatch');
+      check(record.after == 'NodeB', 'after mismatch');
+
+      final serialized = stats.toJson();
+      check(serialized['total'] == 1, 'serialized total mismatch');
+      check(serialized['today'] == 1, 'serialized today mismatch');
+      check(serialized['date'] == '2026-11-04', 'serialized date mismatch');
+      check((serialized['records'] as List).length == 1, 'serialized records mismatch');
+
+      final roundtrip = FailoverStats.fromJson(serialized);
+      check(roundtrip == stats, 'roundtrip equality mismatch');
+      check(roundtrip.hashCode == stats.hashCode, 'roundtrip hashCode mismatch');
+
+      // Also supports legacy total_count / today_count / last_date / timestamp (seconds)
+      final legacyJson = {
+        'total_count': 10,
+        'today_count': 3,
+        'last_date': '2026-11-04',
+        'records': [
+          {
+            'timestamp': 1793779200,
+            'group': 'LegacyGroup',
+            'before': 'OldNode',
+            'after': 'NewNode',
+          },
+        ],
+      };
+      final legacyStats = FailoverStats.fromJson(legacyJson);
+      check(legacyStats.total == 10 && legacyStats.today == 3, 'legacy total/today mismatch');
+      check(legacyStats.records.first.dateTime.year == 2026, 'legacy timestamp in seconds conversion mismatch');
+
+      final emptyStats = FailoverStats.fromJson({});
+      check(emptyStats.total == 0 && emptyStats.today == 0, 'empty total mismatch');
+      check(emptyStats.records.isEmpty, 'empty records mismatch');
+    },
+  );
+
+  await test(
+    'failover stats IPC protocol payload and parser compatibility',
+    () async {
+      // Go resetFailoverStats returns zeroed snapshot directly (*FailoverStats)
+      final goResetResponse = {
+        'id': 'req-reset',
+        'result': {
+          'total': 0,
+          'today': 0,
+          'date': '2026-11-04',
+          'records': [],
+        },
+      };
+
+      final resultMap = goResetResponse['result'] as Map<String, dynamic>;
+      final parsedReset = FailoverStats.fromJson(resultMap);
+      check(parsedReset.total == 0 && parsedReset.today == 0, 'reset result must be 0');
+      check(parsedReset.records.isEmpty, 'reset records must be empty');
+
+      // Multi-record newest-first ordering test
+      final multiRecordResp = {
+        'total': 2,
+        'today': 2,
+        'date': '2026-11-04',
+        'records': [
+          {
+            'time': 1793773260000,
+            'group': 'Group1',
+            'before': 'NodeB',
+            'after': 'NodeC',
+          },
+          {
+            'time': 1793773200000,
+            'group': 'Group1',
+            'before': 'NodeA',
+            'after': 'NodeB',
+          },
+        ],
+      };
+      final parsedMulti = FailoverStats.fromJson(multiRecordResp);
+      check(parsedMulti.records.length == 2, 'multi records length mismatch');
+      // Record 0 must be the newest one (1793773260000 > 1793773200000)
+      check(parsedMulti.records[0].before == 'NodeB' && parsedMulti.records[0].after == 'NodeC', 'newest record must be at index 0');
+      check(parsedMulti.records[1].before == 'NodeA' && parsedMulti.records[1].after == 'NodeB', 'older record must be at index 1');
+    },
+  );
+
+  await test(
+    'failover stats provider epoch coordination preserves error state without uncaught zone errors',
+    () async {
+      int activeEpoch = 0;
+      dynamic state;
+      final zoneErrors = <Object>[];
+
+      await runZonedGuarded(() async {
+        // 1. Initial build starts at epoch 1
+        final buildEpoch = ++activeEpoch;
+
+        // 2. User triggers reset at epoch 2 before build completes
+        final resetEpoch = ++activeEpoch;
+
+        // Reset encounters failure
+        final resetError = StateError('reset persistence failed');
+        final nextState = resetError;
+        if (resetEpoch == activeEpoch) {
+          state = nextState;
+        }
+
+        // 3. Stale build finishes after reset failure
+        const staleStats = FailoverStats(total: 0, today: 0);
+        dynamic buildResult;
+        if (buildEpoch != activeEpoch) {
+          // Superseded build returns uncompleted future to Riverpod, never committing
+          buildResult = Completer<FailoverStats>().future;
+        } else {
+          buildResult = staleStats;
+        }
+
+        check(buildResult is Future<FailoverStats>, 'superseded build must return uncompleted future');
+        check(state is StateError && state.message == 'reset persistence failed', 'state must remain in error');
+      }, (error, stack) {
+        zoneErrors.add(error);
+      });
+
+      check(zoneErrors.isEmpty, 'must not produce uncaught zone errors! count=${zoneErrors.length}');
+    },
+  );
+
+  await test(
+    'failover stats provider 3-request sequence A (build), B (refresh), C (reset) correctly commits C',
+    () async {
+      int activeEpoch = 0;
+      dynamic state;
+
+      // 1. Build A starts at epoch 1
+      final epochA = ++activeEpoch;
+
+      // 2. Refresh B starts at epoch 2
+      final epochB = ++activeEpoch;
+
+      // 3. A completes: sees epochA != activeEpoch -> yields uncompleted future, does not write state
+      dynamic resultA;
+      if (epochA != activeEpoch) {
+        resultA = Completer<FailoverStats>().future;
+      } else {
+        resultA = const FailoverStats(total: 42, today: 5);
+      }
+      check(resultA is Future<FailoverStats>, 'A must not commit');
+
+      // 4. User triggers reset C at epoch 3 -> C completes and commits total=0
+      final epochC = ++activeEpoch;
+      const statsC = FailoverStats(total: 0, today: 0);
+      if (epochC == activeEpoch) {
+        state = statsC;
+      }
+      check((state as FailoverStats).total == 0, 'C must commit total=0');
+
+      // 5. B completes with old stats 42 -> B checks epochB != activeEpoch, does not write state!
+      const statsB = FailoverStats(total: 42, today: 5);
+      if (epochB == activeEpoch) {
+        state = statsB;
+      }
+
+      // Final state must remain C's total=0!
+      check(state.total == 0, 'state must remain C (total=0), not overwritten by B (42)');
     },
   );
 

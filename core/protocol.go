@@ -66,6 +66,8 @@ const (
 	clearEffectMethod              CoreMethod = "clearEffect"
 	watchRouteMethod               CoreMethod = "watchRoute"
 	checkRoutesMethod              CoreMethod = "checkRoutes"
+	getFailoverStatsMethod         CoreMethod = "getFailoverStats"
+	resetFailoverStatsMethod       CoreMethod = "resetFailoverStats"
 )
 
 type MessageType string

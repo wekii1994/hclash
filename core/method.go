@@ -170,6 +170,12 @@ func withoutArguments[R any](run func() R) methodHandler {
 	}
 }
 
+func withoutArgumentsFallible[R any](run func() (R, error)) methodHandler {
+	return func(*MethodCall) (any, error) {
+		return run()
+	}
+}
+
 func acknowledged(run func()) methodHandler {
 	return func(*MethodCall) (any, error) {
 		run()
@@ -226,6 +232,8 @@ var methodHandlers = map[CoreMethod]methodHandler{
 	dumpRuleSetMethod:              withFallible(handleDumpRuleSet),
 	compileRuleSetMethod:           withFallible(handleCompileRuleSet),
 	clearEffectMethod:              withMessage(handleClearEffect),
+	getFailoverStatsMethod:         withoutArgumentsFallible(handleGetFailoverStats),
+	resetFailoverStatsMethod:       withoutArgumentsFallible(handleResetFailoverStats),
 }
 
 func watchRouteHandler(call *MethodCall) (any, error) {

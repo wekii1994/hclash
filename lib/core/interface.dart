@@ -114,6 +114,10 @@ mixin CoreInterface {
   FutureOr<bool> resetConnections();
 
   FutureOr<bool> clearDnsCache();
+
+  FutureOr<FailoverStats?> getFailoverStats();
+
+  FutureOr<FailoverStats?> resetFailoverStats();
 }
 
 abstract class CoreHandlerInterface with CoreInterface {
@@ -649,5 +653,36 @@ abstract class CoreHandlerInterface with CoreInterface {
       method: CoreMethod.getMemoryStats,
     );
     return data == null ? null : CoreMemoryStats.fromJson(data);
+  }
+
+  @override
+  Future<FailoverStats?> getFailoverStats() async {
+    final data = await _invokeMethod<Object?>(
+      method: CoreMethod.getFailoverStats,
+    );
+    if (data is Map<String, dynamic>) {
+      return FailoverStats.fromJson(data);
+    }
+    if (data is Map) {
+      return FailoverStats.fromJson(Map<String, dynamic>.from(data));
+    }
+    return null;
+  }
+
+  @override
+  Future<FailoverStats?> resetFailoverStats() async {
+    final data = await _invokeMethod<Object?>(
+      method: CoreMethod.resetFailoverStats,
+    );
+    if (data is Map<String, dynamic>) {
+      return FailoverStats.fromJson(data);
+    }
+    if (data is Map) {
+      return FailoverStats.fromJson(Map<String, dynamic>.from(data));
+    }
+    if (data == true) {
+      return getFailoverStats();
+    }
+    return null;
   }
 }

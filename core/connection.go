@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -50,6 +51,72 @@ func handleCloseGroupStaleConnections(groupName, oldProxyName string, switchTime
 	})
 }
 
+var (
+	networkProbingGroups   = make(map[string]int)
+	networkProbingGroupsMu sync.Mutex
+)
+
+func markNetworkProbing(name string) func() {
+	networkProbingGroupsMu.Lock()
+	networkProbingGroups[name]++
+	networkProbingGroupsMu.Unlock()
+	return func() {
+		networkProbingGroupsMu.Lock()
+		networkProbingGroups[name]--
+		if networkProbingGroups[name] <= 0 {
+			delete(networkProbingGroups, name)
+		}
+		networkProbingGroupsMu.Unlock()
+	}
+}
+
+func isNetworkProbing(name string) bool {
+	networkProbingGroupsMu.Lock()
+	defer networkProbingGroupsMu.Unlock()
+	return networkProbingGroups[name] > 0
+}
+
+func getGroupTestURL(group C.ProxyAdapter) (testURL string) {
+	if group == nil {
+		return ""
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			testURL = ""
+		}
+	}()
+	if m, ok := group.(interface{ MarshalJSON() ([]byte, error) }); ok {
+		data, err := m.MarshalJSON()
+		if err == nil {
+			var parsed struct {
+				TestURL string `json:"testUrl"`
+			}
+			if json.Unmarshal(data, &parsed) == nil && parsed.TestURL != "" {
+				return parsed.TestURL
+			}
+		}
+	}
+	return ""
+}
+
+func isGroupProxyAlive(group C.ProxyAdapter, proxyName string) bool {
+	if group == nil || proxyName == "" {
+		return false
+	}
+	testURL := getGroupTestURL(group)
+	if g, ok := group.(interface{ GetProxies(bool) []C.Proxy }); ok {
+		for _, p := range g.GetProxies(false) {
+			if p.Name() == proxyName {
+				if testURL != "" {
+					return p.AliveForTestUrl(testURL)
+				}
+				return p.AliveForTestUrl("")
+			}
+		}
+	}
+	return false
+}
+
 func init() {
 	outboundgroup.OnGroupNowChanged = func(group C.ProxyAdapter, groupName, before, after string) {
 		configMu.Lock()
@@ -73,7 +140,12 @@ func init() {
 			}
 		}
 
-		log.Infoln("[Failover] Proxy group %s auto switched from [%s] to [%s] via passive failure detection", groupName, before, after)
+		if isNetworkProbing(groupName) && isGroupProxyAlive(group, before) {
+			log.Debugln("[Failover] Suppressed failover count for healthy node latency reselection on group %s: [%s] -> [%s]", groupName, before, after)
+		} else {
+			log.Infoln("[Failover] Proxy group %s auto switched from [%s] to [%s] via passive failure detection", groupName, before, after)
+			recordFailover(groupName, before, after)
+		}
 		handleCloseGroupStaleConnections(groupName, before, time.Now())
 		refreshRouteLocked(routeMoved)
 	}
@@ -277,6 +349,8 @@ func probeGroupsConcurrently(ctx context.Context, groups []*adapter.Proxy) bool 
 			if !ok {
 				return false
 			}
+			done := markNetworkProbing(groups[index].Name())
+			defer done()
 			testCtx, cancel := context.WithTimeout(probeCtx, groupProbeTimeout)
 			defer cancel()
 			results, err := checker.HealthCheckContext(testCtx)

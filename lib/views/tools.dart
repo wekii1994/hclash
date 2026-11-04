@@ -17,6 +17,7 @@ import 'config/advanced.dart';
 import 'config/custom_resources.dart';
 import 'developer.dart';
 import 'disclaimer.dart';
+import 'failover_stats.dart';
 import 'theme.dart';
 
 class ToolsView extends ConsumerStatefulWidget {
@@ -33,6 +34,16 @@ class _ToolViewState extends ConsumerState<ToolsView> {
       title: Text(navigationItem.label.label),
       widget: navigationItem.builder(context),
       forceFull: navigationItem.modes.contains(NavigationItemMode.moreFull),
+    );
+  }
+
+  Widget _getStatsList() {
+    final isZh = Localizations.localeOf(context).languageCode == 'zh';
+    return generateSection(
+      title: isZh ? '网络监控' : 'Monitoring',
+      items: [
+        const _FailoverStatsItem(),
+      ],
     );
   }
 
@@ -86,6 +97,7 @@ class _ToolViewState extends ConsumerState<ToolsView> {
           );
         },
       ),
+      _getStatsList(),
       _getSettingList(),
       _getOtherList(developerMode),
     ];
@@ -263,6 +275,27 @@ class _DeveloperItem extends StatelessWidget {
       leading: const GlyphIcon(AppGlyphs.cpu),
       title: Text(context.appLocalizations.developerMode),
       widget: const DeveloperView(),
+    );
+  }
+}
+
+class _FailoverStatsItem extends ConsumerWidget {
+  const _FailoverStatsItem();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isZh = Localizations.localeOf(context).languageCode == 'zh';
+    final stats =
+        ref.watch(failoverStatsProvider).value ?? const FailoverStats();
+    return ListItem.open(
+      leading: const GlyphIcon(AppGlyphs.swap),
+      title: Text(isZh ? '故障转移统计' : 'Failover Statistics'),
+      subtitle: Text(
+        isZh
+            ? '今日触发 ${stats.todayCount} 次 · 总计 ${stats.totalCount} 次'
+            : 'Today: ${stats.todayCount} · Total: ${stats.totalCount}',
+      ),
+      widget: const FailoverStatsView(),
     );
   }
 }
