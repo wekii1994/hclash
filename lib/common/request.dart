@@ -141,43 +141,17 @@ class Request {
         logLevel: LogLevel.warning,
       );
     }
-    try {
-      final feedResponse = await dio.get<String>(
-        'https://github.com/$repository/releases.atom',
-        options: Options(
-          responseType: ResponseType.plain,
-          followRedirects: false,
-          validateStatus: (status) => status != null && status < 400,
-        ),
-      );
-      if (feedResponse.statusCode == 200) {
-        final match = RegExp(
-          r'/releases/tag/([^"/?#]+)',
-        ).firstMatch(feedResponse.data ?? '');
-        if (match != null) {
-          return {'tag_name': match.group(1)!};
-        }
-      }
-    } on DioException catch (feedError) {
-      commonPrint.log(
-        'releases feed failed: ${compactError(feedError)}',
-        logLevel: LogLevel.warning,
-      );
-    }
-    final response = await dio.get<void>(
-      'https://github.com/$repository/releases/latest',
-      options: Options(
-        followRedirects: false,
-        validateStatus: (status) => status != null && status < 400,
-      ),
+    final feedResponse = await dio.get<String>(
+      'https://github.com/$repository/releases.atom',
+      options: Options(responseType: ResponseType.plain),
     );
-    final location = response.headers.value(HttpHeaders.locationHeader);
-    final segments = Uri.tryParse(location ?? '')?.pathSegments ?? const [];
-    final tagIndex = segments.indexOf('tag') + 1;
-    if (tagIndex == 0 || tagIndex >= segments.length) {
-      throw FormatException('No release tag in the redirect', location);
+    final match = RegExp(
+      r'/releases/tag/([^"/?#]+)',
+    ).firstMatch(feedResponse.data ?? '');
+    if (match != null) {
+      return {'tag_name': match.group(1)!};
     }
-    return {'tag_name': segments[tagIndex]};
+    throw const FormatException('No release tag found in releases feed');
   }
 
   Future<String> downloadVerifiedRelease({

@@ -62,10 +62,10 @@ index 9cd4fa01..71ea9dd7 100644
  		// that completed in under a millisecond as 1 ms
 diff --git a/adapter/outboundgroup/failover_test.go b/adapter/outboundgroup/failover_test.go
 new file mode 100644
-index 00000000..71cbd132
+index 00000000..0f36a18f
 --- /dev/null
 +++ b/adapter/outboundgroup/failover_test.go
-@@ -0,0 +1,926 @@
+@@ -0,0 +1,976 @@
 +package outboundgroup
 +
 +import (
@@ -992,8 +992,58 @@ index 00000000..71cbd132
 +		t.Fatalf("200ms healthy proxy failed under 1000ms policy; actual probes=%d, error=%v", proxy.callCount.Load(), err)
 +	}
 +}
++
++type review3HealthyProxy struct {
++	C.Proxy
++	name       string
++	successful *atomic.Int32
++}
++
++func (p *review3HealthyProxy) Name() string                     { return p.name }
++func (p *review3HealthyProxy) Type() C.AdapterType              { return C.Vmess }
++func (p *review3HealthyProxy) AliveForTestUrl(string) bool      { return true }
++func (p *review3HealthyProxy) LastDelayForTestUrl(string) uint16 { return 200 }
++func (p *review3HealthyProxy) URLTest(ctx context.Context, url string, status utils.IntRanges[uint16]) (uint16, error) {
++	select {
++	case <-time.After(200 * time.Millisecond):
++		p.successful.Add(1)
++		return 200, nil
++	case <-ctx.Done():
++		return 0, ctx.Err()
++	}
++}
++
++func TestReview3PassiveHealthCheckQueueBudget(t *testing.T) {
++	for _, groupType := range []string{"fallback", "url-test"} {
++		t.Run(groupType, func(t *testing.T) {
++			var successful atomic.Int32
++			proxies := make([]C.Proxy, 20)
++			for i := range proxies {
++				proxies[i] = &review3HealthyProxy{name: fmt.Sprintf("healthy-%d", i), successful: &successful}
++			}
++			providers := []P.ProxyProvider{&concurrencyMockProvider{proxies: proxies}}
++			options := GroupCommonOption{Name: "review3", TestTimeout: 300, URL: "http://example.test", MaxFailedTimes: 3}
++			if groupType == "fallback" {
++				group, err := NewFallback(options, FallbackOption{}, namedProxy("DIRECT"), providers)
++				if err != nil {
++					t.Fatal(err)
++				}
++				group.healthCheck()
++			} else {
++				group, err := NewURLTest(options, URLTestOption{}, namedProxy("DIRECT"), providers)
++				if err != nil {
++					t.Fatal(err)
++				}
++				group.healthCheck()
++			}
++			if got := successful.Load(); got != 20 {
++				t.Fatalf("real %s healthCheck: only %d/20 healthy nodes completed; each takes 200ms under 300ms node timeout", groupType, got)
++			}
++		})
++	}
++}
 diff --git a/adapter/outboundgroup/fallback.go b/adapter/outboundgroup/fallback.go
-index d6f61348..84884dbd 100644
+index d6f61348..127097c8 100644
 --- a/adapter/outboundgroup/fallback.go
 +++ b/adapter/outboundgroup/fallback.go
 @@ -34,8 +34,11 @@ func (f *Fallback) DialContext(ctx context.Context, metadata *C.Metadata) (C.Con
@@ -1018,17 +1068,15 @@ index d6f61348..84884dbd 100644
  			}
  		})
  	}
-@@ -180,3 +183,45 @@ func NewFallback(option GroupCommonOption, fallbackOption FallbackOption, emptyF
+@@ -180,3 +183,43 @@ func NewFallback(option GroupCommonOption, fallbackOption FallbackOption, emptyF
  		expectedStatus: option.ExpectedStatus,
  	}, nil
  }
 +
 +func (f *Fallback) healthCheck() {
 +	timeout := time.Duration(f.GroupBase.testTimeout) * time.Millisecond
-+	if timeout <= 0 {
-+		timeout = 3 * time.Second
-+	}
-+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
++	roundTimeout := roundBudget(len(f.GetProxies(false)), timeout)
++	ctx, cancel := context.WithTimeout(context.Background(), roundTimeout)
 +	defer cancel()
 +	_, _ = f.HealthCheckContext(ctx)
 +}
@@ -1066,7 +1114,7 @@ index d6f61348..84884dbd 100644
 +}
 \ No newline at end of file
 diff --git a/adapter/outboundgroup/groupbase.go b/adapter/outboundgroup/groupbase.go
-index 27900604..a5f02ade 100644
+index 27900604..e76691ed 100644
 --- a/adapter/outboundgroup/groupbase.go
 +++ b/adapter/outboundgroup/groupbase.go
 @@ -6,6 +6,7 @@ import (
@@ -1128,13 +1176,24 @@ index 27900604..a5f02ade 100644
  		testTimeout:       opt.TestTimeout,
  		maxFailedTimes:    opt.MaxFailedTimes,
  		emptyFallback:     opt.EmptyFallback,
-@@ -238,23 +254,172 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
+@@ -238,23 +254,183 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
  	return proxies
  }
  
 +const maxConcurrentProxyProbes = 10
 +
 +var globalProbeSem = make(chan struct{}, maxConcurrentProxyProbes)
++
++func roundBudget(proxiesCount int, nodeTimeout time.Duration) time.Duration {
++	if nodeTimeout <= 0 {
++		nodeTimeout = 3 * time.Second
++	}
++	batches := (proxiesCount + maxConcurrentProxyProbes - 1) / maxConcurrentProxyProbes
++	if batches < 1 {
++		batches = 1
++	}
++	return time.Duration(batches)*nodeTimeout + 500*time.Millisecond
++}
 +
 +type probeTask struct {
 +	cancel   context.CancelFunc
@@ -1305,7 +1364,7 @@ index 27900604..a5f02ade 100644
  		}()
  	}
  	wg.Wait()
-@@ -266,49 +431,151 @@ func (gb *GroupBase) URLTest(ctx context.Context, url string, expectedStatus uti
+@@ -266,49 +442,151 @@ func (gb *GroupBase) URLTest(ctx context.Context, url string, expectedStatus uti
  	}
  }
  
@@ -1384,19 +1443,19 @@ index 27900604..a5f02ade 100644
 +	if host == "" {
 +		return
 +	}
++
++	gb.failedTestMux.Lock()
++	defer gb.failedTestMux.Unlock()
  
 -		gb.failedTestMux.Lock()
 -		defer gb.failedTestMux.Unlock()
-+	gb.failedTestMux.Lock()
-+	defer gb.failedTestMux.Unlock()
++	now := time.Now()
++	isHardFail := isProxyServerHardFailure(err)
  
 -		gb.failedTimes++
 -		if gb.failedTimes == 1 {
 -			log.Debugln("ProxyGroup: %s first failed", gb.Name())
 -			gb.failedTime = time.Now()
-+	now := time.Now()
-+	isHardFail := isProxyServerHardFailure(err)
-+
 +	n := 0
 +	existingIdx := -1
 +	for _, target := range gb.failedTargets {
@@ -1480,7 +1539,7 @@ index 27900604..a5f02ade 100644
  	wg := sync.WaitGroup{}
  	for _, proxyProvider := range gb.providers {
  		wg.Add(1)
-@@ -318,14 +585,5 @@ func (gb *GroupBase) healthCheck() {
+@@ -318,14 +596,5 @@ func (gb *GroupBase) healthCheck() {
  			proxyProvider.HealthCheck()
  		}()
  	}
@@ -1544,7 +1603,7 @@ index ad38e4a5..ba1ad78b 100644
  func namedProxy(name string) C.Proxy {
  	return adapter.NewProxy(outbound.NewDirectWithOption(outbound.DirectOption{Name: name}))
 diff --git a/adapter/outboundgroup/urltest.go b/adapter/outboundgroup/urltest.go
-index 791d10f3..24c72d00 100644
+index 791d10f3..2f2c2024 100644
 --- a/adapter/outboundgroup/urltest.go
 +++ b/adapter/outboundgroup/urltest.go
 @@ -62,8 +62,11 @@ func (u *URLTest) DialContext(ctx context.Context, metadata *C.Metadata) (c C.Co
@@ -1578,7 +1637,7 @@ index 791d10f3..24c72d00 100644
  	}
  
  	return pc, err
-@@ -98,9 +101,13 @@ func (u *URLTest) Unwrap(metadata *C.Metadata, touch bool) C.Proxy {
+@@ -98,9 +101,11 @@ func (u *URLTest) Unwrap(metadata *C.Metadata, touch bool) C.Proxy {
  }
  
  func (u *URLTest) healthCheck() {
@@ -1586,16 +1645,14 @@ index 791d10f3..24c72d00 100644
 -	u.GroupBase.healthCheck()
 -	u.fastSingle.Reset()
 +	timeout := time.Duration(u.GroupBase.testTimeout) * time.Millisecond
-+	if timeout <= 0 {
-+		timeout = 3 * time.Second
-+	}
-+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
++	roundTimeout := roundBudget(len(u.GetProxies(false)), timeout)
++	ctx, cancel := context.WithTimeout(context.Background(), roundTimeout)
 +	defer cancel()
 +	_, _ = u.HealthCheckContext(ctx)
  }
  
  func (u *URLTest) fast(touch bool) C.Proxy {
-@@ -230,3 +237,38 @@ func NewURLTest(option GroupCommonOption, urlTestOption URLTestOption, emptyFall
+@@ -230,3 +235,38 @@ func NewURLTest(option GroupCommonOption, urlTestOption URLTestOption, emptyFall
  
  	return urlTest, nil
  }

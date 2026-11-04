@@ -148,22 +148,14 @@ void main() {
     );
 
     test(
-      'falls back to the release page when the API is rate limited',
+      'does not claim a successful prerelease lookup from a stable-only redirect',
       () async {
         final request = requestAnswering({
           'api.github.com': () => ResponseBody.fromString('{}', 403),
-          'github.com': () => ResponseBody.fromString(
-            '',
-            302,
-            headers: {
-              HttpHeaders.locationHeader: [
-                'https://github.com/owner/repo/releases/tag/v1.2.4',
-              ],
-            },
-          ),
+          'github.com': () => ResponseBody.fromString('Service unavailable', 503),
         });
 
-        expect(await request.latestRelease(), {'tag_name': 'v1.2.4'});
+        await expectLater(request.latestRelease(), throwsA(isA<Exception>()));
       },
     );
 
