@@ -15,20 +15,20 @@ import 'traffic_stats_persistence.dart';
 class TrafficStatsStore extends ChangeNotifier {
   static TrafficStatsStore? _instance;
   static TrafficStatsStore get instance => _instance ??= TrafficStatsStore(
-    persistence: JsonTrafficStatsPersistence(
-      () async =>
-          File(join(await appPath.homeDirPath, 'traffic_statistics.json')),
-    ),
-  );
+        persistence: JsonTrafficStatsPersistence(
+          () async =>
+              File(join(await appPath.homeDirPath, 'traffic_statistics.json')),
+        ),
+      );
 
   TrafficStatsStore({
     required TrafficStatsPersistence persistence,
     DateTime Function()? now,
   }) : _engine = TrafficStatsEngine(
-         persistence: persistence,
-         now: now,
-         log: (message) => commonPrint.log(message),
-       ) {
+          persistence: persistence,
+          now: now,
+          log: (message) => commonPrint.log(message),
+        ) {
     _engine.isObserving = _isObserving;
     _engine.onChanged = () {
       if (hasListeners) notifyListeners();
@@ -80,6 +80,7 @@ class TrafficStatsStore extends ChangeNotifier {
     _engine.lastPersistenceError = error;
     notifyListeners();
   }
+
   int get dataRevision => _engine.dataRevision;
   int get persistedRevision => _engine.persistedRevision;
   bool get isDirty => _engine.isDirty;
@@ -114,12 +115,12 @@ class TrafficStatsStore extends ChangeNotifier {
       _engine.reconcileCompleteSnapshot(activeIds);
 
   void recordRequest(TrackerInfo info) => _engine.recordRequestSample(
-    id: info.id,
-    upload: info.upload,
-    download: info.download,
-    host: DomainClassifier.stripPort(info.title),
-    process: info.metadata.process.trim(),
-  );
+        id: info.id,
+        upload: info.upload,
+        download: info.download,
+        host: DomainClassifier.stripPort(info.title),
+        process: info.metadata.process.trim(),
+      );
 
   void recordRequestTraffic(Map<String, RequestTraffic> trafficMap) {
     for (final entry in trafficMap.entries) {

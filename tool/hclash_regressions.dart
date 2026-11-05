@@ -818,15 +818,33 @@ Future<void> main() async {
       };
 
       final stats = FailoverStats.fromJson(goResponseJson);
-      check(stats.total == 1 && stats.totalCount == 1, 'total mismatch: ${stats.total}');
-      check(stats.today == 1 && stats.todayCount == 1, 'today mismatch: ${stats.today}');
-      check(stats.date == '2026-11-04' && stats.lastDate == '2026-11-04', 'date mismatch: ${stats.date}');
-      check(stats.records.length == 1, 'records length mismatch: ${stats.records.length}');
+      check(
+        stats.total == 1 && stats.totalCount == 1,
+        'total mismatch: ${stats.total}',
+      );
+      check(
+        stats.today == 1 && stats.todayCount == 1,
+        'today mismatch: ${stats.today}',
+      );
+      check(
+        stats.date == '2026-11-04' && stats.lastDate == '2026-11-04',
+        'date mismatch: ${stats.date}',
+      );
+      check(
+        stats.records.length == 1,
+        'records length mismatch: ${stats.records.length}',
+      );
 
       final record = stats.records.first;
       check(record.time == 1793773254361, 'time mismatch: ${record.time}');
-      check(record.dateTime.millisecondsSinceEpoch == 1793773254361, 'dateTime millis mismatch: ${record.dateTime}');
-      check(record.dateTime.year == 2026, 'dateTime year must be 2026, got: ${record.dateTime.year}');
+      check(
+        record.dateTime.millisecondsSinceEpoch == 1793773254361,
+        'dateTime millis mismatch: ${record.dateTime}',
+      );
+      check(
+        record.dateTime.year == 2026,
+        'dateTime year must be 2026, got: ${record.dateTime.year}',
+      );
       check(record.group == 'AutoGroup', 'group mismatch');
       check(record.before == 'NodeA', 'before mismatch');
       check(record.after == 'NodeB', 'after mismatch');
@@ -835,11 +853,17 @@ Future<void> main() async {
       check(serialized['total'] == 1, 'serialized total mismatch');
       check(serialized['today'] == 1, 'serialized today mismatch');
       check(serialized['date'] == '2026-11-04', 'serialized date mismatch');
-      check((serialized['records'] as List).length == 1, 'serialized records mismatch');
+      check(
+        (serialized['records'] as List).length == 1,
+        'serialized records mismatch',
+      );
 
       final roundtrip = FailoverStats.fromJson(serialized);
       check(roundtrip == stats, 'roundtrip equality mismatch');
-      check(roundtrip.hashCode == stats.hashCode, 'roundtrip hashCode mismatch');
+      check(
+        roundtrip.hashCode == stats.hashCode,
+        'roundtrip hashCode mismatch',
+      );
 
       // Also supports legacy total_count / today_count / last_date / timestamp (seconds)
       final legacyJson = {
@@ -856,11 +880,20 @@ Future<void> main() async {
         ],
       };
       final legacyStats = FailoverStats.fromJson(legacyJson);
-      check(legacyStats.total == 10 && legacyStats.today == 3, 'legacy total/today mismatch');
-      check(legacyStats.records.first.dateTime.year == 2026, 'legacy timestamp in seconds conversion mismatch');
+      check(
+        legacyStats.total == 10 && legacyStats.today == 3,
+        'legacy total/today mismatch',
+      );
+      check(
+        legacyStats.records.first.dateTime.year == 2026,
+        'legacy timestamp in seconds conversion mismatch',
+      );
 
       final emptyStats = FailoverStats.fromJson({});
-      check(emptyStats.total == 0 && emptyStats.today == 0, 'empty total mismatch');
+      check(
+        emptyStats.total == 0 && emptyStats.today == 0,
+        'empty total mismatch',
+      );
       check(emptyStats.records.isEmpty, 'empty records mismatch');
     },
   );
@@ -881,7 +914,10 @@ Future<void> main() async {
 
       final resultMap = goResetResponse['result'] as Map<String, dynamic>;
       final parsedReset = FailoverStats.fromJson(resultMap);
-      check(parsedReset.total == 0 && parsedReset.today == 0, 'reset result must be 0');
+      check(
+        parsedReset.total == 0 && parsedReset.today == 0,
+        'reset result must be 0',
+      );
       check(parsedReset.records.isEmpty, 'reset records must be empty');
 
       // Multi-record newest-first ordering test
@@ -907,8 +943,16 @@ Future<void> main() async {
       final parsedMulti = FailoverStats.fromJson(multiRecordResp);
       check(parsedMulti.records.length == 2, 'multi records length mismatch');
       // Record 0 must be the newest one (1793773260000 > 1793773200000)
-      check(parsedMulti.records[0].before == 'NodeB' && parsedMulti.records[0].after == 'NodeC', 'newest record must be at index 0');
-      check(parsedMulti.records[1].before == 'NodeA' && parsedMulti.records[1].after == 'NodeB', 'older record must be at index 1');
+      check(
+        parsedMulti.records[0].before == 'NodeB' &&
+            parsedMulti.records[0].after == 'NodeC',
+        'newest record must be at index 0',
+      );
+      check(
+        parsedMulti.records[1].before == 'NodeA' &&
+            parsedMulti.records[1].after == 'NodeB',
+        'older record must be at index 1',
+      );
     },
   );
 
@@ -943,13 +987,22 @@ Future<void> main() async {
           buildResult = staleStats;
         }
 
-        check(buildResult is Future<FailoverStats>, 'superseded build must return uncompleted future');
-        check(state is StateError && state.message == 'reset persistence failed', 'state must remain in error');
+        check(
+          buildResult is Future<FailoverStats>,
+          'superseded build must return uncompleted future',
+        );
+        check(
+          state is StateError && state.message == 'reset persistence failed',
+          'state must remain in error',
+        );
       }, (error, stack) {
         zoneErrors.add(error);
       });
 
-      check(zoneErrors.isEmpty, 'must not produce uncaught zone errors! count=${zoneErrors.length}');
+      check(
+        zoneErrors.isEmpty,
+        'must not produce uncaught zone errors! count=${zoneErrors.length}',
+      );
     },
   );
 
@@ -989,7 +1042,10 @@ Future<void> main() async {
       }
 
       // Final state must remain C's total=0!
-      check(state.total == 0, 'state must remain C (total=0), not overwritten by B (42)');
+      check(
+        state.total == 0,
+        'state must remain C (total=0), not overwritten by B (42)',
+      );
     },
   );
 
@@ -1018,14 +1074,23 @@ Future<void> main() async {
             host: 'unobserved.test',
           );
         }
-        check(!e.hasActiveNotifyTimer, 'must not schedule notify timer when unobserved');
+        check(
+          !e.hasActiveNotifyTimer,
+          'must not schedule notify timer when unobserved',
+        );
         check(notifyCount == 0, 'must not fire notifications when unobserved');
-        check(e.todayTotal == 550, 'traffic accounting must continue in background');
+        check(
+          e.todayTotal == 550,
+          'traffic accounting must continue in background',
+        );
 
         // 2. View becomes visible: immediately flush once
         isVisible = true;
         e.notifyIfObserved();
-        check(notifyCount == 1, 'must fire immediate update when becoming visible');
+        check(
+          notifyCount == 1,
+          'must fire immediate update when becoming visible',
+        );
 
         // 3. Traffic arrives while visible: schedules timer and notifies
         e.recordTrafficSample(
@@ -1039,7 +1104,10 @@ Future<void> main() async {
         // 4. View hides again: timer cancelled immediately
         isVisible = false;
         e.cancelPendingNotifications();
-        check(!e.hasActiveNotifyTimer, 'timer must be cancelled when view is hidden');
+        check(
+          !e.hasActiveNotifyTimer,
+          'timer must be cancelled when view is hidden',
+        );
 
         // 5. Traffic arrives while hidden: still no timer
         e.recordTrafficSample(
@@ -1048,10 +1116,16 @@ Future<void> main() async {
           download: 50,
           host: 'unobserved.test',
         );
-        check(!e.hasActiveNotifyTimer, 'must not schedule timer while hidden again');
+        check(
+          !e.hasActiveNotifyTimer,
+          'must not schedule timer while hidden again',
+        );
       } finally {
         e.dispose();
-        check(!e.hasActiveNotifyTimer, 'disposal must leave zero active timers');
+        check(
+          !e.hasActiveNotifyTimer,
+          'disposal must leave zero active timers',
+        );
       }
     },
   );
@@ -1077,7 +1151,10 @@ Future<void> main() async {
 
       // Remove observer 1
       observerCount--;
-      check(e.hasListeners, 'engine must still have listeners after removing 1 of 2');
+      check(
+        e.hasListeners,
+        'engine must still have listeners after removing 1 of 2',
+      );
 
       // Remove observer 2
       observerCount--;
@@ -1103,7 +1180,12 @@ Future<void> main() async {
         check(disk.writes == 0, 'save on clean state must skip writing');
 
         // 1. Add traffic: becomes dirty
-        e.recordRequestSample(id: 'c1', upload: 10, download: 20, host: 'test.com');
+        e.recordRequestSample(
+          id: 'c1',
+          upload: 10,
+          download: 20,
+          host: 'test.com',
+        );
         check(e.isDirty, 'must be dirty after traffic sample');
 
         // First save writes to disk
@@ -1116,7 +1198,13 @@ Future<void> main() async {
         check(disk.writes == 1, 'duplicate save must not write to disk');
 
         // 2. Traffic without host (pure daily summary update) must also mark dirty and persist
-        e.recordTrafficSample(id: 'c2', upload: 50, download: 50, host: null, baselineIfUnknown: false);
+        e.recordTrafficSample(
+          id: 'c2',
+          upload: 50,
+          download: 50,
+          host: null,
+          baselineIfUnknown: false,
+        );
         check(e.isDirty, 'pure daily summary change must mark dirty');
         await e.save();
         check(disk.writes == 2, 'pure daily summary save must write to disk');
@@ -1146,7 +1234,12 @@ Future<void> main() async {
       );
       try {
         await e.init();
-        e.recordRequestSample(id: 'conn-1', upload: 10, download: 20, host: 'test1.com');
+        e.recordRequestSample(
+          id: 'conn-1',
+          upload: 10,
+          download: 20,
+          host: 'test1.com',
+        );
 
         // Block persistence write with a gate
         final gate = Completer<void>();
@@ -1159,7 +1252,12 @@ Future<void> main() async {
         await disk.writeStarted.future;
 
         // While save 1 is blocked in write, sample 2 arrives!
-        e.recordRequestSample(id: 'conn-2', upload: 30, download: 40, host: 'test2.com');
+        e.recordRequestSample(
+          id: 'conn-2',
+          upload: 30,
+          download: 40,
+          host: 'test2.com',
+        );
 
         // Unblock gate
         gate.complete();
@@ -1175,13 +1273,15 @@ Future<void> main() async {
         await e.save();
         check(!e.isDirty, 'must be clean after second save');
         check(disk.writes == 2, 'second save must persist sample 2');
-        check(disk.data?['sites']?['test2.com'] != null, 'sample 2 must be on disk');
+        check(
+          disk.data?['sites']?['test2.com'] != null,
+          'sample 2 must be on disk',
+        );
       } finally {
         e.dispose();
       }
     },
   );
-
 
   await test(
     'PWR-04: lazy evaluation only calculates active display mode',
@@ -1205,13 +1305,22 @@ Future<void> main() async {
         // When requesting aggregated mode (default in UI), only aggregated sites are evaluated
         final aggregated = e.getAggregatedSites(limit: 50);
         check(aggregated.isNotEmpty, 'aggregated must not be empty');
-        check(aggregated.first.displayName == 'Google', 'Google must be aggregated');
-        check(aggregated.first.subSites.length == 20, 'all 20 sub-sites must be grouped in Google');
+        check(
+          aggregated.first.displayName == 'Google',
+          'Google must be aggregated',
+        );
+        check(
+          aggregated.first.subSites.length == 20,
+          'all 20 sub-sites must be grouped in Google',
+        );
 
         // When toggled to raw mode, requesting raw top sites returns top 50 without crashing or affecting aggregation
         final topSites = e.getTopSites(limit: 50);
         check(topSites.length == 20, 'raw mode returns 20 individual sites');
-        check(topSites.first.host == 'sub20.google.com', 'highest traffic sub-site ranks first');
+        check(
+          topSites.first.host == 'sub20.google.com',
+          'highest traffic sub-site ranks first',
+        );
       } finally {
         e.dispose();
       }
@@ -1276,7 +1385,10 @@ Future<void> main() async {
       var t = DateTime(2026, 11, 2, 12, 0, 0);
       refreshMetricsImmediately(t);
       refreshSitesImmediately(t);
-      check(metricsBuilds == 1 && sitesBuilds == 1, 'initial mount builds both sections once');
+      check(
+        metricsBuilds == 1 && sitesBuilds == 1,
+        'initial mount builds both sections once',
+      );
 
       // 1. Simulate 2 seconds of traffic burst (10 events at 200ms interval)
       for (var i = 1; i <= 10; i++) {
@@ -1285,8 +1397,14 @@ Future<void> main() async {
       }
 
       // Metrics rebuilt at 1000ms and 2000ms (total 3), Sites NOT rebuilt during 2s burst (stayed at 1)
-      check(metricsBuilds == 3, 'metrics section rebuilt 3 times (initial + 2 throttled), got $metricsBuilds');
-      check(sitesBuilds == 1, 'sites section was NOT rebuilt during 2s burst, got $sitesBuilds');
+      check(
+        metricsBuilds == 3,
+        'metrics section rebuilt 3 times (initial + 2 throttled), got $metricsBuilds',
+      );
+      check(
+        sitesBuilds == 1,
+        'sites section was NOT rebuilt during 2s burst, got $sitesBuilds',
+      );
 
       // 2. User toggles aggregation mode at 2100ms
       t = t.add(const Duration(milliseconds: 100));
@@ -1295,7 +1413,10 @@ Future<void> main() async {
 
       // Section B rebuilds immediately, Section A must have ZERO rebuilds
       check(sitesBuilds == 2, 'sites rebuilt immediately on mode change');
-      check(metricsBuilds == metricsBefore, 'metrics section was NOT rebuilt on sites mode toggle');
+      check(
+        metricsBuilds == metricsBefore,
+        'metrics section was NOT rebuilt on sites mode toggle',
+      );
 
       // 3. Advance clock past 3s from last site update -> throttled site update fires
       t = t.add(const Duration(milliseconds: 3100));
@@ -1363,14 +1484,23 @@ Future<void> main() async {
 
       // 2. Hide page (navigate away or app to background)
       onVisibilityChanged(false);
-      check(metricsTimer == null && sitesTimer == null, 'timers cancelled and nullified on hide');
+      check(
+        metricsTimer == null && sitesTimer == null,
+        'timers cancelled and nullified on hide',
+      );
 
       // Multiple store updates arrive while invisible
       for (var i = 0; i < 5; i++) {
         onStoreChanged();
       }
-      check(metricsTimer == null && sitesTimer == null, 'no timers created while invisible');
-      check(metricsBuilds == 1 && sitesBuilds == 1, 'zero rebuilds while invisible');
+      check(
+        metricsTimer == null && sitesTimer == null,
+        'no timers created while invisible',
+      );
+      check(
+        metricsBuilds == 1 && sitesBuilds == 1,
+        'zero rebuilds while invisible',
+      );
 
       // 3. Page becomes visible again -> immediate refresh bypasses throttle
       onVisibilityChanged(true);
@@ -1393,7 +1523,12 @@ Future<void> main() async {
         check(disk.writes == 0, 'init does not write');
 
         // 1. Record traffic sample
-        e.recordRequestSample(id: 'conn-pwr3', upload: 50, download: 100, host: 'fail.test');
+        e.recordRequestSample(
+          id: 'conn-pwr3',
+          upload: 50,
+          download: 100,
+          host: 'fail.test',
+        );
         check(e.isDirty, 'engine must be dirty after new traffic');
 
         // 2. Simulate persistence write error
@@ -1407,12 +1542,20 @@ Future<void> main() async {
         // 3. Clear error and retry save -> success
         disk.writeError = null;
         await e.save();
-        check(e.lastPersistenceError == null, 'error cleared after successful save');
+        check(
+          e.lastPersistenceError == null,
+          'error cleared after successful save',
+        );
         check(!e.isDirty, 'clean state after successful save');
         check(disk.writes == 1, 'one write completed');
 
         // 4. In-flight write with concurrent traffic
-        e.recordRequestSample(id: 'conn-pwr3-2', upload: 10, download: 20, host: 'fail.test');
+        e.recordRequestSample(
+          id: 'conn-pwr3-2',
+          upload: 10,
+          download: 20,
+          host: 'fail.test',
+        );
         check(e.isDirty, 'dirty for second batch');
 
         final started = Completer<void>();
@@ -1425,20 +1568,31 @@ Future<void> main() async {
         await started.future;
 
         // While save is in flight, more traffic arrives
-        e.recordRequestSample(id: 'conn-pwr3-3', upload: 30, download: 40, host: 'fail.test');
+        e.recordRequestSample(
+          id: 'conn-pwr3-3',
+          upload: 30,
+          download: 40,
+          host: 'fail.test',
+        );
 
         // Release disk write gate
         gate.complete();
         await inFlightSave;
 
         // Because new traffic arrived during write, dirty state must still be true
-        check(e.isDirty, 'dirty state must remain true because concurrent traffic arrived during write');
+        check(
+          e.isDirty,
+          'dirty state must remain true because concurrent traffic arrived during write',
+        );
 
         // A second save flushes the remaining traffic
         disk.writeGate = null;
         await e.save();
         check(!e.isDirty, 'fully clean after flushing second revision');
-        check(disk.writes == 3, 'three writes completed in total across test steps');
+        check(
+          disk.writes == 3,
+          'three writes completed in total across test steps',
+        );
       } finally {
         e.dispose();
       }
@@ -1489,7 +1643,10 @@ Future<void> main() async {
       for (var i = 0; i < 5; i++) {
         onStoreChanged();
       }
-      check(bannerBuilds == 1, 'banner does not rebuild while error is unchanged');
+      check(
+        bannerBuilds == 1,
+        'banner does not rebuild while error is unchanged',
+      );
 
       // 5. Store recovers (subsequent save succeeds)
       storeError = null;

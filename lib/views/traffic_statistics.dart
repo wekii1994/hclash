@@ -451,15 +451,14 @@ class _TrafficMetricsAndChartSectionState
                   final defaultIndex = chartPoints.indexWhere(
                     (p) => p.isCurrent,
                   );
-                  final effectiveIndex =
-                      _selectedBarIndex >= 0 &&
-                              _selectedBarIndex < chartPoints.length
-                          ? _selectedBarIndex
-                          : (defaultIndex != -1
-                              ? defaultIndex
-                              : (chartPoints.isNotEmpty
-                                  ? chartPoints.length - 1
-                                  : -1));
+                  final effectiveIndex = _selectedBarIndex >= 0 &&
+                          _selectedBarIndex < chartPoints.length
+                      ? _selectedBarIndex
+                      : (defaultIndex != -1
+                          ? defaultIndex
+                          : (chartPoints.isNotEmpty
+                              ? chartPoints.length - 1
+                              : -1));
                   return TrafficBarChart(
                     points: chartPoints,
                     selectedIndex: effectiveIndex,
@@ -614,7 +613,8 @@ class _TargetSitesSectionState extends State<_TargetSitesSection> {
                 glyph: AppGlyphs.target,
                 title: l.target,
               ),
-              if (allTopSites.isNotEmpty || (aggregatedGroups?.isNotEmpty ?? false))
+              if (allTopSites.isNotEmpty ||
+                  (aggregatedGroups?.isNotEmpty ?? false))
                 DashboardChip(
                   label: '${_siteCount ?? totalInitialCount}',
                 ),
@@ -699,20 +699,18 @@ class _RangeChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 6),
         alignment: Alignment.center,
         decoration: ShapeDecoration(
-          color: selected
-              ? colorScheme.primary
-              : DashboardColors.of(context).tone,
+          color:
+              selected ? colorScheme.primary : DashboardColors.of(context).tone,
           shape: AppShape.sm,
         ),
         child: Text(
           label,
-          style: AppTextStyle.caption1
-              .of(context, emphasized: selected)
-              .copyWith(
-                color: selected
-                    ? colorScheme.onPrimary
-                    : colorScheme.onSurfaceVariant,
-              ),
+          style:
+              AppTextStyle.caption1.of(context, emphasized: selected).copyWith(
+                    color: selected
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSurfaceVariant,
+                  ),
         ),
       ),
     );
@@ -724,8 +722,7 @@ class PersistenceErrorBanner extends StatefulWidget {
   const PersistenceErrorBanner({super.key});
 
   @override
-  State<PersistenceErrorBanner> createState() =>
-      _PersistenceErrorBannerState();
+  State<PersistenceErrorBanner> createState() => _PersistenceErrorBannerState();
 }
 
 class _PersistenceErrorBannerState extends State<PersistenceErrorBanner> {
