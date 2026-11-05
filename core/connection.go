@@ -367,14 +367,49 @@ func resetAllGroupsConsecutiveFailures() {
 	}
 }
 
-func calculateGroupProbeBudget(proxy *adapter.Proxy) time.Duration {
-	if pg, ok := proxy.ProxyAdapter.(outboundgroup.ProxyGroup); ok {
-		return outboundgroup.RoundBudget(len(pg.Proxies()), 0)
+type candidateCountGroup interface {
+	GetProxies(touch bool) []C.Proxy
+}
+
+type timeoutAwareGroup interface {
+	TestTimeout() time.Duration
+}
+
+func getGroupCandidateCount(proxy *adapter.Proxy) int {
+	if cg, ok := proxy.ProxyAdapter.(candidateCountGroup); ok {
+		return len(cg.GetProxies(false))
 	}
-	return outboundgroup.RoundBudget(1, 0)
+	if pg, ok := proxy.ProxyAdapter.(outboundgroup.ProxyGroup); ok {
+		return len(pg.Proxies())
+	}
+	return 1
+}
+
+func getGroupTestTimeout(proxy *adapter.Proxy) time.Duration {
+	if tg, ok := proxy.ProxyAdapter.(timeoutAwareGroup); ok {
+		if d := tg.TestTimeout(); d > 0 {
+			return d
+		}
+	}
+	return 5 * time.Second
+}
+
+func calculateGroupProbeBudget(proxy *adapter.Proxy, competingCandidates ...int) time.Duration {
+	count := getGroupCandidateCount(proxy)
+	competing := 0
+	if len(competingCandidates) > 0 && competingCandidates[0] > 0 {
+		competing = competingCandidates[0]
+	}
+	timeout := getGroupTestTimeout(proxy)
+	return outboundgroup.RoundBudget(count+competing, timeout)
 }
 
 func probeGroupsConcurrently(ctx context.Context, groups []*adapter.Proxy) bool {
+	totalCandidates := 0
+	for _, g := range groups {
+		totalCandidates += getGroupCandidateCount(g)
+	}
+
 	return runBoundedProbes(ctx, len(groups), primaryProbeConcurrency,
 		func(probeCtx context.Context, index int) bool {
 			g := groups[index]
@@ -384,7 +419,13 @@ func probeGroupsConcurrently(ctx context.Context, groups []*adapter.Proxy) bool 
 			}
 			done := markNetworkProbing(g.Name())
 			defer done()
-			budget := calculateGroupProbeBudget(g)
+
+			groupCount := getGroupCandidateCount(g)
+			competingCandidates := totalCandidates - groupCount
+			if competingCandidates < 0 {
+				competingCandidates = 0
+			}
+			budget := calculateGroupProbeBudget(g, competingCandidates)
 			testCtx, cancel := context.WithTimeout(probeCtx, budget)
 			defer cancel()
 			results, err := checker.HealthCheckContext(testCtx)

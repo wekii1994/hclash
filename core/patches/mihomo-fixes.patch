@@ -62,10 +62,10 @@ index 9cd4fa01..71ea9dd7 100644
  		// that completed in under a millisecond as 1 ms
 diff --git a/adapter/outboundgroup/failover_test.go b/adapter/outboundgroup/failover_test.go
 new file mode 100644
-index 00000000..db3f6a5b
+index 00000000..3426a612
 --- /dev/null
 +++ b/adapter/outboundgroup/failover_test.go
-@@ -0,0 +1,1100 @@
+@@ -0,0 +1,1205 @@
 +package outboundgroup
 +
 +import (
@@ -1154,20 +1154,125 @@ index 00000000..db3f6a5b
 +}
 +
 +func TestRoundBudgetBounds(t *testing.T) {
-+	// 1 node -> 1 batch * 3s + 500ms = 3500ms (>= 3s)
++	// 1 node with default (0) timeout: 1 batch * 5s + 500ms = 5500ms
 +	b1 := RoundBudget(1, 0)
-+	require.Equal(t, 3500*time.Millisecond, b1)
++	require.Equal(t, 5500*time.Millisecond, b1)
 +
-+	// 20 nodes -> 2 batches * 3s + 500ms = 6500ms
++	// 20 nodes with default timeout: 2 batches * 5s + 500ms = 10500ms
 +	b20 := RoundBudget(20, 0)
-+	require.Equal(t, 6500*time.Millisecond, b20)
++	require.Equal(t, 10500*time.Millisecond, b20)
 +
-+	// 100 nodes -> 10 batches * 3s + 500ms = 30.5s -> bounded at 15s
++	// 100 nodes with default timeout: 10 batches * 5s + 500ms = 50.5s -> bounded at 30s
 +	b100 := RoundBudget(100, 0)
-+	require.Equal(t, 15*time.Second, b100)
++	require.Equal(t, 30*time.Second, b100)
++
++	// Custom timeout 8s: 1 batch * 8s + 500ms = 8500ms
++	bCustom := RoundBudget(1, 8*time.Second)
++	require.Equal(t, 8500*time.Millisecond, bCustom)
++
++	// Custom timeout 300ms: 1 batch * 300ms + 500ms = 800ms
++	bFast := RoundBudget(1, 300*time.Millisecond)
++	require.Equal(t, 800*time.Millisecond, bFast)
++}
++
++type r2MockProxy struct {
++	C.Proxy
++	name  string
++	delay time.Duration
++	err   error
++	alive bool
++}
++
++func (p *r2MockProxy) Name() string                     { return p.name }
++func (p *r2MockProxy) Type() C.AdapterType              { return C.Vmess }
++func (p *r2MockProxy) AliveForTestUrl(string) bool      { return p.alive }
++func (p *r2MockProxy) LastDelayForTestUrl(string) uint16 { return 100 }
++func (p *r2MockProxy) URLTest(ctx context.Context, url string, status utils.IntRanges[uint16]) (uint16, error) {
++	if p.delay > 0 {
++		select {
++		case <-time.After(p.delay):
++		case <-ctx.Done():
++			return 0, ctx.Err()
++		}
++	}
++	if p.err != nil {
++		return 0, p.err
++	}
++	p.alive = true
++	return 100, nil
++}
++
++func TestHealthCheckContextDeadlineWithPartialSuccess(t *testing.T) {
++	var switched atomic.Bool
++	oldCallback := OnGroupNowChanged
++	OnGroupNowChanged = func(g C.ProxyAdapter, groupName, before, after string) {
++		switched.Store(true)
++	}
++	t.Cleanup(func() { OnGroupNowChanged = oldCallback })
++
++	nodeSlow := &r2MockProxy{name: "node-slow", delay: 2 * time.Second}
++	nodeFast := &r2MockProxy{name: "node-fast", delay: 20 * time.Millisecond}
++	providers := []P.ProxyProvider{&concurrencyMockProvider{proxies: []C.Proxy{nodeSlow, nodeFast}}}
++
++	options := GroupCommonOption{Name: "partial-group", TestTimeout: 300, URL: "http://example.test"}
++	group, err := NewFallback(options, FallbackOption{}, namedProxy("DIRECT"), providers)
++	require.NoError(t, err)
++
++	// 100ms deadline: nodeA (20ms) succeeds, nodeB (2s) expires
++	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
++	defer cancel()
++
++	results, err := group.HealthCheckContext(ctx)
++	require.NoError(t, err, "partial success with verified alive candidate should return nil error")
++	require.Equal(t, 1, len(results))
++	require.Contains(t, results, "node-fast")
++	require.True(t, switched.Load(), "valid switch must be triggered for verified alive candidate")
++	require.Equal(t, 0, group.ConsecutiveFailures(), "partial success must not increment consecutive failures")
++}
++
++func TestHealthCheckContextCanceledNoSwitch(t *testing.T) {
++	var switched atomic.Bool
++	oldCallback := OnGroupNowChanged
++	OnGroupNowChanged = func(g C.ProxyAdapter, groupName, before, after string) {
++		switched.Store(true)
++	}
++	t.Cleanup(func() { OnGroupNowChanged = oldCallback })
++
++	nodeA := &r2MockProxy{name: "node-1", delay: 200 * time.Millisecond}
++	providers := []P.ProxyProvider{&concurrencyMockProvider{proxies: []C.Proxy{nodeA}}}
++
++	options := GroupCommonOption{Name: "canceled-group", TestTimeout: 300, URL: "http://example.test"}
++	group, err := NewFallback(options, FallbackOption{}, namedProxy("DIRECT"), providers)
++	require.NoError(t, err)
++
++	ctx, cancel := context.WithCancel(context.Background())
++	cancel() // already canceled
++
++	_, err = group.HealthCheckContext(ctx)
++	require.ErrorIs(t, err, context.Canceled)
++	require.False(t, switched.Load(), "actively canceled probe round must not trigger switch")
++	require.Equal(t, 0, group.ConsecutiveFailures())
++}
++
++func TestHealthCheckContextIncompleteNoConsecutiveFailures(t *testing.T) {
++	nodeA := &r2MockProxy{name: "node-1", delay: 2 * time.Second}
++	nodeB := &r2MockProxy{name: "node-2", delay: 2 * time.Second}
++	providers := []P.ProxyProvider{&concurrencyMockProvider{proxies: []C.Proxy{nodeA, nodeB}}}
++
++	options := GroupCommonOption{Name: "incomplete-group", TestTimeout: 300, URL: "http://example.test"}
++	group, err := NewFallback(options, FallbackOption{}, namedProxy("DIRECT"), providers)
++	require.NoError(t, err)
++
++	// 50ms deadline: neither node completes
++	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
++	defer cancel()
++
++	_, err = group.HealthCheckContext(ctx)
++	require.ErrorIs(t, err, context.DeadlineExceeded)
++	require.Equal(t, 0, group.ConsecutiveFailures(), "incomplete check truncated by deadline must not increment consecutive failures")
 +}
 diff --git a/adapter/outboundgroup/fallback.go b/adapter/outboundgroup/fallback.go
-index d6f61348..659b8a21 100644
+index d6f61348..f2170bc2 100644
 --- a/adapter/outboundgroup/fallback.go
 +++ b/adapter/outboundgroup/fallback.go
 @@ -34,8 +34,11 @@ func (f *Fallback) DialContext(ctx context.Context, metadata *C.Metadata) (C.Con
@@ -1192,7 +1297,7 @@ index d6f61348..659b8a21 100644
  			}
  		})
  	}
-@@ -180,3 +183,46 @@ func NewFallback(option GroupCommonOption, fallbackOption FallbackOption, emptyF
+@@ -180,3 +183,66 @@ func NewFallback(option GroupCommonOption, fallbackOption FallbackOption, emptyF
  		expectedStatus: option.ExpectedStatus,
  	}, nil
  }
@@ -1219,15 +1324,35 @@ index d6f61348..659b8a21 100644
 +	}
 +	result, err := f.GroupBase.URLTest(ctx, f.testUrl, expected)
 +
-+	// If the entire probe task was actively canceled or timed out at group context level, exit early without updating failures or switching
-+	if ctx.Err() != nil {
-+		return result, err
++	// If the entire probe task was actively canceled (e.g. route epoch changed or reset network),
++	// never apply stale switch results or update failure state.
++	if errors.Is(ctx.Err(), context.Canceled) {
++		return result, ctx.Err()
 +	}
 +
++	// If parent deadline expired before all candidates finished:
++	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
++		// If at least one candidate succeeded before deadline, we have verified alive proxy(ies).
++		if len(result) > 0 {
++			f.GroupBase.UpdateConsecutiveFailures(false)
++			after := f.Now()
++			if _, verifiedAlive := result[after]; verifiedAlive {
++				if before != "" && after != "" && before != after && OnGroupNowChanged != nil {
++					OnGroupNowChanged(f, f.Name(), before, after)
++				}
++			}
++			return result, nil
++		}
++		// If no candidate succeeded, the check was incomplete (truncated by budget limit),
++		// so do NOT mark it as a complete all-failure to avoid premature backoff escalation.
++		return result, ctx.Err()
++	}
++
++	// Normal complete check (ctx.Err() == nil):
 +	allFailed := (err != nil || len(result) == 0)
 +	f.GroupBase.UpdateConsecutiveFailures(allFailed)
 +
-+	// If at least one candidate succeeded (even if dead nodes reached deadline), evaluate valid switch
++	// If at least one candidate succeeded, evaluate valid switch
 +	if len(result) > 0 {
 +		after := f.Now()
 +		if _, verifiedAlive := result[after]; verifiedAlive {
@@ -1241,7 +1366,7 @@ index d6f61348..659b8a21 100644
 +}
 \ No newline at end of file
 diff --git a/adapter/outboundgroup/groupbase.go b/adapter/outboundgroup/groupbase.go
-index 27900604..0053ccf1 100644
+index 27900604..9b7dd78d 100644
 --- a/adapter/outboundgroup/groupbase.go
 +++ b/adapter/outboundgroup/groupbase.go
 @@ -6,6 +6,7 @@ import (
@@ -1310,7 +1435,21 @@ index 27900604..0053ccf1 100644
  		testTimeout:       opt.TestTimeout,
  		maxFailedTimes:    opt.MaxFailedTimes,
  		emptyFallback:     opt.EmptyFallback,
-@@ -238,23 +255,230 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
+@@ -112,6 +129,13 @@ func (gb *GroupBase) Icon() string {
+ 	return gb.icon
+ }
+ 
++func (gb *GroupBase) TestTimeout() time.Duration {
++	if gb == nil || gb.testTimeout <= 0 {
++		return 5 * time.Second
++	}
++	return time.Duration(gb.testTimeout) * time.Millisecond
++}
++
+ func (gb *GroupBase) EmptyFallback() C.Proxy {
+ 	return gb.emptyFallback
+ }
+@@ -238,23 +262,231 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
  	return proxies
  }
  
@@ -1320,17 +1459,18 @@ index 27900604..0053ccf1 100644
 +
 +func RoundBudget(proxiesCount int, nodeTimeout time.Duration) time.Duration {
 +	if nodeTimeout <= 0 {
-+		nodeTimeout = 3 * time.Second
++		nodeTimeout = 5 * time.Second
 +	}
 +	batches := (proxiesCount + maxConcurrentProxyProbes - 1) / maxConcurrentProxyProbes
 +	if batches < 1 {
 +		batches = 1
 +	}
 +	budget := time.Duration(batches)*nodeTimeout + 500*time.Millisecond
-+	if budget < 3*time.Second {
-+		budget = 3 * time.Second
-+	} else if budget > 15*time.Second {
-+		budget = 15 * time.Second
++	if budget < nodeTimeout+500*time.Millisecond {
++		budget = nodeTimeout + 500*time.Millisecond
++	}
++	if budget > 30*time.Second {
++		budget = 30 * time.Second
 +	}
 +	return budget
 +}
@@ -1545,7 +1685,7 @@ index 27900604..0053ccf1 100644
  		}()
  	}
  	wg.Wait()
-@@ -266,49 +490,188 @@ func (gb *GroupBase) URLTest(ctx context.Context, url string, expectedStatus uti
+@@ -266,49 +498,188 @@ func (gb *GroupBase) URLTest(ctx context.Context, url string, expectedStatus uti
  	}
  }
  
@@ -1614,9 +1754,7 @@ index 27900604..0053ccf1 100644
 +	if metadata == nil {
 +		return
 +	}
- 
--		gb.failedTestMux.Lock()
--		defer gb.failedTestMux.Unlock()
++
 +	var host string
 +	if metadata.Host != "" {
 +		host = strings.ToLower(strings.TrimRight(metadata.Host, "."))
@@ -1630,13 +1768,15 @@ index 27900604..0053ccf1 100644
 +	gb.failedTestMux.Lock()
 +	defer gb.failedTestMux.Unlock()
  
+-		gb.failedTestMux.Lock()
+-		defer gb.failedTestMux.Unlock()
++	now := time.Now()
++	isHardFail := isProxyServerHardFailure(err)
+ 
 -		gb.failedTimes++
 -		if gb.failedTimes == 1 {
 -			log.Debugln("ProxyGroup: %s first failed", gb.Name())
 -			gb.failedTime = time.Now()
-+	now := time.Now()
-+	isHardFail := isProxyServerHardFailure(err)
-+
 +	n := 0
 +	existingIdx := -1
 +	for _, target := range gb.failedTargets {
@@ -1688,7 +1828,8 @@ index 27900604..0053ccf1 100644
 +		cooldown := gb.currentCooldown()
 +		if time.Since(gb.lastTriggerTime) < cooldown || gb.probing.Load() {
 +			return
-+		}
+ 		}
+-	}()
 +		gb.lastTriggerTime = now
 +		for i := range gb.failedTargets {
 +			gb.failedTargets[i] = failedTarget{}
@@ -1717,8 +1858,7 @@ index 27900604..0053ccf1 100644
 +	if allFailed {
 +		if gb.consecutiveAllFailures < 5 {
 +			gb.consecutiveAllFailures++
- 		}
--	}()
++		}
 +	} else {
 +		gb.consecutiveAllFailures = 0
 +	}
@@ -1757,7 +1897,7 @@ index 27900604..0053ccf1 100644
  	wg := sync.WaitGroup{}
  	for _, proxyProvider := range gb.providers {
  		wg.Add(1)
-@@ -318,14 +681,5 @@ func (gb *GroupBase) healthCheck() {
+@@ -318,14 +689,5 @@ func (gb *GroupBase) healthCheck() {
  			proxyProvider.HealthCheck()
  		}()
  	}
@@ -1821,7 +1961,7 @@ index ad38e4a5..ba1ad78b 100644
  func namedProxy(name string) C.Proxy {
  	return adapter.NewProxy(outbound.NewDirectWithOption(outbound.DirectOption{Name: name}))
 diff --git a/adapter/outboundgroup/urltest.go b/adapter/outboundgroup/urltest.go
-index 791d10f3..04154495 100644
+index 791d10f3..75475c68 100644
 --- a/adapter/outboundgroup/urltest.go
 +++ b/adapter/outboundgroup/urltest.go
 @@ -62,8 +62,11 @@ func (u *URLTest) DialContext(ctx context.Context, metadata *C.Metadata) (c C.Co
@@ -1870,7 +2010,7 @@ index 791d10f3..04154495 100644
  }
  
  func (u *URLTest) fast(touch bool) C.Proxy {
-@@ -230,3 +235,41 @@ func NewURLTest(option GroupCommonOption, urlTestOption URLTestOption, emptyFall
+@@ -230,3 +235,61 @@ func NewURLTest(option GroupCommonOption, urlTestOption URLTestOption, emptyFall
  
  	return urlTest, nil
  }
@@ -1892,15 +2032,35 @@ index 791d10f3..04154495 100644
 +	result, err := u.GroupBase.URLTest(ctx, u.testUrl, expected)
 +	u.fastSingle.Reset()
 +
-+	// If the entire probe task was actively canceled or timed out at group context level, exit early without updating failures or switching
-+	if ctx.Err() != nil {
-+		return result, err
++	// If the entire probe task was actively canceled (e.g. route epoch changed or reset network),
++	// never apply stale switch results or update failure state.
++	if errors.Is(ctx.Err(), context.Canceled) {
++		return result, ctx.Err()
 +	}
 +
++	// If parent deadline expired before all candidates finished:
++	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
++		// If at least one candidate succeeded before deadline, we have verified alive proxy(ies).
++		if len(result) > 0 {
++			u.GroupBase.UpdateConsecutiveFailures(false)
++			after := u.Now()
++			if _, verifiedAlive := result[after]; verifiedAlive {
++				if before != "" && after != "" && before != after && OnGroupNowChanged != nil {
++					OnGroupNowChanged(u, u.Name(), before, after)
++				}
++			}
++			return result, nil
++		}
++		// If no candidate succeeded, the check was incomplete (truncated by budget limit),
++		// so do NOT mark it as a complete all-failure to avoid premature backoff escalation.
++		return result, ctx.Err()
++	}
++
++	// Normal complete check (ctx.Err() == nil):
 +	allFailed := (err != nil || len(result) == 0)
 +	u.GroupBase.UpdateConsecutiveFailures(allFailed)
 +
-+	// If at least one candidate succeeded (even if dead nodes reached deadline), evaluate valid switch
++	// If at least one candidate succeeded, evaluate valid switch
 +	if len(result) > 0 {
 +		after := u.Now()
 +		if _, verifiedAlive := result[after]; verifiedAlive {

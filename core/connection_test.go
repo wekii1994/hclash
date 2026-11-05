@@ -423,6 +423,7 @@ type mockAutoGroupAdapter struct {
 	groupType         constant.AdapterType
 	proxies           []constant.Proxy
 	consecutiveResets atomic.Int32
+	testTimeout       time.Duration
 }
 
 func (m *mockAutoGroupAdapter) Name() string                     { return m.name }
@@ -433,6 +434,8 @@ func (m *mockAutoGroupAdapter) Hidden() bool                     { return false 
 func (m *mockAutoGroupAdapter) Icon() string                     { return "" }
 func (m *mockAutoGroupAdapter) Providers() []cp.ProxyProvider    { return nil }
 func (m *mockAutoGroupAdapter) Proxies() []constant.Proxy        { return m.proxies }
+func (m *mockAutoGroupAdapter) GetProxies(bool) []constant.Proxy { return m.proxies }
+func (m *mockAutoGroupAdapter) TestTimeout() time.Duration       { return m.testTimeout }
 func (m *mockAutoGroupAdapter) ResetConsecutiveFailures()         { m.consecutiveResets.Add(1) }
 func (m *mockAutoGroupAdapter) URLTest(ctx context.Context, url string, expectedStatus utils.IntRanges[uint16]) (map[string]uint16, error) {
 	return nil, nil
@@ -479,31 +482,50 @@ func TestClassifyAutoGroupsActiveVsKeywords(t *testing.T) {
 }
 
 func TestCalculateGroupProbeBudget(t *testing.T) {
-	// 1 proxy: 1 batch * 3s + 500ms = 3500ms
+	// 1 proxy with default timeout (5s): 1 batch * 5s + 500ms = 5500ms
 	g1 := adapter.NewProxy(&mockAutoGroupAdapter{
 		name:    "g1",
 		proxies: make([]constant.Proxy, 1),
 	})
-	if b := calculateGroupProbeBudget(g1); b != 3500*time.Millisecond {
-		t.Fatalf("expected 3500ms for 1 proxy, got %v", b)
+	if b := calculateGroupProbeBudget(g1); b != 5500*time.Millisecond {
+		t.Fatalf("expected 5500ms for 1 proxy with default timeout, got %v", b)
 	}
 
-	// 20 proxies: 2 batches * 3s + 500ms = 6500ms
+	// 20 proxies with default timeout: 2 batches * 5s + 500ms = 10500ms
 	g20 := adapter.NewProxy(&mockAutoGroupAdapter{
 		name:    "g20",
 		proxies: make([]constant.Proxy, 20),
 	})
-	if b := calculateGroupProbeBudget(g20); b != 6500*time.Millisecond {
-		t.Fatalf("expected 6500ms for 20 proxies, got %v", b)
+	if b := calculateGroupProbeBudget(g20); b != 10500*time.Millisecond {
+		t.Fatalf("expected 10500ms for 20 proxies with default timeout, got %v", b)
 	}
 
-	// 100 proxies: bounded at 15s
+	// 100 proxies with default timeout: bounded at 30s
 	g100 := adapter.NewProxy(&mockAutoGroupAdapter{
 		name:    "g100",
 		proxies: make([]constant.Proxy, 100),
 	})
-	if b := calculateGroupProbeBudget(g100); b != 15*time.Second {
-		t.Fatalf("expected 15s cap for 100 proxies, got %v", b)
+	if b := calculateGroupProbeBudget(g100); b != 30*time.Second {
+		t.Fatalf("expected 30s cap for 100 proxies, got %v", b)
+	}
+
+	// Group with custom timeout: e.g. 2s timeout, 1 batch = 2500ms
+	gCustom := adapter.NewProxy(&mockAutoGroupAdapter{
+		name:        "gCustom",
+		proxies:     make([]constant.Proxy, 1),
+		testTimeout: 2 * time.Second,
+	})
+	if b := calculateGroupProbeBudget(gCustom); b != 2500*time.Millisecond {
+		t.Fatalf("expected 2500ms for custom 2s timeout, got %v", b)
+	}
+
+	// Group with competing candidates: 5 proxies + 10 competing proxies = 15 proxies (2 batches * 5s + 500ms = 10500ms)
+	gComp := adapter.NewProxy(&mockAutoGroupAdapter{
+		name:    "gComp",
+		proxies: make([]constant.Proxy, 5),
+	})
+	if b := calculateGroupProbeBudget(gComp, 10); b != 10500*time.Millisecond {
+		t.Fatalf("expected 10500ms for 5 proxies with 10 competing candidates, got %v", b)
 	}
 }
 
