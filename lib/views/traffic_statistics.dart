@@ -422,7 +422,7 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
                       glyph: AppGlyphs.target,
                       title: l.target,
                     ),
-                    if (allTopSites.isNotEmpty || aggregatedGroups.isNotEmpty)
+                    if (allTopSites.isNotEmpty || (aggregatedGroups?.isNotEmpty ?? false))
                       DashboardChip(
                         label: '${_siteCount ?? totalInitialCount}',
                       ),
