@@ -74,8 +74,6 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView>
   @override
   Widget build(BuildContext context) {
     final l = context.appLocalizations;
-    final colorScheme = context.colorScheme;
-    final store = TrafficStatsStore.instance;
     final isZh = Localizations.localeOf(context).languageCode == 'zh';
     final cleanText = isZh ? '清空' : 'Clear';
     final cleanTitle = isZh ? '清空流量统计' : 'Clear Traffic Statistics';
@@ -99,7 +97,7 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView>
             if (confirmed == true) {
               if (!mounted) return;
               try {
-                await store.clearAll();
+                await TrafficStatsStore.instance.clearAll();
                 if (!mounted) return;
                 _metricsKey.currentState?.refreshImmediately();
                 _sitesKey.currentState?.refreshImmediately();
