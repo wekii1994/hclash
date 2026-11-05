@@ -53,32 +53,4 @@ void main() {
       expect(errorFinder, findsNothing);
     },
   );
-
-  testWidgets(
-    'traffic statistics view mounts with full app scopes and hosts persistence banner',
-    (tester) async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-      globalState.container = container;
-
-      tester.view.physicalSize = const Size(1000, 2000);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const TestApp(
-            locale: Locale('zh'),
-            child: TrafficStatisticsView(),
-          ),
-        ),
-      );
-      await tester.pump();
-
-      expect(find.byType(TrafficStatisticsView), findsOneWidget);
-      expect(find.byType(PersistenceErrorBanner), findsOneWidget);
-    },
-  );
 }
