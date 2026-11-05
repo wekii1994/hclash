@@ -225,9 +225,11 @@ class TrafficStatsEngine {
         ),
       };
 
+  static const Duration defaultSaveInterval = Duration(seconds: 120);
+
   void scheduleSave() {
     if (_disposed || _saveTimer != null) return;
-    _saveTimer = Timer(const Duration(seconds: 30), () {
+    _saveTimer = Timer(defaultSaveInterval, () {
       _saveTimer = null;
       unawaited(save());
     });

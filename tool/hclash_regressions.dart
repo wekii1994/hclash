@@ -1276,5 +1276,15 @@ Future<void> main() async {
     },
   );
 
+  await test(
+    'PWR-03: default save interval is 120 seconds to prevent flash wear',
+    () async {
+      check(
+        TrafficStatsEngine.defaultSaveInterval == const Duration(seconds: 120),
+        'defaultSaveInterval must be 120 seconds',
+      );
+    },
+  );
+
   stdout.writeln('$count regression scenarios passed.');
 }

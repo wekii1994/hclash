@@ -519,3 +519,80 @@ func TestResetAllGroupsConsecutiveFailures(t *testing.T) {
 		t.Fatalf("expected 1 reset call, got %d", count)
 	}
 }
+
+func TestOnGroupNowChangedPreservesHealthyNodeConnections(t *testing.T) {
+	if outboundgroup.OnGroupNowChanged == nil {
+		t.Fatal("outboundgroup.OnGroupNowChanged is nil, want initialized in core/connection.go")
+	}
+
+	statistic.DefaultManager.ResetStatistic()
+
+	nodeAProxy := &mockProxyWithAlive{name: "NodeA", alive: true}
+	nodeBProxy := &mockProxyWithAlive{name: "NodeB", alive: true}
+	baseGroup := outbound.NewRejectWithOption(outbound.RejectOption{Name: "AutoGroup"})
+	group := &mockGroupWithProxies{
+		ProxyAdapter: baseGroup,
+		name:         "AutoGroup",
+		proxies:      []constant.Proxy{nodeAProxy, nodeBProxy},
+	}
+
+	nodeA := outbound.NewRejectWithOption(outbound.RejectOption{Name: "NodeA"})
+	nodeB := outbound.NewRejectWithOption(outbound.RejectOption{Name: "NodeB"})
+
+	l1, r1 := net.Pipe()
+	conn1 := outbound.NewConn(l1, nodeA)
+	conn1.AppendToChains(nodeA)
+	conn1.AppendToChains(group)
+	tracker1 := statistic.NewTCPTracker(conn1, statistic.DefaultManager, &constant.Metadata{}, nil, 0, 0, true)
+
+	l2, r2 := net.Pipe()
+	conn2 := outbound.NewConn(l2, nodeB)
+	conn2.AppendToChains(nodeB)
+	conn2.AppendToChains(group)
+	tracker2 := statistic.NewTCPTracker(conn2, statistic.DefaultManager, &constant.Metadata{}, nil, 0, 0, true)
+
+	tunnel.UpdateProxies(map[string]constant.Proxy{
+		"AutoGroup": adapter.NewProxy(group),
+	}, nil)
+
+	t.Cleanup(func() {
+		_ = tracker1.Close()
+		_ = tracker2.Close()
+		_ = r1.Close()
+		_ = r2.Close()
+		tunnel.UpdateProxies(nil, nil)
+		statistic.DefaultManager.ResetStatistic()
+	})
+
+	if count := countConnections(); count != 2 {
+		t.Fatalf("expected 2 active connections before reselection, got %d", count)
+	}
+
+	// 1. Healthy latency reselection during network probing: NodeA is healthy -> MUST PRESERVE CONNECTIONS!
+	done := markNetworkProbing("AutoGroup")
+	outboundgroup.OnGroupNowChanged(group, "AutoGroup", "NodeA", "NodeB")
+	done()
+
+	if count := countConnections(); count != 2 {
+		t.Fatalf("expected 2 active connections after healthy reselection, got %d", count)
+	}
+	if statistic.DefaultManager.Get(tracker1.ID()) == nil {
+		t.Errorf("expected healthy NodeA connection to be preserved, but was closed")
+	}
+
+	// 2. NodeA failure (alive: false) -> MUST CLOSE STALE CONNECTION!
+	nodeAProxy.alive = false
+	done = markNetworkProbing("AutoGroup")
+	outboundgroup.OnGroupNowChanged(group, "AutoGroup", "NodeA", "NodeB")
+	done()
+
+	if count := countConnections(); count != 1 {
+		t.Fatalf("expected 1 active connection after dead node reselection, got %d", count)
+	}
+	if statistic.DefaultManager.Get(tracker1.ID()) != nil {
+		t.Errorf("expected dead NodeA connection to be closed, but still in manager")
+	}
+	if statistic.DefaultManager.Get(tracker2.ID()) == nil {
+		t.Errorf("expected NodeB connection to remain active, but was closed")
+	}
+}

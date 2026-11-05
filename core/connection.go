@@ -140,13 +140,14 @@ func init() {
 			}
 		}
 
-		if isNetworkProbing(groupName) && isGroupProxyAlive(group, before) {
+		isHealthyReselect := isNetworkProbing(groupName) && isGroupProxyAlive(group, before)
+		if isHealthyReselect {
 			log.Debugln("[Failover] Suppressed failover count for healthy node latency reselection on group %s: [%s] -> [%s]", groupName, before, after)
 		} else {
 			log.Infoln("[Failover] Proxy group %s auto switched from [%s] to [%s] via passive failure detection", groupName, before, after)
 			recordFailover(groupName, before, after)
+			handleCloseGroupStaleConnections(groupName, before, time.Now())
 		}
-		handleCloseGroupStaleConnections(groupName, before, time.Now())
 		refreshRouteLocked(routeMoved)
 	}
 }
@@ -528,7 +529,9 @@ func handleResetNetwork() {
 				before := beforeSelections[g.Name()]
 				after := pg.Now()
 				if before != "" && after != "" && before != after {
-					handleCloseGroupStaleConnections(g.Name(), before, time.Now())
+					if !isGroupProxyAlive(g.ProxyAdapter, before) {
+						handleCloseGroupStaleConnections(g.Name(), before, time.Now())
+					}
 				}
 			}
 		}
