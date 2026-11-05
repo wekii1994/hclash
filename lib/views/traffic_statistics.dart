@@ -125,7 +125,7 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView>
           bottom: 24 + context.bottomInset,
         ),
         children: [
-          const _PersistenceErrorBanner(),
+          const PersistenceErrorBanner(),
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
@@ -719,15 +719,16 @@ class _RangeChip extends StatelessWidget {
   }
 }
 
-class _PersistenceErrorBanner extends StatefulWidget {
-  const _PersistenceErrorBanner();
+@visibleForTesting
+class PersistenceErrorBanner extends StatefulWidget {
+  const PersistenceErrorBanner({super.key});
 
   @override
-  State<_PersistenceErrorBanner> createState() =>
+  State<PersistenceErrorBanner> createState() =>
       _PersistenceErrorBannerState();
 }
 
-class _PersistenceErrorBannerState extends State<_PersistenceErrorBanner> {
+class _PersistenceErrorBannerState extends State<PersistenceErrorBanner> {
   Object? _currentError;
 
   @override
