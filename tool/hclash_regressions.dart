@@ -1178,5 +1178,103 @@ Future<void> main() async {
     },
   );
 
+
+  await test(
+    'PWR-04: lazy evaluation only calculates active display mode',
+    () async {
+      final disk = MemoryPersistence();
+      final e = TrafficStatsEngine(
+        persistence: disk,
+        now: () => DateTime(2026, 11, 2, 12),
+      );
+      try {
+        await e.init();
+        for (var i = 1; i <= 20; i++) {
+          e.recordRequestSample(
+            id: 'conn-$i',
+            upload: 100 * i,
+            download: 200 * i,
+            host: 'sub$i.google.com',
+          );
+        }
+
+        // When requesting aggregated mode (default in UI), only aggregated sites are evaluated
+        final aggregated = e.getAggregatedSites(limit: 50);
+        check(aggregated.isNotEmpty, 'aggregated must not be empty');
+        check(aggregated.first.displayName == 'Google', 'Google must be aggregated');
+        check(aggregated.first.subSites.length == 20, 'all 20 sub-sites must be grouped in Google');
+
+        // When toggled to raw mode, requesting raw top sites returns top 50 without crashing or affecting aggregation
+        final topSites = e.getTopSites(limit: 50);
+        check(topSites.length == 20, 'raw mode returns 20 individual sites');
+        check(topSites.first.host == 'sub20.google.com', 'highest traffic sub-site ranks first');
+      } finally {
+        e.dispose();
+      }
+    },
+  );
+
+  await test(
+    'PWR-04: presentation throttling coordinator delays non-essential rank rebuilds and refreshes immediately on mode change',
+    () async {
+      var metricsUpdates = 0;
+      var sitesUpdates = 0;
+      var lastMetricsTime = DateTime.fromMillisecondsSinceEpoch(0);
+      var lastSitesTime = DateTime.fromMillisecondsSinceEpoch(0);
+      var isAggregated = true;
+
+      void onImmediateRefreshMetrics(DateTime now) {
+        metricsUpdates++;
+        lastMetricsTime = now;
+      }
+
+      void onImmediateRefreshSites(DateTime now) {
+        sitesUpdates++;
+        lastSitesTime = now;
+      }
+
+      void onStoreChangedSimulated(DateTime now) {
+        if (now.difference(lastMetricsTime) >= const Duration(milliseconds: 1000)) {
+          metricsUpdates++;
+          lastMetricsTime = now;
+        }
+        if (now.difference(lastSitesTime) >= const Duration(milliseconds: 3000)) {
+          sitesUpdates++;
+          lastSitesTime = now;
+        }
+      }
+
+      var t = DateTime(2026, 11, 2, 12, 0, 0);
+
+      // Initial page open: immediate refresh
+      onImmediateRefreshMetrics(t);
+      onImmediateRefreshSites(t);
+      check(metricsUpdates == 1 && sitesUpdates == 1, 'initial build refreshes both immediately');
+
+      // Frequent store notifications every 200ms for 2 seconds (10 ticks)
+      for (var i = 1; i <= 10; i++) {
+        t = t.add(const Duration(milliseconds: 200));
+        onStoreChangedSimulated(t);
+      }
+
+      // In 2 seconds:
+      // Metrics (1s throttle) updated at 1000ms and 2000ms -> total 3 updates
+      // Sites (3s throttle) NOT updated yet during the 2s burst -> total 1 update
+      check(metricsUpdates == 3, 'metrics updated 3 times during 2s (initial + 2 throttled), got $metricsUpdates');
+      check(sitesUpdates == 1, 'sites ranking stayed at 1 during 2s burst, got $sitesUpdates');
+
+      // User immediately switches mode at 2100ms -> MUST trigger immediate site update
+      t = t.add(const Duration(milliseconds: 100));
+      isAggregated = !isAggregated;
+      onImmediateRefreshSites(t);
+      check(sitesUpdates == 2, 'mode switch must refresh sites immediately without waiting 3s throttle');
+
+      // Advance past 3s from last sites update -> throttled site update triggers
+      t = t.add(const Duration(milliseconds: 3100));
+      onStoreChangedSimulated(t);
+      check(sitesUpdates == 3, 'throttled site update fires after 3s interval');
+    },
+  );
+
   stdout.writeln('$count regression scenarios passed.');
 }

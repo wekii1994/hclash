@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/widgets.dart';
@@ -22,28 +23,101 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
   TrafficStatsRange _selectedRange = TrafficStatsRange.today;
   int _selectedBarIndex = -1;
   int? _siteCount;
+  bool _isAggregated = true;
+
+  // Throttled presentation states to avoid expensive recalculations on every 800ms tick
+  Timer? _metricsTimer;
+  Timer? _sitesTimer;
+  DateTime _lastMetricsUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _lastSitesUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+
+  List<ChartBarPoint>? _cachedChartPoints;
+  List<AggregatedSiteGroup>? _cachedAggregatedGroups;
+  List<TargetSiteData>? _cachedTopSites;
+  int? _todayTotal;
+  int? _weekTotal;
+  TrafficDiff? _diff;
 
   @override
   void initState() {
     super.initState();
     TrafficStatsStore.instance.addListener(_onStoreChanged);
     TrafficStatsStore.instance.init();
+    _refreshMetricsImmediately();
+    _refreshSitesImmediately();
   }
 
   @override
   void dispose() {
+    _metricsTimer?.cancel();
+    _sitesTimer?.cancel();
     TrafficStatsStore.instance.removeListener(_onStoreChanged);
     super.dispose();
   }
 
+  void _refreshMetricsImmediately() {
+    if (!mounted) return;
+    _lastMetricsUpdate = DateTime.now();
+    final store = TrafficStatsStore.instance;
+    setState(() {
+      _todayTotal = store.todayTotal;
+      _weekTotal = store.weekTotal;
+      _diff = store.differenceFromYesterday;
+      _cachedChartPoints = store.getChartPoints(_selectedRange);
+    });
+  }
+
+  void _refreshSitesImmediately() {
+    if (!mounted) return;
+    _lastSitesUpdate = DateTime.now();
+    final store = TrafficStatsStore.instance;
+    setState(() {
+      if (_isAggregated) {
+        _cachedAggregatedGroups = store.getAggregatedSites(limit: 50);
+        _cachedTopSites = null;
+      } else {
+        _cachedTopSites = store.getTopSites(limit: 50);
+        _cachedAggregatedGroups = null;
+      }
+    });
+  }
+
   void _onStoreChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final now = DateTime.now();
+
+    // 1. Metrics & Chart throttled to ~1 second
+    final metricsElapsed = now.difference(_lastMetricsUpdate);
+    if (metricsElapsed >= const Duration(milliseconds: 1000)) {
+      _metricsTimer?.cancel();
+      _metricsTimer = null;
+      _refreshMetricsImmediately();
+    } else if (_metricsTimer == null || !_metricsTimer!.isActive) {
+      final remaining = const Duration(milliseconds: 1000) - metricsElapsed;
+      _metricsTimer = Timer(remaining, () {
+        if (mounted) _refreshMetricsImmediately();
+      });
+    }
+
+    // 2. Sites ranking throttled to ~3 seconds
+    final sitesElapsed = now.difference(_lastSitesUpdate);
+    if (sitesElapsed >= const Duration(milliseconds: 3000)) {
+      _sitesTimer?.cancel();
+      _sitesTimer = null;
+      _refreshSitesImmediately();
+    } else if (_sitesTimer == null || !_sitesTimer!.isActive) {
+      final remaining = const Duration(milliseconds: 3000) - sitesElapsed;
+      _sitesTimer = Timer(remaining, () {
+        if (mounted) _refreshSitesImmediately();
+      });
+    }
   }
 
   void _onRangeChanged(TrafficStatsRange range) {
     setState(() {
       _selectedRange = range;
       _selectedBarIndex = -1;
+      _cachedChartPoints = TrafficStatsStore.instance.getChartPoints(_selectedRange);
     });
   }
 
@@ -72,17 +146,15 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
         ? '确定要清空所有流量统计历史和站点记录吗？此操作无法撤销。'
         : 'Are you sure you want to clear all traffic statistics and site records? This action cannot be undone.';
 
-    final todayTotal = store.todayTotal;
-    final weekTotal = store.weekTotal;
-    final diff = store.differenceFromYesterday;
-    final allTopSites = store.getTopSites(
-      limit: TrafficStatsStore.maxSitesToKeep,
-    );
-    final aggregatedGroups = store.getAggregatedSites(limit: 50);
-    final totalInitialCount = aggregatedGroups.isNotEmpty
-        ? min(50, aggregatedGroups.length)
+    final todayTotal = _todayTotal ?? store.todayTotal;
+    final weekTotal = _weekTotal ?? store.weekTotal;
+    final diff = _diff ?? store.differenceFromYesterday;
+    final chartPoints = _cachedChartPoints ?? store.getChartPoints(_selectedRange);
+    final allTopSites = _cachedTopSites ?? const <TargetSiteData>[];
+    final aggregatedGroups = _cachedAggregatedGroups;
+    final totalInitialCount = (aggregatedGroups?.isNotEmpty ?? false)
+        ? min(50, aggregatedGroups!.length)
         : min(50, allTopSites.length);
-    final chartPoints = store.getChartPoints(_selectedRange);
 
     final uploadColor = DashboardColors.of(context).series2;
     final downloadColor = colorScheme.primary;
@@ -105,6 +177,9 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
               setState(() => _siteCount = null);
               try {
                 await store.clearAll();
+                if (!mounted) return;
+                _refreshMetricsImmediately();
+                _refreshSitesImmediately();
               } catch (_) {
                 if (!context.mounted) return;
                 await dialogs.showMessage(
@@ -350,6 +425,13 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
                   ),
                 ),
                 TargetSitesView(
+                  isAggregated: _isAggregated,
+                  onModeChanged: (val) {
+                    setState(() {
+                      _isAggregated = val;
+                      _refreshSitesImmediately();
+                    });
+                  },
                   sites: allTopSites,
                   aggregatedGroups: aggregatedGroups,
                   onCountChanged: (count) {

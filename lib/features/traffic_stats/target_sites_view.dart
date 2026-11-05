@@ -15,12 +15,16 @@ class TargetSitesView extends StatefulWidget {
   final List<TargetSiteData> sites;
   final List<AggregatedSiteGroup>? aggregatedGroups;
   final ValueChanged<int>? onCountChanged;
+  final bool? isAggregated;
+  final ValueChanged<bool>? onModeChanged;
 
   const TargetSitesView({
     super.key,
     required this.sites,
     this.aggregatedGroups,
     this.onCountChanged,
+    this.isAggregated,
+    this.onModeChanged,
   });
 
   @override
@@ -28,7 +32,8 @@ class TargetSitesView extends StatefulWidget {
 }
 
 class _TargetSitesViewState extends State<TargetSitesView> {
-  bool _isAggregated = true;
+  bool _internalIsAggregated = true;
+  bool get _isAggregated => widget.isAggregated ?? _internalIsAggregated;
   final Set<String> _expandedKeys = <String>{};
   List<AggregatedSiteGroup>? _cachedGroups;
   int? _lastNotifiedCount;
@@ -122,13 +127,17 @@ class _TargetSitesViewState extends State<TargetSitesView> {
                 isSelected: _isAggregated,
                 onTap: () {
                   if (!_isAggregated) {
-                    setState(() {
-                      _isAggregated = true;
-                      if (_cachedGroups == null) {
-                        _updateAggregatedGroups();
-                      }
-                    });
-                    _notifyCount();
+                    if (widget.onModeChanged != null) {
+                      widget.onModeChanged!(true);
+                    } else {
+                      setState(() {
+                        _internalIsAggregated = true;
+                        if (_cachedGroups == null) {
+                          _updateAggregatedGroups();
+                        }
+                      });
+                      _notifyCount();
+                    }
                   }
                 },
               ),
@@ -138,8 +147,12 @@ class _TargetSitesViewState extends State<TargetSitesView> {
                 isSelected: !_isAggregated,
                 onTap: () {
                   if (_isAggregated) {
-                    setState(() => _isAggregated = false);
-                    _notifyCount();
+                    if (widget.onModeChanged != null) {
+                      widget.onModeChanged!(false);
+                    } else {
+                      setState(() => _internalIsAggregated = false);
+                      _notifyCount();
+                    }
                   }
                 },
               ),
