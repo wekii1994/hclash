@@ -1226,7 +1226,6 @@ Future<void> main() async {
       var lastMetricsUpdate = DateTime.fromMillisecondsSinceEpoch(0);
       var lastSitesUpdate = DateTime.fromMillisecondsSinceEpoch(0);
       var isAggregated = true;
-      var isVisible = true;
       Timer? metricsTimer;
       Timer? sitesTimer;
 
@@ -1247,14 +1246,6 @@ Future<void> main() async {
       }
 
       void onStoreChanged(DateTime now) {
-        if (!isVisible) {
-          metricsTimer?.cancel();
-          metricsTimer = null;
-          sitesTimer?.cancel();
-          sitesTimer = null;
-          return;
-        }
-
         // Section A: Metrics 1000ms throttle
         final mElapsed = now.difference(lastMetricsUpdate);
         if (mElapsed >= const Duration(milliseconds: 1000)) {
@@ -1264,7 +1255,7 @@ Future<void> main() async {
         } else if (metricsTimer == null || !metricsTimer!.isActive) {
           final rem = const Duration(milliseconds: 1000) - mElapsed;
           metricsTimer = Timer(rem, () {
-            if (isVisible) refreshMetricsImmediately(DateTime.now());
+            refreshMetricsImmediately(DateTime.now());
           });
         }
 
@@ -1277,7 +1268,7 @@ Future<void> main() async {
         } else if (sitesTimer == null || !sitesTimer!.isActive) {
           final rem = const Duration(milliseconds: 3000) - sElapsed;
           sitesTimer = Timer(rem, () {
-            if (isVisible) refreshSitesImmediately(DateTime.now());
+            refreshSitesImmediately(DateTime.now());
           });
         }
       }
@@ -1321,20 +1312,16 @@ Future<void> main() async {
     () async {
       var metricsBuilds = 0;
       var sitesBuilds = 0;
-      var lastMetricsUpdate = DateTime.fromMillisecondsSinceEpoch(0);
-      var lastSitesUpdate = DateTime.fromMillisecondsSinceEpoch(0);
       var isVisible = true;
       Timer? metricsTimer;
       Timer? sitesTimer;
 
       void refreshMetricsImmediately() {
         metricsBuilds++;
-        lastMetricsUpdate = DateTime.now();
       }
 
       void refreshSitesImmediately() {
         sitesBuilds++;
-        lastSitesUpdate = DateTime.now();
       }
 
       void onVisibilityChanged(bool visible) {
@@ -1396,7 +1383,7 @@ Future<void> main() async {
     'PWR-03: save scheduler retains dirty state on failure, supports in-flight concurrent traffic, and serializes version progression',
     () async {
       final disk = MemoryPersistence();
-      var nowTime = DateTime(2026, 11, 2, 12, 0, 0);
+      final nowTime = DateTime(2026, 11, 2, 12, 0, 0);
       final e = TrafficStatsEngine(
         persistence: disk,
         now: () => nowTime,
