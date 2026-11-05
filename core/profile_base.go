@@ -104,7 +104,7 @@ const (
 	defaultExpectedStatus      = "200-204"
 	optimalTolerance           = 50  // 容差控制在 50ms，避免基站延迟波动时频繁横跳
 	maxAllowedTolerance        = 80  // 超过 80ms 的容差一律压低到 50ms
-	optimalHealthCheckInterval = 120 // 健康检查周期最高不超过 120 秒
+	defaultHealthCheckInterval = 300 // 健康检查缺省周期 300 秒（保留用户/订阅有效配置，不强行压缩）
 	defaultMaxFailedTimes      = 3   // 连续失败 3 次触发被动健康检查快测
 	maxAllowedMaxFailedTimes   = 5   // 被动健康检查触发阈值上限
 )
@@ -154,6 +154,24 @@ func clampYAMLInt(mapping *yaml.Node, key string, defaultVal, maxVal int) {
 	if node := mappingValue(mapping, key); node != nil {
 		node = resolveAlias(node)
 		if val, err := strconv.Atoi(strings.TrimSpace(node.Value)); err == nil && val > 0 && val <= maxVal {
+			return
+		}
+	}
+	setMappingValue(mapping, key, &yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Tag:   "!!int",
+		Value: strconv.Itoa(defaultVal),
+	})
+}
+
+// patchHealthCheckInterval 确保健康检查周期合理注入（PWR-01）：
+// - 若已显式配置有效非负整数（包含显式 0 以及长于/短于 300s 的任意正整数），均保留用户原值；
+// - 若字段缺失、为负数或格式非法，则注入缺省值 defaultVal (300)；
+// - 显式 0 遵循上游 Mihomo 解析语义（由上游解析器决定默认值或禁用）。
+func patchHealthCheckInterval(mapping *yaml.Node, key string, defaultVal int) {
+	if node := mappingValue(mapping, key); node != nil {
+		node = resolveAlias(node)
+		if val, err := strconv.Atoi(strings.TrimSpace(node.Value)); err == nil && val >= 0 {
 			return
 		}
 	}
@@ -270,13 +288,13 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 				case "url-test":
 					clampYAMLInt(group, "timeout", timeout, timeout)
 					ensureYAMLString(group, "expected-status", defaultExpectedStatus)
-					clampYAMLInt(group, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
+					patchHealthCheckInterval(group, "interval", defaultHealthCheckInterval)
 					clampYAMLInt(group, "tolerance", optimalTolerance, maxAllowedTolerance)
 					clampYAMLInt(group, "max-failed-times", defaultMaxFailedTimes, maxAllowedMaxFailedTimes)
 				case "fallback", "load-balance":
 					clampYAMLInt(group, "timeout", timeout, timeout)
 					ensureYAMLString(group, "expected-status", defaultExpectedStatus)
-					clampYAMLInt(group, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
+					patchHealthCheckInterval(group, "interval", defaultHealthCheckInterval)
 					clampYAMLInt(group, "max-failed-times", defaultMaxFailedTimes, maxAllowedMaxFailedTimes)
 				}
 			}
@@ -296,7 +314,7 @@ func patchHealthCheckTimeoutNode(root *yaml.Node, timeout int) {
 					setMappingValue(provider, "health-check", hc)
 					clampYAMLInt(hc, "timeout", timeout, timeout)
 					ensureYAMLString(hc, "expected-status", defaultExpectedStatus)
-					clampYAMLInt(hc, "interval", optimalHealthCheckInterval, optimalHealthCheckInterval)
+					patchHealthCheckInterval(hc, "interval", defaultHealthCheckInterval)
 				}
 			}
 		})

@@ -989,5 +989,194 @@ Future<void> main() async {
     },
   );
 
+  await test(
+    'PWR-02: unobserved, hidden, and background traffic does not schedule periodic notify timers',
+    () async {
+      final disk = MemoryPersistence();
+      bool isVisible = false;
+      int notifyCount = 0;
+      final e = TrafficStatsEngine(
+        persistence: disk,
+        now: () => DateTime(2026, 11, 2, 12),
+        onChanged: () => notifyCount++,
+      );
+      e.isObserving = () => isVisible;
+      try {
+        await e.init();
+        check(notifyCount == 0, 'initial unobserved state must not notify');
+
+        // 1. Unobserved / hidden: traffic samples arrive
+        for (int i = 0; i < 5; i++) {
+          e.recordTrafficSample(
+            id: 'unobserved-$i',
+            upload: 10,
+            download: 100,
+            host: 'unobserved.test',
+          );
+        }
+        check(!e.hasActiveNotifyTimer, 'must not schedule notify timer when unobserved');
+        check(notifyCount == 0, 'must not fire notifications when unobserved');
+        check(e.todayTotal == 550, 'traffic accounting must continue in background');
+
+        // 2. View becomes visible: immediately flush once
+        isVisible = true;
+        e.notifyIfObserved();
+        check(notifyCount == 1, 'must fire immediate update when becoming visible');
+
+        // 3. Traffic arrives while visible: schedules timer and notifies
+        e.recordTrafficSample(
+          id: 'visible-1',
+          upload: 10,
+          download: 50,
+          host: 'unobserved.test',
+        );
+        check(notifyCount == 2, 'must notify while visible');
+
+        // 4. View hides again: timer cancelled immediately
+        isVisible = false;
+        e.cancelPendingNotifications();
+        check(!e.hasActiveNotifyTimer, 'timer must be cancelled when view is hidden');
+
+        // 5. Traffic arrives while hidden: still no timer
+        e.recordTrafficSample(
+          id: 'hidden-again',
+          upload: 10,
+          download: 50,
+          host: 'unobserved.test',
+        );
+        check(!e.hasActiveNotifyTimer, 'must not schedule timer while hidden again');
+      } finally {
+        e.dispose();
+        check(!e.hasActiveNotifyTimer, 'disposal must leave zero active timers');
+      }
+    },
+  );
+
+  await test(
+    'PWR-02: multiple observers - removing one keeps updates alive until last observer detaches',
+    () async {
+      final disk = MemoryPersistence();
+      final e = TrafficStatsEngine(
+        persistence: disk,
+        now: () => DateTime(2026, 11, 2, 12),
+      );
+      int observerCount = 0;
+      e.isObserving = () => observerCount > 0;
+
+      // Attach observer 1
+      observerCount++;
+      check(e.hasListeners, 'engine must have listeners with observer 1');
+
+      // Attach observer 2
+      observerCount++;
+      check(e.hasListeners, 'engine must have listeners with 2 observers');
+
+      // Remove observer 1
+      observerCount--;
+      check(e.hasListeners, 'engine must still have listeners after removing 1 of 2');
+
+      // Remove observer 2
+      observerCount--;
+      check(!e.hasListeners, 'engine has zero listeners after all remove');
+    },
+  );
+
+  await test(
+    'PWR-03: save deduplication skips writing unchanged snapshots to disk',
+    () async {
+      final disk = MemoryPersistence();
+      final e = TrafficStatsEngine(
+        persistence: disk,
+        now: () => DateTime(2026, 11, 2, 12),
+      );
+      try {
+        await e.init();
+        check(disk.writes == 0, 'init must not write');
+        check(!e.isDirty, 'clean state after init must not be dirty');
+
+        // Save on clean state must NOT write to disk
+        await e.save();
+        check(disk.writes == 0, 'save on clean state must skip writing');
+
+        // 1. Add traffic: becomes dirty
+        e.recordRequestSample(id: 'c1', upload: 10, download: 20, host: 'test.com');
+        check(e.isDirty, 'must be dirty after traffic sample');
+
+        // First save writes to disk
+        await e.save();
+        check(disk.writes == 1, 'first save must write to disk');
+        check(!e.isDirty, 'must not be dirty after successful save');
+
+        // Duplicate save without data change must NOT write again
+        await e.save();
+        check(disk.writes == 1, 'duplicate save must not write to disk');
+
+        // 2. Traffic without host (pure daily summary update) must also mark dirty and persist
+        e.recordTrafficSample(id: 'c2', upload: 50, download: 50, host: null, baselineIfUnknown: false);
+        check(e.isDirty, 'pure daily summary change must mark dirty');
+        await e.save();
+        check(disk.writes == 2, 'pure daily summary save must write to disk');
+        check(!e.isDirty, 'must be clean after daily summary save');
+
+        // 3. Clear all must persist empty snapshot and become clean
+        await e.clearAll();
+        check(disk.writes == 3, 'clearAll must write empty snapshot to disk');
+        check(!e.isDirty, 'must not be dirty after clearAll');
+
+        // Duplicate save after clear must NOT write again
+        await e.save();
+        check(disk.writes == 3, 'save after clearAll must not write to disk');
+      } finally {
+        e.dispose();
+      }
+    },
+  );
+
+  await test(
+    'PWR-03: in-flight save preserves dirty state for subsequent samples arriving during disk write',
+    () async {
+      final disk = MemoryPersistence();
+      final e = TrafficStatsEngine(
+        persistence: disk,
+        now: () => DateTime(2026, 11, 2, 12),
+      );
+      try {
+        await e.init();
+        e.recordRequestSample(id: 'conn-1', upload: 10, download: 20, host: 'test1.com');
+
+        // Block persistence write with a gate
+        final gate = Completer<void>();
+        disk.writeGate = gate;
+
+        // Start save 1 in background
+        final saveFuture = e.save();
+
+        // Wait until write started
+        await disk.writeStarted.future;
+
+        // While save 1 is blocked in write, sample 2 arrives!
+        e.recordRequestSample(id: 'conn-2', upload: 30, download: 40, host: 'test2.com');
+
+        // Unblock gate
+        gate.complete();
+        await saveFuture;
+
+        // Save 1 finished, but sample 2 arrived during write so it must still be dirty!
+        check(e.isDirty, 'sample arriving during save must keep engine dirty');
+
+        // Clear gate for next write
+        disk.writeGate = null;
+
+        // Next save writes sample 2!
+        await e.save();
+        check(!e.isDirty, 'must be clean after second save');
+        check(disk.writes == 2, 'second save must persist sample 2');
+        check(disk.data?['sites']?['test2.com'] != null, 'sample 2 must be on disk');
+      } finally {
+        e.dispose();
+      }
+    },
+  );
+
   stdout.writeln('$count regression scenarios passed.');
 }

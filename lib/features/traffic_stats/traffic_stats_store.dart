@@ -29,15 +29,55 @@ class TrafficStatsStore extends ChangeNotifier {
          now: now,
          log: (message) => commonPrint.log(message),
        ) {
+    _engine.isObserving = _isObserving;
     _engine.onChanged = () {
       if (hasListeners) notifyListeners();
     };
+  }
+
+  bool _isObserving() {
+    if (!hasListeners) return false;
+    if (!_isAppVisible) return false;
+    return true;
+  }
+
+  bool _isAppVisible = true;
+  bool get isAppVisible => _isAppVisible;
+
+  void updateAppVisibility(bool visible) {
+    if (_isAppVisible == visible) return;
+    _isAppVisible = visible;
+    if (visible && hasListeners) {
+      _engine.notifyIfObserved();
+    } else if (!visible) {
+      _engine.cancelPendingNotifications();
+    }
+  }
+
+  @override
+  void addListener(VoidCallback listener) {
+    final wasListening = hasListeners;
+    super.addListener(listener);
+    if (!wasListening && hasListeners && _isAppVisible) {
+      _engine.notifyIfObserved();
+    }
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    super.removeListener(listener);
+    if (!hasListeners) {
+      _engine.cancelPendingNotifications();
+    }
   }
 
   final TrafficStatsEngine _engine;
   static const maxDaysToKeep = TrafficStatsEngine.maxDaysToKeep;
   static const maxSitesToKeep = TrafficStatsEngine.maxSitesToKeep;
   Object? get lastPersistenceError => _engine.lastPersistenceError;
+  int get dataRevision => _engine.dataRevision;
+  int get persistedRevision => _engine.persistedRevision;
+  bool get isDirty => _engine.isDirty;
   int get trackedConnections => _engine.trackedConnections;
   Map<String, DailyTrafficData> get dailySummaries => _engine.dailySummaries;
   Map<String, TargetSiteData> get targetSiteUsages => _engine.targetSiteUsages;

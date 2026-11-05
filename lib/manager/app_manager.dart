@@ -78,12 +78,14 @@ class _AppStateManagerState extends ConsumerState<AppStateManager>
   }
 
   void _updateVisible(AppLifecycleState? state) {
-    ref.read(appVisibleProvider.notifier).value = switch (state) {
+    final isVisible = switch (state) {
       null || AppLifecycleState.resumed || AppLifecycleState.inactive => true,
       AppLifecycleState.hidden ||
       AppLifecycleState.paused ||
       AppLifecycleState.detached => false,
     };
+    ref.read(appVisibleProvider.notifier).value = isVisible;
+    TrafficStatsStore.instance.updateAppVisibility(isVisible);
   }
 
   @override

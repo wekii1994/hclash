@@ -19,7 +19,9 @@ class TrafficStatsEngine {
   static void _discardLog(String message) {}
   final void Function(String) _log;
   void Function()? onChanged;
-  bool get hasListeners => onChanged != null;
+  bool Function()? isObserving;
+  bool get hasListeners => isObserving?.call() ?? (onChanged != null);
+  bool get hasActiveNotifyTimer => _notifyTimer?.isActive ?? false;
 
   final TrafficStatsPersistence _persistence;
   final DateTime Function() _now;
@@ -29,11 +31,16 @@ class TrafficStatsEngine {
   final Map<String, TargetSiteData> _targetSiteUsages = {};
   Future<void>? _initFuture;
   Future<void>? _saveFuture;
+  int _targetRevisionInFlight = 0;
   bool _loaded = false;
-  bool _saveAgain = false;
   bool _disposed = false;
   int _historyGeneration = 0;
   int _revision = 0;
+  int _dataRevision = 0;
+  int _persistedRevision = 0;
+  int get dataRevision => _dataRevision;
+  int get persistedRevision => _persistedRevision;
+  bool get isDirty => _dataRevision > _persistedRevision;
   int _cachedAggregatedRevision = -1;
   int _cachedAggregatedLimit = -1;
   List<AggregatedSiteGroup>? _cachedAggregatedSites;
@@ -167,7 +174,12 @@ class TrafficStatsEngine {
           }
           _targetSiteUsages[entry.key] = loaded;
         }
+        final hadLiveChanges = _dataRevision > 0;
         _revision++;
+        _dataRevision++;
+        if (!hadLiveChanges) {
+          _persistedRevision = _dataRevision;
+        }
         _loaded = true;
         lastPersistenceError = null;
         _pruneExpired(_now(), force: true);
@@ -189,16 +201,18 @@ class TrafficStatsEngine {
     _lastPrunedDate = today;
     final cutoff = _dayOffset(now, -(maxDaysToKeep - 1));
     final key = _dateKey(cutoff);
+    final beforeDaily = _dailySummaries.length;
+    final beforeCount = _targetSiteUsages.length;
     _dailySummaries.removeWhere((date, _) => date.compareTo(key) < 0);
     final activeHosts = _counters.activeHosts;
-    final beforeCount = _targetSiteUsages.length;
     _targetSiteUsages.removeWhere(
       (host, value) =>
           value.lastSeen < cutoff.millisecondsSinceEpoch &&
           !activeHosts.contains(host),
     );
-    if (_targetSiteUsages.length != beforeCount) {
+    if (_dailySummaries.length != beforeDaily || _targetSiteUsages.length != beforeCount) {
       _revision++;
+      _dataRevision++;
     }
   }
 
@@ -219,37 +233,62 @@ class TrafficStatsEngine {
     });
   }
 
-  Future<void> save() {
+  Future<void> save() async {
     _saveTimer?.cancel();
     _saveTimer = null;
-    final pending = _saveFuture;
-    if (pending != null) {
-      _saveAgain = true;
-      return pending;
+    if (_disposed) return;
+    await init();
+    // Never overwrite unreadable history with a partial/empty live state.
+    if (!_loaded) return;
+
+    final targetRevision = _dataRevision;
+    if (targetRevision <= _persistedRevision) {
+      return;
     }
-    return _saveFuture = _saveLoop();
+
+    while (_dataRevision > _persistedRevision) {
+      final currentFuture = _saveFuture;
+      if (currentFuture != null) {
+        if (_targetRevisionInFlight >= targetRevision) {
+          await currentFuture;
+          break;
+        } else {
+          await currentFuture;
+          continue;
+        }
+      }
+
+      final snapshotRevision = _dataRevision;
+      _targetRevisionInFlight = snapshotRevision;
+      final snapshot = _snapshot();
+      _saveFuture = _executeWrite(snapshot, snapshotRevision);
+      try {
+        await _saveFuture;
+      } finally {
+        _saveFuture = null;
+        _targetRevisionInFlight = 0;
+      }
+      if (lastPersistenceError != null || _persistedRevision >= targetRevision) {
+        break;
+      }
+    }
   }
 
-  Future<void> _saveLoop() async {
+  Future<void> _executeWrite(Map<String, dynamic> snapshot, int revision) async {
     try {
-      await init();
-      // Never overwrite unreadable history with a partial/empty live state.
-      if (!_loaded) return;
-      do {
-        _saveAgain = false;
-        await _io.run(() async {
-          await _persistence.write(_snapshot());
-          final hadError = lastPersistenceError != null;
-          lastPersistenceError = null;
-          if (hadError) _notifyNow();
-        });
-      } while (_saveAgain);
+      await _io.run(() async {
+        await _persistence.write(snapshot);
+        if (revision > _persistedRevision) {
+          _persistedRevision = revision;
+        }
+        final hadError = lastPersistenceError != null;
+        lastPersistenceError = null;
+        if (hadError) _notifyNow();
+      });
     } catch (error) {
       lastPersistenceError = error;
       _log('Traffic statistics save failed: $error');
       _notifyNow();
-    } finally {
-      _saveFuture = null;
     }
   }
 
@@ -264,6 +303,8 @@ class TrafficStatsEngine {
     _dailySummaries.clear();
     _targetSiteUsages.clear();
     _revision++;
+    _dataRevision++;
+    final clearTargetRevision = _dataRevision;
     _counters.clearReportedCounts();
     final emptySnapshot = _snapshot();
     _notifyNow();
@@ -271,6 +312,9 @@ class TrafficStatsEngine {
     return _io.run(() async {
       try {
         await _persistence.write(emptySnapshot);
+        if (clearTargetRevision > _persistedRevision) {
+          _persistedRevision = clearTargetRevision;
+        }
         final hadError = lastPersistenceError != null;
         lastPersistenceError = null;
         if (hadError) _notifyNow();
@@ -362,6 +406,7 @@ class TrafficStatsEngine {
       );
       hourly.upload += delta.upload;
       hourly.download += delta.download;
+      _dataRevision++;
     }
     final host = delta.host;
     if (host != null) {
@@ -380,17 +425,33 @@ class TrafficStatsEngine {
       site.lastSeen = now.millisecondsSinceEpoch;
       site.process ??= delta.process;
       _revision++;
+      _dataRevision++;
     }
     scheduleSave();
     _scheduleNotify();
   }
 
   void _notifyNow() {
-    if (!_disposed) onChanged?.call();
+    if (!_disposed && hasListeners) onChanged?.call();
+  }
+
+  void cancelPendingNotifications() {
+    _notifyTimer?.cancel();
+    _notifyTimer = null;
+    _pendingNotify = false;
+  }
+
+  void notifyIfObserved() {
+    if (_disposed || !hasListeners) return;
+    cancelPendingNotifications();
+    _notifyNow();
   }
 
   void _scheduleNotify() {
-    if (_disposed || !hasListeners) return;
+    if (_disposed || !hasListeners) {
+      cancelPendingNotifications();
+      return;
+    }
     if (_notifyTimer?.isActive ?? false) {
       _pendingNotify = true;
       return;
@@ -553,8 +614,10 @@ class TrafficStatsEngine {
   void dispose() {
     _disposed = true;
     _saveTimer?.cancel();
-    _notifyTimer?.cancel();
+    _saveTimer = null;
+    cancelPendingNotifications();
     _midnightTimer?.cancel();
+    _midnightTimer = null;
     onChanged = null;
   }
 }

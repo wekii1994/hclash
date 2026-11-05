@@ -464,8 +464,8 @@ proxy-providers:
 			if tol, ok := g["tolerance"].(int); !ok || tol != 50 {
 				t.Errorf("group auto tolerance = %v, want 50", g["tolerance"])
 			}
-			if interval, ok := g["interval"].(int); !ok || interval != 120 {
-				t.Errorf("group auto interval = %v, want 120", g["interval"])
+			if interval, ok := g["interval"].(int); !ok || interval != 300 {
+				t.Errorf("group auto interval = %v, want 300", g["interval"])
 			}
 		}
 	}
@@ -477,8 +477,8 @@ proxy-providers:
 			if expected, ok := hc["expected-status"].(string); !ok || expected != "200-204" {
 				t.Errorf("provider1 expected-status = %v, want 200-204", hc["expected-status"])
 			}
-			if interval, ok := hc["interval"].(int); !ok || interval != 120 {
-				t.Errorf("provider1 interval = %v, want 120", hc["interval"])
+			if interval, ok := hc["interval"].(int); !ok || interval != 300 {
+				t.Errorf("provider1 interval = %v, want 300", hc["interval"])
 			}
 		} else {
 			t.Errorf("provider1 missing health-check map")
@@ -565,8 +565,8 @@ proxy-providers:
 		t.Fatalf("subscription fetch interval mutated to %v via shared anchor, want 3600", fetchInterval)
 	}
 	hc := p["health-check"].(map[string]any)
-	if hcInterval := hc["interval"]; hcInterval != 120 {
-		t.Fatalf("health-check interval = %v, want 120", hcInterval)
+	if hcInterval := hc["interval"]; hcInterval != 3600 {
+		t.Fatalf("health-check interval = %v, want 3600", hcInterval)
 	}
 	if hcTimeout := hc["timeout"]; hcTimeout != 1500 {
 		t.Fatalf("health-check timeout = %v, want 1500", hcTimeout)
@@ -605,5 +605,134 @@ proxy-providers:
 	hc := p["health-check"].(map[string]any)
 	if hcTimeout := hc["timeout"]; hcTimeout != 1500 {
 		t.Fatalf("merged provider health-check timeout = %v, want 1500", hcTimeout)
+	}
+}
+
+func TestPatchHealthCheckIntervalPWR01(t *testing.T) {
+	yamlContent := `
+proxy-groups:
+  - {name: missing-interval, type: url-test, proxies: [a]}
+  - {name: short-interval, type: url-test, interval: 60, proxies: [a]}
+  - {name: long-interval, type: url-test, interval: 600, proxies: [a]}
+  - {name: zero-interval, type: fallback, interval: 0, proxies: [a]}
+  - {name: negative-interval, type: url-test, interval: -10, proxies: [a]}
+  - {name: invalid-str-interval, type: load-balance, interval: "not-an-int", proxies: [a]}
+proxy-providers:
+  p-missing:
+    type: http
+    interval: 86400
+    health-check:
+      enable: true
+  p-valid-long:
+    type: http
+    interval: 86400
+    health-check:
+      enable: true
+      interval: 7200
+  p-valid-short:
+    type: http
+    interval: 86400
+    health-check:
+      enable: true
+      interval: 45
+  p-zero:
+    type: http
+    interval: 86400
+    health-check:
+      enable: true
+      interval: 0
+  p-negative:
+    type: http
+    interval: 86400
+    health-check:
+      enable: true
+      interval: -100
+  p-no-hc:
+    type: http
+    interval: 86400
+`
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(yamlContent), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	root, err := documentMapping(&doc)
+	if err != nil {
+		t.Fatalf("documentMapping: %v", err)
+	}
+
+	patchHealthCheckTimeoutNode(root, 3000)
+
+	var out map[string]any
+	if err := doc.Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	// 1. Verify proxy groups
+	groups := out["proxy-groups"].([]any)
+	groupMap := make(map[string]map[string]any)
+	for _, g := range groups {
+		gm := g.(map[string]any)
+		groupMap[gm["name"].(string)] = gm
+	}
+
+	if interval := groupMap["missing-interval"]["interval"]; interval != 300 {
+		t.Errorf("missing-interval = %v, want default 300", interval)
+	}
+	if interval := groupMap["short-interval"]["interval"]; interval != 60 {
+		t.Errorf("short-interval = %v, want preserved 60", interval)
+	}
+	if interval := groupMap["long-interval"]["interval"]; interval != 600 {
+		t.Errorf("long-interval = %v, want preserved 600", interval)
+	}
+	if interval := groupMap["zero-interval"]["interval"]; interval != 0 {
+		t.Errorf("zero-interval = %v, want preserved 0", interval)
+	}
+	if interval := groupMap["negative-interval"]["interval"]; interval != 300 {
+		t.Errorf("negative-interval = %v, want fallback 300", interval)
+	}
+	if interval := groupMap["invalid-str-interval"]["interval"]; interval != 300 {
+		t.Errorf("invalid-str-interval = %v, want fallback 300", interval)
+	}
+
+	// 2. Verify proxy providers
+	providers := out["proxy-providers"].(map[string]any)
+
+	// Top level subscription fetch interval MUST NOT be mutated
+	for name, rawP := range providers {
+		pm := rawP.(map[string]any)
+		if fetchInterval := pm["interval"]; fetchInterval != 86400 {
+			t.Errorf("provider %s fetch interval mutated to %v, want 86400", name, fetchInterval)
+		}
+	}
+
+	// Provider health-check
+	pMissingHc := providers["p-missing"].(map[string]any)["health-check"].(map[string]any)
+	if interval := pMissingHc["interval"]; interval != 300 {
+		t.Errorf("p-missing hc interval = %v, want default 300", interval)
+	}
+
+	pLongHc := providers["p-valid-long"].(map[string]any)["health-check"].(map[string]any)
+	if interval := pLongHc["interval"]; interval != 7200 {
+		t.Errorf("p-valid-long hc interval = %v, want preserved 7200", interval)
+	}
+
+	pShortHc := providers["p-valid-short"].(map[string]any)["health-check"].(map[string]any)
+	if interval := pShortHc["interval"]; interval != 45 {
+		t.Errorf("p-valid-short hc interval = %v, want preserved 45", interval)
+	}
+
+	pZeroHc := providers["p-zero"].(map[string]any)["health-check"].(map[string]any)
+	if interval := pZeroHc["interval"]; interval != 0 {
+		t.Errorf("p-zero hc interval = %v, want preserved 0", interval)
+	}
+
+	pNegHc := providers["p-negative"].(map[string]any)["health-check"].(map[string]any)
+	if interval := pNegHc["interval"]; interval != 300 {
+		t.Errorf("p-negative hc interval = %v, want fallback 300", interval)
+	}
+
+	pNoHc := providers["p-no-hc"].(map[string]any)
+	if _, exists := pNoHc["health-check"]; exists {
+		t.Errorf("p-no-hc must not have health-check injected")
 	}
 }
