@@ -36,15 +36,26 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView> {
   List<TargetSiteData>? _cachedTopSites;
   int? _todayTotal;
   int? _weekTotal;
-  TrafficDiff? _diff;
+  int? _diff;
 
   @override
   void initState() {
     super.initState();
     TrafficStatsStore.instance.addListener(_onStoreChanged);
     TrafficStatsStore.instance.init();
-    _refreshMetricsImmediately();
-    _refreshSitesImmediately();
+    _loadInitialData();
+  }
+
+  void _loadInitialData() {
+    _lastMetricsUpdate = DateTime.now();
+    _lastSitesUpdate = _lastMetricsUpdate;
+    final store = TrafficStatsStore.instance;
+    _todayTotal = store.todayTotal;
+    _weekTotal = store.weekTotal;
+    _diff = store.differenceFromYesterday;
+    _cachedChartPoints = store.getChartPoints(_selectedRange);
+    _cachedAggregatedGroups = store.getAggregatedSites(limit: 50);
+    _cachedTopSites = null;
   }
 
   @override
