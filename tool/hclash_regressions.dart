@@ -24,6 +24,7 @@ class MemoryPersistence implements TrafficStatsPersistence {
   Completer<void>? writeGate;
   final readStarted = Completer<void>();
   final writeStarted = Completer<void>();
+  Completer<void>? nextWriteStarted;
   int writes = 0;
 
   @override
@@ -44,6 +45,9 @@ class MemoryPersistence implements TrafficStatsPersistence {
   Future<void> write(Map<String, dynamic> snapshot) async {
     final copied = copyJson(snapshot);
     if (!writeStarted.isCompleted) writeStarted.complete();
+    if (nextWriteStarted != null && !nextWriteStarted!.isCompleted) {
+      nextWriteStarted!.complete();
+    }
     await writeGate?.future;
     if (writeError != null) {
       final err = writeError;
@@ -1215,64 +1219,242 @@ Future<void> main() async {
   );
 
   await test(
-    'PWR-04: presentation throttling coordinator delays non-essential rank rebuilds and refreshes immediately on mode change',
+    'PWR-04: partitioned presentation isolates metrics (1s) from target sites (3s), and mode toggle rebuilds sites immediately with zero metrics rebuild',
     () async {
-      var metricsUpdates = 0;
-      var sitesUpdates = 0;
-      var lastMetricsTime = DateTime.fromMillisecondsSinceEpoch(0);
-      var lastSitesTime = DateTime.fromMillisecondsSinceEpoch(0);
+      var metricsBuilds = 0;
+      var sitesBuilds = 0;
+      var lastMetricsUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+      var lastSitesUpdate = DateTime.fromMillisecondsSinceEpoch(0);
       var isAggregated = true;
+      var isVisible = true;
+      Timer? metricsTimer;
+      Timer? sitesTimer;
 
-      void onImmediateRefreshMetrics(DateTime now) {
-        metricsUpdates++;
-        lastMetricsTime = now;
+      void refreshMetricsImmediately(DateTime now) {
+        metricsBuilds++;
+        lastMetricsUpdate = now;
       }
 
-      void onImmediateRefreshSites(DateTime now) {
-        sitesUpdates++;
-        lastSitesTime = now;
+      void refreshSitesImmediately(DateTime now) {
+        sitesBuilds++;
+        lastSitesUpdate = now;
       }
 
-      void onStoreChangedSimulated(DateTime now) {
-        if (now.difference(lastMetricsTime) >= const Duration(milliseconds: 1000)) {
-          metricsUpdates++;
-          lastMetricsTime = now;
+      void onModeChanged(bool val, DateTime now) {
+        isAggregated = val;
+        // Mode switch must rebuild sites immediately and NEVER rebuild metrics section
+        refreshSitesImmediately(now);
+      }
+
+      void onStoreChanged(DateTime now) {
+        if (!isVisible) {
+          metricsTimer?.cancel();
+          metricsTimer = null;
+          sitesTimer?.cancel();
+          sitesTimer = null;
+          return;
         }
-        if (now.difference(lastSitesTime) >= const Duration(milliseconds: 3000)) {
-          sitesUpdates++;
-          lastSitesTime = now;
+
+        // Section A: Metrics 1000ms throttle
+        final mElapsed = now.difference(lastMetricsUpdate);
+        if (mElapsed >= const Duration(milliseconds: 1000)) {
+          metricsTimer?.cancel();
+          metricsTimer = null;
+          refreshMetricsImmediately(now);
+        } else if (metricsTimer == null || !metricsTimer!.isActive) {
+          final rem = const Duration(milliseconds: 1000) - mElapsed;
+          metricsTimer = Timer(rem, () {
+            if (isVisible) refreshMetricsImmediately(DateTime.now());
+          });
+        }
+
+        // Section B: Sites 3000ms throttle
+        final sElapsed = now.difference(lastSitesUpdate);
+        if (sElapsed >= const Duration(milliseconds: 3000)) {
+          sitesTimer?.cancel();
+          sitesTimer = null;
+          refreshSitesImmediately(now);
+        } else if (sitesTimer == null || !sitesTimer!.isActive) {
+          final rem = const Duration(milliseconds: 3000) - sElapsed;
+          sitesTimer = Timer(rem, () {
+            if (isVisible) refreshSitesImmediately(DateTime.now());
+          });
         }
       }
 
       var t = DateTime(2026, 11, 2, 12, 0, 0);
+      refreshMetricsImmediately(t);
+      refreshSitesImmediately(t);
+      check(metricsBuilds == 1 && sitesBuilds == 1, 'initial mount builds both sections once');
 
-      // Initial page open: immediate refresh
-      onImmediateRefreshMetrics(t);
-      onImmediateRefreshSites(t);
-      check(metricsUpdates == 1 && sitesUpdates == 1, 'initial build refreshes both immediately');
-
-      // Frequent store notifications every 200ms for 2 seconds (10 ticks)
+      // 1. Simulate 2 seconds of traffic burst (10 events at 200ms interval)
       for (var i = 1; i <= 10; i++) {
         t = t.add(const Duration(milliseconds: 200));
-        onStoreChangedSimulated(t);
+        onStoreChanged(t);
       }
 
-      // In 2 seconds:
-      // Metrics (1s throttle) updated at 1000ms and 2000ms -> total 3 updates
-      // Sites (3s throttle) NOT updated yet during the 2s burst -> total 1 update
-      check(metricsUpdates == 3, 'metrics updated 3 times during 2s (initial + 2 throttled), got $metricsUpdates');
-      check(sitesUpdates == 1, 'sites ranking stayed at 1 during 2s burst, got $sitesUpdates');
+      // Metrics rebuilt at 1000ms and 2000ms (total 3), Sites NOT rebuilt during 2s burst (stayed at 1)
+      check(metricsBuilds == 3, 'metrics section rebuilt 3 times (initial + 2 throttled), got $metricsBuilds');
+      check(sitesBuilds == 1, 'sites section was NOT rebuilt during 2s burst, got $sitesBuilds');
 
-      // User immediately switches mode at 2100ms -> MUST trigger immediate site update
+      // 2. User toggles aggregation mode at 2100ms
       t = t.add(const Duration(milliseconds: 100));
-      isAggregated = !isAggregated;
-      onImmediateRefreshSites(t);
-      check(sitesUpdates == 2, 'mode switch must refresh sites immediately without waiting 3s throttle');
+      final metricsBefore = metricsBuilds;
+      onModeChanged(!isAggregated, t);
 
-      // Advance past 3s from last sites update -> throttled site update triggers
+      // Section B rebuilds immediately, Section A must have ZERO rebuilds
+      check(sitesBuilds == 2, 'sites rebuilt immediately on mode change');
+      check(metricsBuilds == metricsBefore, 'metrics section was NOT rebuilt on sites mode toggle');
+
+      // 3. Advance clock past 3s from last site update -> throttled site update fires
       t = t.add(const Duration(milliseconds: 3100));
-      onStoreChangedSimulated(t);
-      check(sitesUpdates == 3, 'throttled site update fires after 3s interval');
+      onStoreChanged(t);
+      check(sitesBuilds == 3, 'throttled site update fired at 3s boundary');
+
+      metricsTimer?.cancel();
+      sitesTimer?.cancel();
+    },
+  );
+
+  await test(
+    'PWR-02 & R3: visibility lease cancels presentation timers on hide and bypasses throttles on resume',
+    () async {
+      var metricsBuilds = 0;
+      var sitesBuilds = 0;
+      var lastMetricsUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+      var lastSitesUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+      var isVisible = true;
+      Timer? metricsTimer;
+      Timer? sitesTimer;
+
+      void refreshMetricsImmediately() {
+        metricsBuilds++;
+        lastMetricsUpdate = DateTime.now();
+      }
+
+      void refreshSitesImmediately() {
+        sitesBuilds++;
+        lastSitesUpdate = DateTime.now();
+      }
+
+      void onVisibilityChanged(bool visible) {
+        isVisible = visible;
+        if (!visible) {
+          metricsTimer?.cancel();
+          metricsTimer = null;
+          sitesTimer?.cancel();
+          sitesTimer = null;
+        } else {
+          metricsTimer?.cancel();
+          metricsTimer = null;
+          sitesTimer?.cancel();
+          sitesTimer = null;
+          refreshMetricsImmediately();
+          refreshSitesImmediately();
+        }
+      }
+
+      void onStoreChanged() {
+        if (!isVisible) {
+          metricsTimer?.cancel();
+          metricsTimer = null;
+          sitesTimer?.cancel();
+          sitesTimer = null;
+          return;
+        }
+      }
+
+      // 1. Initial visible state
+      refreshMetricsImmediately();
+      refreshSitesImmediately();
+      check(metricsBuilds == 1 && sitesBuilds == 1, 'visible initial state');
+
+      // Schedule pending timer
+      metricsTimer = Timer(const Duration(seconds: 10), () {});
+      sitesTimer = Timer(const Duration(seconds: 10), () {});
+      check(metricsTimer!.isActive && sitesTimer!.isActive, 'timers active');
+
+      // 2. Hide page (navigate away or app to background)
+      onVisibilityChanged(false);
+      check(metricsTimer == null && sitesTimer == null, 'timers cancelled and nullified on hide');
+
+      // Multiple store updates arrive while invisible
+      for (var i = 0; i < 5; i++) {
+        onStoreChanged();
+      }
+      check(metricsTimer == null && sitesTimer == null, 'no timers created while invisible');
+      check(metricsBuilds == 1 && sitesBuilds == 1, 'zero rebuilds while invisible');
+
+      // 3. Page becomes visible again -> immediate refresh bypasses throttle
+      onVisibilityChanged(true);
+      check(metricsBuilds == 2, 'metrics refreshed immediately on resume');
+      check(sitesBuilds == 2, 'sites refreshed immediately on resume');
+    },
+  );
+
+  await test(
+    'PWR-03: save scheduler retains dirty state on failure, supports in-flight concurrent traffic, and serializes version progression',
+    () async {
+      final disk = MemoryPersistence();
+      var nowTime = DateTime(2026, 11, 2, 12, 0, 0);
+      final e = TrafficStatsEngine(
+        persistence: disk,
+        now: () => nowTime,
+      );
+      try {
+        await e.init();
+        check(disk.writes == 0, 'init does not write');
+
+        // 1. Record traffic sample
+        e.recordRequestSample(id: 'conn-pwr3', upload: 50, download: 100, host: 'fail.test');
+        check(e.isDirty, 'engine must be dirty after new traffic');
+
+        // 2. Simulate persistence write error
+        disk.writeError = const FileSystemException('disk full simulated');
+        try {
+          await e.save();
+        } catch (_) {}
+        check(e.lastPersistenceError != null, 'error must be captured');
+        check(e.isDirty, 'engine must remain dirty after save failure');
+
+        // 3. Clear error and retry save -> success
+        disk.writeError = null;
+        await e.save();
+        check(e.lastPersistenceError == null, 'error cleared after successful save');
+        check(!e.isDirty, 'clean state after successful save');
+        check(disk.writes == 1, 'one write completed');
+
+        // 4. In-flight write with concurrent traffic
+        e.recordRequestSample(id: 'conn-pwr3-2', upload: 10, download: 20, host: 'fail.test');
+        check(e.isDirty, 'dirty for second batch');
+
+        final started = Completer<void>();
+        disk.nextWriteStarted = started;
+        final gate = Completer<void>();
+        disk.writeGate = gate;
+        final inFlightSave = e.save();
+
+        // Wait until save() has taken its snapshot and reached the persistence write!
+        await started.future;
+
+        // While save is in flight, more traffic arrives
+        e.recordRequestSample(id: 'conn-pwr3-3', upload: 30, download: 40, host: 'fail.test');
+
+        // Release disk write gate
+        gate.complete();
+        await inFlightSave;
+
+        // Because new traffic arrived during write, dirty state must still be true
+        check(e.isDirty, 'dirty state must remain true because concurrent traffic arrived during write');
+
+        // A second save flushes the remaining traffic
+        disk.writeGate = null;
+        await e.save();
+        check(!e.isDirty, 'fully clean after flushing second revision');
+        check(disk.writes == 3, 'three writes completed in total across test steps');
+      } finally {
+        e.dispose();
+      }
     },
   );
 
