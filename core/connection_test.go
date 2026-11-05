@@ -398,3 +398,124 @@ func TestProviderFallbackDifferentInstancesWithSameNameAreBothProbed(t *testing.
 		t.Fatalf("expected p2 to be probed once, got %d", p2.called.Load())
 	}
 }
+
+type mockSelectorAdapter struct {
+	constant.ProxyAdapter
+	name string
+	now  string
+}
+
+func (m *mockSelectorAdapter) Name() string                     { return m.name }
+func (m *mockSelectorAdapter) Type() constant.AdapterType       { return constant.Selector }
+func (m *mockSelectorAdapter) Now() string                      { return m.now }
+func (m *mockSelectorAdapter) Touch()                           {}
+func (m *mockSelectorAdapter) Hidden() bool                     { return false }
+func (m *mockSelectorAdapter) Icon() string                     { return "" }
+func (m *mockSelectorAdapter) Providers() []cp.ProxyProvider    { return nil }
+func (m *mockSelectorAdapter) Proxies() []constant.Proxy        { return nil }
+func (m *mockSelectorAdapter) URLTest(ctx context.Context, url string, expectedStatus utils.IntRanges[uint16]) (map[string]uint16, error) {
+	return nil, nil
+}
+
+type mockAutoGroupAdapter struct {
+	constant.ProxyAdapter
+	name              string
+	groupType         constant.AdapterType
+	proxies           []constant.Proxy
+	consecutiveResets atomic.Int32
+}
+
+func (m *mockAutoGroupAdapter) Name() string                     { return m.name }
+func (m *mockAutoGroupAdapter) Type() constant.AdapterType       { return m.groupType }
+func (m *mockAutoGroupAdapter) Now() string                      { return "" }
+func (m *mockAutoGroupAdapter) Touch()                           {}
+func (m *mockAutoGroupAdapter) Hidden() bool                     { return false }
+func (m *mockAutoGroupAdapter) Icon() string                     { return "" }
+func (m *mockAutoGroupAdapter) Providers() []cp.ProxyProvider    { return nil }
+func (m *mockAutoGroupAdapter) Proxies() []constant.Proxy        { return m.proxies }
+func (m *mockAutoGroupAdapter) ResetConsecutiveFailures()         { m.consecutiveResets.Add(1) }
+func (m *mockAutoGroupAdapter) URLTest(ctx context.Context, url string, expectedStatus utils.IntRanges[uint16]) (map[string]uint16, error) {
+	return nil, nil
+}
+
+func TestClassifyAutoGroupsActiveVsKeywords(t *testing.T) {
+	activeAuto := &mockAutoGroupAdapter{name: "RegularAuto", groupType: constant.URLTest}
+	inactiveKeywordAuto := &mockAutoGroupAdapter{name: "Inactive-Auto-Test", groupType: constant.URLTest}
+	selector := &mockSelectorAdapter{name: "PROXY", now: "RegularAuto"}
+
+	tunnel.UpdateProxies(map[string]constant.Proxy{
+		"RegularAuto":        adapter.NewProxy(activeAuto),
+		"Inactive-Auto-Test": adapter.NewProxy(inactiveKeywordAuto),
+		"PROXY":              adapter.NewProxy(selector),
+	}, nil)
+	t.Cleanup(func() { tunnel.UpdateProxies(nil, nil) })
+
+	primary, secondary := classifyAutoGroups()
+
+	// Only activeAuto should be in primary; inactiveKeywordAuto should be secondary
+	if len(primary) != 1 || primary[0].Name() != "RegularAuto" {
+		t.Fatalf("expected primary to contain only RegularAuto, got %v", primary)
+	}
+	if len(secondary) != 1 || secondary[0].Name() != "Inactive-Auto-Test" {
+		t.Fatalf("expected secondary to contain Inactive-Auto-Test, got %v", secondary)
+	}
+
+	// Test fallback: no selector active, both become primary, keyword acts as tiebreaker
+	tunnel.UpdateProxies(map[string]constant.Proxy{
+		"PlainGroup":         adapter.NewProxy(&mockAutoGroupAdapter{name: "PlainGroup", groupType: constant.URLTest}),
+		"AutoGroup":          adapter.NewProxy(&mockAutoGroupAdapter{name: "AutoGroup", groupType: constant.URLTest}),
+	}, nil)
+
+	primaryFallback, secondaryFallback := classifyAutoGroups()
+	if len(secondaryFallback) != 0 {
+		t.Fatalf("expected 0 secondary on fallback, got %d", len(secondaryFallback))
+	}
+	if len(primaryFallback) != 2 {
+		t.Fatalf("expected 2 primary on fallback, got %d", len(primaryFallback))
+	}
+	if primaryFallback[0].Name() != "AutoGroup" {
+		t.Fatalf("expected AutoGroup (keyword) to sort before PlainGroup, got %s", primaryFallback[0].Name())
+	}
+}
+
+func TestCalculateGroupProbeBudget(t *testing.T) {
+	// 1 proxy: 1 batch * 3s + 500ms = 3500ms
+	g1 := adapter.NewProxy(&mockAutoGroupAdapter{
+		name:    "g1",
+		proxies: make([]constant.Proxy, 1),
+	})
+	if b := calculateGroupProbeBudget(g1); b != 3500*time.Millisecond {
+		t.Fatalf("expected 3500ms for 1 proxy, got %v", b)
+	}
+
+	// 20 proxies: 2 batches * 3s + 500ms = 6500ms
+	g20 := adapter.NewProxy(&mockAutoGroupAdapter{
+		name:    "g20",
+		proxies: make([]constant.Proxy, 20),
+	})
+	if b := calculateGroupProbeBudget(g20); b != 6500*time.Millisecond {
+		t.Fatalf("expected 6500ms for 20 proxies, got %v", b)
+	}
+
+	// 100 proxies: bounded at 15s
+	g100 := adapter.NewProxy(&mockAutoGroupAdapter{
+		name:    "g100",
+		proxies: make([]constant.Proxy, 100),
+	})
+	if b := calculateGroupProbeBudget(g100); b != 15*time.Second {
+		t.Fatalf("expected 15s cap for 100 proxies, got %v", b)
+	}
+}
+
+func TestResetAllGroupsConsecutiveFailures(t *testing.T) {
+	g := &mockAutoGroupAdapter{name: "auto-group", groupType: constant.URLTest}
+	tunnel.UpdateProxies(map[string]constant.Proxy{
+		"auto-group": adapter.NewProxy(g),
+	}, nil)
+	t.Cleanup(func() { tunnel.UpdateProxies(nil, nil) })
+
+	resetAllGroupsConsecutiveFailures()
+	if count := g.consecutiveResets.Load(); count != 1 {
+		t.Fatalf("expected 1 reset call, got %d", count)
+	}
+}

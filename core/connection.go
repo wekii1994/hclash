@@ -154,7 +154,6 @@ func init() {
 const (
 	networkSettleDelay      = 300 * time.Millisecond
 	networkRetryBackoff     = 1200 * time.Millisecond
-	groupProbeTimeout       = 2800 * time.Millisecond
 	primaryProbeConcurrency = 3
 )
 
@@ -294,7 +293,7 @@ func classifyAutoGroups() (primary []*adapter.Proxy, secondary []*adapter.Proxy)
 			continue
 		}
 		_, isActive := activeNames[p.Name()]
-		if isActive || hasPrimaryAutoKeyword(p.Name()) {
+		if isActive {
 			primary = append(primary, p)
 		} else {
 			secondary = append(secondary, p)
@@ -311,6 +310,11 @@ func classifyAutoGroups() (primary []*adapter.Proxy, secondary []*adapter.Proxy)
 		_, bActive := activeNames[primary[j].Name()]
 		if aActive != bActive {
 			return aActive
+		}
+		aHasKw := hasPrimaryAutoKeyword(primary[i].Name())
+		bHasKw := hasPrimaryAutoKeyword(primary[j].Name())
+		if aHasKw != bHasKw {
+			return aHasKw
 		}
 		return primary[i].Name() < primary[j].Name()
 	})
@@ -342,20 +346,45 @@ type contextHealthCheckedGroup interface {
 	HealthCheckContext(context.Context) (map[string]uint16, error)
 }
 
+type failureResetter interface {
+	ResetConsecutiveFailures()
+}
+
 // Require the companion Mihomo patch at compile time, not only at runtime.
 var _ contextHealthCheckedGroup = (*outboundgroup.URLTest)(nil)
 var _ contextHealthCheckedGroup = (*outboundgroup.Fallback)(nil)
+var _ failureResetter = (*outboundgroup.URLTest)(nil)
+var _ failureResetter = (*outboundgroup.Fallback)(nil)
+
+func resetAllGroupsConsecutiveFailures() {
+	for _, raw := range tunnel.Proxies() {
+		if p, ok := raw.(*adapter.Proxy); ok {
+			if r, ok := p.ProxyAdapter.(failureResetter); ok {
+				r.ResetConsecutiveFailures()
+			}
+		}
+	}
+}
+
+func calculateGroupProbeBudget(proxy *adapter.Proxy) time.Duration {
+	if pg, ok := proxy.ProxyAdapter.(outboundgroup.ProxyGroup); ok {
+		return outboundgroup.RoundBudget(len(pg.Proxies()), 0)
+	}
+	return outboundgroup.RoundBudget(1, 0)
+}
 
 func probeGroupsConcurrently(ctx context.Context, groups []*adapter.Proxy) bool {
 	return runBoundedProbes(ctx, len(groups), primaryProbeConcurrency,
 		func(probeCtx context.Context, index int) bool {
-			checker, ok := groups[index].ProxyAdapter.(contextHealthCheckedGroup)
+			g := groups[index]
+			checker, ok := g.ProxyAdapter.(contextHealthCheckedGroup)
 			if !ok {
 				return false
 			}
-			done := markNetworkProbing(groups[index].Name())
+			done := markNetworkProbing(g.Name())
 			defer done()
-			testCtx, cancel := context.WithTimeout(probeCtx, groupProbeTimeout)
+			budget := calculateGroupProbeBudget(g)
+			testCtx, cancel := context.WithTimeout(probeCtx, budget)
 			defer cancel()
 			results, err := checker.HealthCheckContext(testCtx)
 			return err == nil && len(results) > 0
@@ -443,6 +472,7 @@ func probeProvidersFallback(ctx context.Context, providerMap map[string]cp.Proxy
 func handleResetNetwork() {
 	handleCloseConnections()
 	handleClearDnsCache()
+	resetAllGroupsConsecutiveFailures()
 
 	resetNetworkMu.Lock()
 	if resetNetworkCancel != nil {
@@ -458,6 +488,7 @@ func handleResetNetwork() {
 	resetCtx := outboundgroup.WithProbeRound(ctx, probeRound)
 	go func(resetCtx context.Context) {
 		defer cancel()
+		defer outboundgroup.CleanupProbeRound(probeRound)
 
 		if !waitOrCancel(resetCtx, networkSettleDelay) {
 			return
@@ -467,18 +498,18 @@ func handleResetNetwork() {
 		}
 
 		primaryGroups, secondaryGroups := classifyAutoGroups()
+		_ = secondaryGroups
 		beforeSelections := snapshotGroupSelections(primaryGroups)
-
-		for _, sec := range secondaryGroups {
-			touchGroup(sec)
-		}
 
 		if len(primaryGroups) > 0 {
 			ok := probeGroupsConcurrently(resetCtx, primaryGroups)
 			if !ok && waitOrCancel(resetCtx, networkRetryBackoff) {
 				handleClearDnsCache()
 				if endEpoch, _ := routeStamp(); endEpoch == startEpoch {
-					_ = probeGroupsConcurrently(resetCtx, primaryGroups)
+					retryRound := networkProbeRound.Add(1)
+					retryCtx := outboundgroup.WithProbeRound(resetCtx, retryRound)
+					defer outboundgroup.CleanupProbeRound(retryRound)
+					_ = probeGroupsConcurrently(retryCtx, primaryGroups)
 				}
 			}
 		} else {
