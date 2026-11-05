@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -419,11 +420,12 @@ func (m *mockSelectorAdapter) URLTest(ctx context.Context, url string, expectedS
 
 type mockAutoGroupAdapter struct {
 	constant.ProxyAdapter
-	name              string
-	groupType         constant.AdapterType
-	proxies           []constant.Proxy
-	consecutiveResets atomic.Int32
-	testTimeout       time.Duration
+	name                   string
+	groupType              constant.AdapterType
+	proxies                []constant.Proxy
+	consecutiveResets      atomic.Int32
+	testTimeout            time.Duration
+	healthCheckContextFunc func(context.Context) (map[string]uint16, error)
 }
 
 func (m *mockAutoGroupAdapter) Name() string                     { return m.name }
@@ -437,6 +439,12 @@ func (m *mockAutoGroupAdapter) Proxies() []constant.Proxy        { return m.prox
 func (m *mockAutoGroupAdapter) GetProxies(bool) []constant.Proxy { return m.proxies }
 func (m *mockAutoGroupAdapter) TestTimeout() time.Duration       { return m.testTimeout }
 func (m *mockAutoGroupAdapter) ResetConsecutiveFailures()         { m.consecutiveResets.Add(1) }
+func (m *mockAutoGroupAdapter) HealthCheckContext(ctx context.Context) (map[string]uint16, error) {
+	if m.healthCheckContextFunc != nil {
+		return m.healthCheckContextFunc(ctx)
+	}
+	return nil, nil
+}
 func (m *mockAutoGroupAdapter) URLTest(ctx context.Context, url string, expectedStatus utils.IntRanges[uint16]) (map[string]uint16, error) {
 	return nil, nil
 }
@@ -616,5 +624,73 @@ func TestOnGroupNowChangedPreservesHealthyNodeConnections(t *testing.T) {
 	}
 	if statistic.DefaultManager.Get(tracker2.ID()) == nil {
 		t.Errorf("expected NodeB connection to remain active, but was closed")
+	}
+}
+
+func TestProbeGroupsConcurrentlyCompletionContract(t *testing.T) {
+	// 1. Single group complete success
+	gSuccess := adapter.NewProxy(&mockAutoGroupAdapter{
+		name:      "gSuccess",
+		groupType: constant.URLTest,
+		proxies:   make([]constant.Proxy, 2),
+		healthCheckContextFunc: func(ctx context.Context) (map[string]uint16, error) {
+			return map[string]uint16{"n1": 50, "n2": 80}, nil
+		},
+	})
+	if ok := probeGroupsConcurrently(context.Background(), []*adapter.Proxy{gSuccess}); !ok {
+		t.Fatalf("expected true for fully complete group check, got false")
+	}
+
+	// 2. Single group partial success (deadline exceeded, but some nodes succeeded)
+	// Must return false to signal that the group check was incomplete and needs retry!
+	gPartial := adapter.NewProxy(&mockAutoGroupAdapter{
+		name:      "gPartial",
+		groupType: constant.URLTest,
+		proxies:   make([]constant.Proxy, 5),
+		healthCheckContextFunc: func(ctx context.Context) (map[string]uint16, error) {
+			return map[string]uint16{"n1": 50}, context.DeadlineExceeded
+		},
+	})
+	if ok := probeGroupsConcurrently(context.Background(), []*adapter.Proxy{gPartial}); ok {
+		t.Fatalf("expected false for deadline-truncated partial group check, got true")
+	}
+
+	// 3. Multiple groups: Group 1 complete, Group 2 partial
+	// Must return false because Group 2 is not complete!
+	if ok := probeGroupsConcurrently(context.Background(), []*adapter.Proxy{gSuccess, gPartial}); ok {
+		t.Fatalf("expected false when any group in batch is incomplete, got true")
+	}
+
+	// 4. Multiple groups: both complete -> returns true
+	gSuccess2 := adapter.NewProxy(&mockAutoGroupAdapter{
+		name:      "gSuccess2",
+		groupType: constant.Fallback,
+		proxies:   make([]constant.Proxy, 3),
+		healthCheckContextFunc: func(ctx context.Context) (map[string]uint16, error) {
+			return map[string]uint16{"n3": 60}, nil
+		},
+	})
+	if ok := probeGroupsConcurrently(context.Background(), []*adapter.Proxy{gSuccess, gSuccess2}); !ok {
+		t.Fatalf("expected true when all groups complete, got false")
+	}
+
+	// 5. Single group complete failure (all failed) -> returns false
+	gFail := adapter.NewProxy(&mockAutoGroupAdapter{
+		name:      "gFail",
+		groupType: constant.URLTest,
+		proxies:   make([]constant.Proxy, 2),
+		healthCheckContextFunc: func(ctx context.Context) (map[string]uint16, error) {
+			return nil, errors.New("all nodes failed")
+		},
+	})
+	if ok := probeGroupsConcurrently(context.Background(), []*adapter.Proxy{gFail}); ok {
+		t.Fatalf("expected false for all-failed group, got true")
+	}
+
+	// 6. Active cancellation -> returns false
+	ctxCanceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if ok := probeGroupsConcurrently(ctxCanceled, []*adapter.Proxy{gSuccess}); ok {
+		t.Fatalf("expected false on canceled context, got true")
 	}
 }

@@ -405,12 +405,17 @@ func calculateGroupProbeBudget(proxy *adapter.Proxy, competingCandidates ...int)
 }
 
 func probeGroupsConcurrently(ctx context.Context, groups []*adapter.Proxy) bool {
+	if len(groups) == 0 {
+		return false
+	}
 	totalCandidates := 0
 	for _, g := range groups {
 		totalCandidates += getGroupCandidateCount(g)
 	}
 
-	return runBoundedProbes(ctx, len(groups), primaryProbeConcurrency,
+	var completedGroups atomic.Int32
+
+	_ = runBoundedProbes(ctx, len(groups), primaryProbeConcurrency,
 		func(probeCtx context.Context, index int) bool {
 			g := groups[index]
 			checker, ok := g.ProxyAdapter.(contextHealthCheckedGroup)
@@ -429,8 +434,17 @@ func probeGroupsConcurrently(ctx context.Context, groups []*adapter.Proxy) bool 
 			testCtx, cancel := context.WithTimeout(probeCtx, budget)
 			defer cancel()
 			results, err := checker.HealthCheckContext(testCtx)
-			return err == nil && len(results) > 0
+
+			// A group is completely finished ONLY when err == nil (not truncated by deadline or canceled)
+			// and at least one candidate succeeded. Partial or incomplete groups do not count as complete.
+			if err == nil && len(results) > 0 {
+				completedGroups.Add(1)
+				return true
+			}
+			return false
 		})
+
+	return int(completedGroups.Load()) == len(groups)
 }
 
 func waitOrCancel(ctx context.Context, d time.Duration) bool {

@@ -62,7 +62,7 @@ index 9cd4fa01..71ea9dd7 100644
  		// that completed in under a millisecond as 1 ms
 diff --git a/adapter/outboundgroup/failover_test.go b/adapter/outboundgroup/failover_test.go
 new file mode 100644
-index 00000000..3426a612
+index 00000000..62733380
 --- /dev/null
 +++ b/adapter/outboundgroup/failover_test.go
 @@ -0,0 +1,1205 @@
@@ -1223,7 +1223,7 @@ index 00000000..3426a612
 +	defer cancel()
 +
 +	results, err := group.HealthCheckContext(ctx)
-+	require.NoError(t, err, "partial success with verified alive candidate should return nil error")
++	require.ErrorIs(t, err, context.DeadlineExceeded, "deadline exceeded must return DeadlineExceeded error")
 +	require.Equal(t, 1, len(results))
 +	require.Contains(t, results, "node-fast")
 +	require.True(t, switched.Load(), "valid switch must be triggered for verified alive candidate")
@@ -1272,7 +1272,7 @@ index 00000000..3426a612
 +	require.Equal(t, 0, group.ConsecutiveFailures(), "incomplete check truncated by deadline must not increment consecutive failures")
 +}
 diff --git a/adapter/outboundgroup/fallback.go b/adapter/outboundgroup/fallback.go
-index d6f61348..f2170bc2 100644
+index d6f61348..3b349ad7 100644
 --- a/adapter/outboundgroup/fallback.go
 +++ b/adapter/outboundgroup/fallback.go
 @@ -34,8 +34,11 @@ func (f *Fallback) DialContext(ctx context.Context, metadata *C.Metadata) (C.Con
@@ -1341,10 +1341,10 @@ index d6f61348..f2170bc2 100644
 +					OnGroupNowChanged(f, f.Name(), before, after)
 +				}
 +			}
-+			return result, nil
 +		}
-+		// If no candidate succeeded, the check was incomplete (truncated by budget limit),
-+		// so do NOT mark it as a complete all-failure to avoid premature backoff escalation.
++		// In both partial success and zero success, the probe was truncated by parent deadline.
++		// Return result along with ctx.Err() (context.DeadlineExceeded) so callers can distinguish
++		// truncated/incomplete checks from complete ones while still accessing verified alive results.
 +		return result, ctx.Err()
 +	}
 +
@@ -1961,7 +1961,7 @@ index ad38e4a5..ba1ad78b 100644
  func namedProxy(name string) C.Proxy {
  	return adapter.NewProxy(outbound.NewDirectWithOption(outbound.DirectOption{Name: name}))
 diff --git a/adapter/outboundgroup/urltest.go b/adapter/outboundgroup/urltest.go
-index 791d10f3..75475c68 100644
+index 791d10f3..c28585b6 100644
 --- a/adapter/outboundgroup/urltest.go
 +++ b/adapter/outboundgroup/urltest.go
 @@ -62,8 +62,11 @@ func (u *URLTest) DialContext(ctx context.Context, metadata *C.Metadata) (c C.Co
@@ -2049,10 +2049,10 @@ index 791d10f3..75475c68 100644
 +					OnGroupNowChanged(u, u.Name(), before, after)
 +				}
 +			}
-+			return result, nil
 +		}
-+		// If no candidate succeeded, the check was incomplete (truncated by budget limit),
-+		// so do NOT mark it as a complete all-failure to avoid premature backoff escalation.
++		// In both partial success and zero success, the probe was truncated by parent deadline.
++		// Return result along with ctx.Err() (context.DeadlineExceeded) so callers can distinguish
++		// truncated/incomplete checks from complete ones while still accessing verified alive results.
 +		return result, ctx.Err()
 +	}
 +
