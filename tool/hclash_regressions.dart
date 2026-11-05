@@ -1455,5 +1455,49 @@ Future<void> main() async {
     },
   );
 
+  await test(
+    'PWR-02: persistence error banner state coordinator reacts to error arrival and recovery with zero rebuilds on normal traffic',
+    () async {
+      Object? storeError;
+      var bannerBuilds = 0;
+      Object? currentBannerError;
+
+      void onStoreChanged() {
+        if (currentBannerError != storeError) {
+          bannerBuilds++;
+          currentBannerError = storeError;
+        }
+      }
+
+      // 1. Initial state: storeError == null
+      check(bannerBuilds == 0, 'initial state 0 rebuilds');
+      check(currentBannerError == null, 'banner error is null');
+
+      // 2. Normal traffic arrives (5 times) with no error
+      for (var i = 0; i < 5; i++) {
+        onStoreChanged();
+      }
+      check(bannerBuilds == 0, 'normal traffic does not rebuild banner');
+
+      // 3. Async store failure occurs
+      storeError = 'disk write failed';
+      onStoreChanged();
+      check(bannerBuilds == 1, 'banner rebuilds once on error arrival');
+      check(currentBannerError == 'disk write failed', 'banner shows error');
+
+      // 4. More traffic arrives while error persists
+      for (var i = 0; i < 5; i++) {
+        onStoreChanged();
+      }
+      check(bannerBuilds == 1, 'banner does not rebuild while error is unchanged');
+
+      // 5. Store recovers (subsequent save succeeds)
+      storeError = null;
+      onStoreChanged();
+      check(bannerBuilds == 2, 'banner rebuilds once on error recovery');
+      check(currentBannerError == null, 'banner error is cleared');
+    },
+  );
+
   stdout.writeln('$count regression scenarios passed.');
 }

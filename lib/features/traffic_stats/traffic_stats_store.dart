@@ -75,6 +75,11 @@ class TrafficStatsStore extends ChangeNotifier {
   static const maxDaysToKeep = TrafficStatsEngine.maxDaysToKeep;
   static const maxSitesToKeep = TrafficStatsEngine.maxSitesToKeep;
   Object? get lastPersistenceError => _engine.lastPersistenceError;
+  @visibleForTesting
+  set lastPersistenceError(Object? error) {
+    _engine.lastPersistenceError = error;
+    notifyListeners();
+  }
   int get dataRevision => _engine.dataRevision;
   int get persistedRevision => _engine.persistedRevision;
   bool get isDirty => _engine.isDirty;

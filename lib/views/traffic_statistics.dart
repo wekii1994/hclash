@@ -127,16 +127,7 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView>
           bottom: 24 + context.bottomInset,
         ),
         children: [
-          if (store.lastPersistenceError != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(
-                isZh
-                    ? '统计文件读取或保存失败；当前数据可能不完整，旧文件不会被自动覆盖。'
-                    : 'Statistics could not be loaded or saved. Current data may be incomplete.',
-                style: TextStyle(color: colorScheme.error),
-              ),
-            ),
+          const _PersistenceErrorBanner(),
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
@@ -725,6 +716,58 @@ class _RangeChip extends StatelessWidget {
                     : colorScheme.onSurfaceVariant,
               ),
         ),
+      ),
+    );
+  }
+}
+
+class _PersistenceErrorBanner extends StatefulWidget {
+  const _PersistenceErrorBanner();
+
+  @override
+  State<_PersistenceErrorBanner> createState() =>
+      _PersistenceErrorBannerState();
+}
+
+class _PersistenceErrorBannerState extends State<_PersistenceErrorBanner> {
+  Object? _currentError;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentError = TrafficStatsStore.instance.lastPersistenceError;
+    TrafficStatsStore.instance.addListener(_onStoreChanged);
+  }
+
+  @override
+  void dispose() {
+    TrafficStatsStore.instance.removeListener(_onStoreChanged);
+    super.dispose();
+  }
+
+  void _onStoreChanged() {
+    final newError = TrafficStatsStore.instance.lastPersistenceError;
+    if (_currentError != newError) {
+      setState(() {
+        _currentError = newError;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_currentError == null) {
+      return const SizedBox.shrink();
+    }
+    final isZh = Localizations.localeOf(context).languageCode == 'zh';
+    final colorScheme = context.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        isZh
+            ? '统计文件读取或保存失败；当前数据可能不完整，旧文件不会被自动覆盖。'
+            : 'Statistics could not be loaded or saved. Current data may be incomplete.',
+        style: TextStyle(color: colorScheme.error),
       ),
     );
   }
