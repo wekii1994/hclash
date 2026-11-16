@@ -5,7 +5,7 @@ import 'dart:ui' show PlatformDispatcher;
 
 import 'package:dio/dio.dart';
 import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/ui/icons/app_glyphs.dart';
+import 'package:fl_clash/ui/icons/icons.dart';
 import 'package:fl_clash/ui/ui.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
@@ -409,7 +409,7 @@ class _SiteIconState extends State<SiteIcon> {
         fit: BoxFit.cover,
         filterQuality: FilterQuality.medium,
         gaplessPlayback: true,
-        errorBuilder: (_, __, ___) => _buildPlaceholder(context),
+        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(context),
       ),
     );
   }
