@@ -5,7 +5,7 @@ import 'dart:ui' show PlatformDispatcher;
 
 import 'package:dio/dio.dart';
 import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/ui/icons/icons.dart';
+import 'package:fl_clash/ui/icons/app_glyphs.dart';
 import 'package:fl_clash/ui/ui.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
@@ -356,7 +356,7 @@ class _SiteIconState extends State<SiteIcon> {
           shape: shape,
         ),
         child: GlyphIcon(
-          AppGlyphs.language,
+          AppGlyphs.proxies,
           size: size * 0.58,
           color: colorScheme.primary,
         ),

@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io' show InternetAddress;
 import 'dart:math' as math;
 import 'dart:ui' show FontFeature;
 
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -1153,60 +1155,212 @@ class _HostDetailSheet extends StatelessWidget {
     this.siteIcon = true,
   });
 
+  bool get _isAddress => InternetAddress.tryParse(host) != null;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = context.colorScheme;
+    final upColor = DashboardColors.of(context).series2;
+    final downColor = colorScheme.primary;
     final subs = item.subs;
     final maxSub = subs.isEmpty ? 1 : math.max(subs.first.total, 1);
+    final isAddress = _isAddress;
 
     return Scaffold(
       title: host,
       body: ListView(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          8,
-          16,
-          24 + context.bottomInset,
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(horizontal: 16).copyWith(
+          top: context.contentTopPadding + 10,
+          bottom: 24 + context.bottomInset,
         ),
         children: [
           DashboardCard(
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SiteIcon(
-                  domain: host,
-                  size: 44,
-                  enabled: siteIcon,
+                Row(
+                  children: [
+                    SiteIcon(
+                      domain: host,
+                      size: 44,
+                      enabled: siteIcon,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _bytes(item.total),
+                            style: AppTextStyle.title2
+                                .of(context, emphasized: true)
+                                .copyWith(
+                                  color: colorScheme.onSurface,
+                                ),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Text(
+                                '↑ ${_bytes(item.up)}',
+                                style:
+                                    AppTextStyle.caption1.of(context).copyWith(
+                                  color: upColor,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures()
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                '↓ ${_bytes(item.down)}',
+                                style:
+                                    AppTextStyle.caption1.of(context).copyWith(
+                                  color: downColor,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures()
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                if (item.total > 0) ...[
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                    value: (item.down / item.total).clamp(0.0, 1.0),
+                    minHeight: 4,
+                    backgroundColor: upColor.withValues(alpha: 0.25),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            isZh ? '连接信息' : 'Connection Details',
+            style: AppTextStyle.subheadline
+                .of(context, emphasized: true)
+                .copyWith(
+                  color: colorScheme.onSurface,
+                ),
+          ),
+          const SizedBox(height: 8),
+          DashboardCard(
+            child: Column(
+              children: [
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () async {
+                    await Clipboard.setData(ClipboardData(text: host));
+                    if (context.mounted) {
+                      dialogs.showBanner(context.appLocalizations.copySuccess);
+                    }
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Text(
+                          isZh ? '目标地址' : 'Target Host',
+                          style: AppTextStyle.subheadline.of(context).copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const Spacer(),
+                        Expanded(
+                          flex: 2,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  host,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.end,
+                                  style: AppTextStyle.subheadline
+                                      .of(context, emphasized: true)
+                                      .copyWith(
+                                        color: colorScheme.primary,
+                                      ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              GlyphIcon(
+                                AppGlyphs.copy,
+                                size: 14,
+                                color: colorScheme.primary,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        _bytes(item.total),
-                        style: AppTextStyle.title2
+                        isZh ? '地址类型' : 'Address Type',
+                        style: AppTextStyle.subheadline.of(context).copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      Text(
+                        isAddress
+                            ? (isZh ? 'IP 直连目标' : 'Direct IP')
+                            : (isZh ? '域名解析目标' : 'Resolved Domain'),
+                        style: AppTextStyle.subheadline
                             .of(context, emphasized: true)
                             .copyWith(
                               color: colorScheme.onSurface,
                             ),
                       ),
-                      Text(
-                        '↑ ${_bytes(item.up)}   ↓ ${_bytes(item.down)}',
-                        style: AppTextStyle.caption1.of(context).copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
                     ],
                   ),
                 ),
+                if (item.hits > 0)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          isZh ? '命中请求' : 'Request Hits',
+                          style: AppTextStyle.subheadline.of(context).copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        Text(
+                          '${item.hits} ${isZh ? '次' : 'hits'}',
+                          style: AppTextStyle.subheadline
+                              .of(context, emphasized: true)
+                              .copyWith(
+                                color: colorScheme.onSurface,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures()
+                                ],
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
           if (subs.isNotEmpty) ...[
+            const SizedBox(height: 16),
             Text(
-              isZh ? '子域名统计明细' : 'Subdomains Breakdown',
+              '${isZh ? '子域名统计明细' : 'Subdomains Breakdown'} (${subs.length})',
               style: AppTextStyle.subheadline
                   .of(context, emphasized: true)
                   .copyWith(
