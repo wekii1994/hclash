@@ -65,6 +65,7 @@ func handleStopListener() {
 	setRunning(false)
 	listener.StopListener()
 	resolver.ResetConnection()
+	FlushTrafficStats()
 }
 
 func updateListeners(cfg *config.Config) {
@@ -96,6 +97,7 @@ func updateListeners(cfg *config.Config) {
 func handleShutdown() {
 	handleStopLog()
 	stopRouteWatch()
+	FlushTrafficStats()
 
 	configMu.Lock()
 	setRunning(false)
