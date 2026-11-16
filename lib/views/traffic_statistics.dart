@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show FontFeature;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/core/controller.dart';
 import 'package:fl_clash/models/models.dart';
+import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/ui/icons/app_glyphs.dart';
 import 'package:fl_clash/ui/list_item.dart';
 import 'package:fl_clash/ui/ui.dart';
@@ -64,14 +64,15 @@ String _rangeLabel(_Period period, _Range range, bool isZh) {
 
 String _bytes(num value) => value.traffic.show;
 
-class TrafficStatisticsView extends StatefulWidget {
+class TrafficStatisticsView extends ConsumerStatefulWidget {
   const TrafficStatisticsView({super.key});
 
   @override
-  State<TrafficStatisticsView> createState() => _TrafficStatisticsViewState();
+  ConsumerState<TrafficStatisticsView> createState() =>
+      _TrafficStatisticsViewState();
 }
 
-class _TrafficStatisticsViewState extends State<TrafficStatisticsView>
+class _TrafficStatisticsViewState extends ConsumerState<TrafficStatisticsView>
     with WidgetsBindingObserver {
   _Period _period = _Period.day;
   int _offset = 0;
@@ -136,10 +137,10 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView>
     final range = _range;
     TrafficStatsResult? result;
     try {
-      result = await coreController.getTrafficStats(
-        start: _dayKey(range.start),
-        end: _dayKey(range.end),
-      );
+      result = await ref.read(coreHandlerProvider).getTrafficStats(
+            start: _dayKey(range.start),
+            end: _dayKey(range.end),
+          );
     } catch (_) {
       result = const TrafficStatsResult();
     }
@@ -181,7 +182,7 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView>
       destructive: true,
     );
     if (confirmed == true && mounted) {
-      await coreController.clearTrafficStats();
+      await ref.read(coreHandlerProvider).clearTrafficStats();
       await _load();
     }
   }
@@ -195,7 +196,7 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView>
         isZh: isZh,
         onOptionsChanged: (opts) {
           setState(() => _options = opts);
-          coreController.configureTrafficStats(opts);
+          ref.read(coreHandlerProvider).configureTrafficStats(opts);
         },
         onCleared: () {
           _load();
@@ -263,9 +264,9 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView>
                 child: Text(
                   _rangeLabel(_period, range, isZh),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                  style: AppTextStyle.callout
+                      .of(context, emphasized: true)
+                      .copyWith(
                     fontFeatures: const [FontFeature.tabularFigures()],
                     color: context.colorScheme.onSurface,
                   ),
@@ -339,10 +340,12 @@ class _OverviewCard extends StatelessWidget {
             children: [
               Text(
                 totalTraffic.value,
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  height: 1.1,
+                style: AppTextStyle.custom(
+                  context,
+                  size: 32,
+                  leading: 36,
+                  weight: FontWeight.w800,
+                ).copyWith(
                   color: colorScheme.onSurface,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
@@ -350,11 +353,10 @@ class _OverviewCard extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 totalTraffic.unit,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                style:
+                    AppTextStyle.callout.of(context, emphasized: true).copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
               ),
               const Spacer(),
               Container(
@@ -366,11 +368,11 @@ class _OverviewCard extends StatelessWidget {
                 ),
                 child: Text(
                   isZh ? '总流量' : 'Total Traffic',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.primary,
-                  ),
+                  style: AppTextStyle.caption1
+                      .of(context, emphasized: true)
+                      .copyWith(
+                        color: colorScheme.primary,
+                      ),
                 ),
               ),
             ],
@@ -407,9 +409,9 @@ class _OverviewCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     '${isZh ? '代理' : 'Proxies'}: ${_bytes(result.proxyTotal)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                    style: AppTextStyle.caption1
+                        .of(context, emphasized: true)
+                        .copyWith(
                       color: colorScheme.onSurfaceVariant,
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
@@ -417,19 +419,19 @@ class _OverviewCard extends StatelessWidget {
                 ),
                 Text(
                   '·',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                  style: AppTextStyle.subheadline
+                      .of(context, emphasized: true)
+                      .copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                 ),
                 Expanded(
                   child: Text(
                     '${isZh ? '直连' : 'Direct'}: ${_bytes(result.directTotal)}',
                     textAlign: TextAlign.end,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                    style: AppTextStyle.caption1
+                        .of(context, emphasized: true)
+                        .copyWith(
                       color: colorScheme.onSurfaceVariant,
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
@@ -462,7 +464,10 @@ class _MetricItem extends StatelessWidget {
         Container(
           width: 10,
           height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          decoration: ShapeDecoration(
+            color: color,
+            shape: AppShape.full,
+          ),
         ),
         const SizedBox(width: 8),
         Column(
@@ -470,16 +475,15 @@ class _MetricItem extends StatelessWidget {
           children: [
             Text(
               label,
-              style: TextStyle(
-                fontSize: 11,
-                color: context.colorScheme.onSurfaceVariant,
-              ),
+              style: AppTextStyle.caption2.of(context).copyWith(
+                    color: context.colorScheme.onSurfaceVariant,
+                  ),
             ),
             Text(
               value,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
+              style: AppTextStyle.subheadline
+                  .of(context, emphasized: true)
+                  .copyWith(
                 color: context.colorScheme.onSurface,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
@@ -552,18 +556,18 @@ class _TrendChartCardState extends State<_TrendChartCard> {
             children: [
               Text(
                 widget.isZh ? '流量趋势' : 'Traffic Trend',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: colorScheme.onSurface,
-                ),
+                style: AppTextStyle.subheadline
+                    .of(context, emphasized: true)
+                    .copyWith(
+                      color: colorScheme.onSurface,
+                    ),
               ),
               if (point != null)
                 Text(
                   '${_title(point)}   ↑ ${_bytes(point.up)}   ↓ ${_bytes(point.down)}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                  style: AppTextStyle.caption1
+                      .of(context, emphasized: true)
+                      .copyWith(
                     color: colorScheme.onSurfaceVariant,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
@@ -577,10 +581,9 @@ class _TrendChartCardState extends State<_TrendChartCard> {
               child: Center(
                 child: Text(
                   widget.isZh ? '暂无流量走势数据' : 'No trend data',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                  style: AppTextStyle.footnote.of(context).copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                 ),
               ),
             )
@@ -602,10 +605,9 @@ class _TrendChartCardState extends State<_TrendChartCard> {
                       upColor: upColor,
                       downColor: downColor,
                       trackColor: colorScheme.onSurface.withValues(alpha: 0.05),
-                      labelStyle: TextStyle(
-                        fontSize: 10,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                      labelStyle: AppTextStyle.caption2.of(context).copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                       labels: [
                         for (final (index, p) in series.indexed)
                           _showLabel(index, series.length, widget.hourly)
@@ -663,13 +665,14 @@ class _TrendPainter extends CustomPainter {
       0,
       (value, point) => math.max(value, point.up + point.down),
     );
-    final radius = Radius.circular(math.min(barWidth / 2, 4));
+    final corner = Radius.circular(math.min(barWidth / 2, 4));
 
     for (final (index, point) in series.indexed) {
       final left = slot * index + (slot - barWidth) / 2;
       final dim = selected != null && selected != index;
-      canvas.drawRRect(
-        RRect.fromLTRBR(left, 0, left + barWidth, chartHeight, radius),
+      final trackRect = Rect.fromLTRB(left, 0, left + barWidth, chartHeight);
+      canvas.drawRSuperellipse(
+        RSuperellipse.fromRectAndRadius(trackRect, corner),
         Paint()..color = trackColor,
       );
 
@@ -678,15 +681,13 @@ class _TrendPainter extends CustomPainter {
         final height = math.max(chartHeight * total / peak, 2.0);
         final downHeight = height * point.down / total;
         final top = chartHeight - height;
-        final rect = RRect.fromLTRBR(
-          left,
-          top,
-          left + barWidth,
-          chartHeight,
-          radius,
-        );
+        final barRect = Rect.fromLTRB(left, top, left + barWidth, chartHeight);
+        final barPath = Path()
+          ..addRSuperellipse(
+            RSuperellipse.fromRectAndRadius(barRect, corner),
+          );
         canvas.save();
-        canvas.clipRRect(rect);
+        canvas.clipPath(barPath);
         canvas.drawRect(
           Rect.fromLTRB(left, top, left + barWidth, chartHeight - downHeight),
           Paint()..color = upColor.withValues(alpha: dim ? 0.35 : 1.0),
@@ -750,16 +751,15 @@ class _RuleHitsCard extends StatelessWidget {
             children: [
               Text(
                 isZh ? '分流规则命中' : 'Rule Hits',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: colorScheme.onSurface,
-                ),
+                style: AppTextStyle.subheadline
+                    .of(context, emphasized: true)
+                    .copyWith(
+                      color: colorScheme.onSurface,
+                    ),
               ),
               Text(
                 '${isZh ? '总命中' : 'Total Hits'}: $totalHits',
-                style: TextStyle(
-                  fontSize: 12,
+                style: AppTextStyle.caption1.of(context).copyWith(
                   color: colorScheme.onSurfaceVariant,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
@@ -769,83 +769,82 @@ class _RuleHitsCard extends StatelessWidget {
           const SizedBox(height: 12),
           SizedBox(
             height: 104,
-            child: ListView.separated(
+            child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               clipBehavior: Clip.none,
-              itemCount: math.min(rules.length, 20),
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
-              itemBuilder: (_, index) {
-                final r = rules[index];
-                final separator = r.name.indexOf(',');
-                final type =
-                    separator < 0 ? r.name : r.name.substring(0, separator);
-                final payload =
-                    separator < 0 ? '' : r.name.substring(separator + 1);
-                return Container(
-                  width: 140,
-                  padding: const EdgeInsets.all(10),
-                  decoration: ShapeDecoration(
-                    color: colorScheme.surfaceContainerHighest
-                        .withValues(alpha: 0.5),
-                    shape: AppShape.all(10),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        payload.isEmpty ? type : payload,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        payload.isEmpty ? 'RULE' : type,
-                        maxLines: 1,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: colorScheme.primary,
-                        ),
-                      ),
-                      const Spacer(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${r.hits} ${isZh ? '次' : 'hits'}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: colorScheme.onSurfaceVariant,
-                              fontFeatures: const [
-                                FontFeature.tabularFigures()
-                              ],
-                            ),
-                          ),
-                          Text(
-                            _bytes(r.total),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: colorScheme.onSurface,
-                              fontFeatures: const [
-                                FontFeature.tabularFigures()
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              },
+              child: Row(
+                children: [
+                  for (var i = 0; i < math.min(rules.length, 20); i++) ...[
+                    if (i > 0) const SizedBox(width: 8),
+                    _buildRuleItem(context, rules[i], colorScheme),
+                  ],
+                ],
+              ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRuleItem(
+    BuildContext context,
+    TrafficStatsItem r,
+    ColorScheme colorScheme,
+  ) {
+    final separator = r.name.indexOf(',');
+    final type = separator < 0 ? r.name : r.name.substring(0, separator);
+    final payload = separator < 0 ? '' : r.name.substring(separator + 1);
+    return Container(
+      width: 140,
+      padding: const EdgeInsets.all(10),
+      decoration: ShapeDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        shape: AppShape.all(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            payload.isEmpty ? type : payload,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyle.footnote.of(context, emphasized: true).copyWith(
+                  color: colorScheme.onSurface,
+                ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            payload.isEmpty ? 'RULE' : type,
+            maxLines: 1,
+            style: AppTextStyle.caption2.of(context, emphasized: true).copyWith(
+                  color: colorScheme.primary,
+                ),
+          ),
+          const Spacer(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${r.hits} ${isZh ? '次' : 'hits'}',
+                style: AppTextStyle.caption2
+                    .of(context, emphasized: true)
+                    .copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              Text(
+                _bytes(r.total),
+                style: AppTextStyle.caption2
+                    .of(context, emphasized: true)
+                    .copyWith(
+                  color: colorScheme.onSurface,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -901,18 +900,17 @@ class _RankingCard extends StatelessWidget {
             children: [
               Text(
                 isZh ? '流量排行' : 'Traffic Ranking',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: colorScheme.onSurface,
-                ),
+                style: AppTextStyle.subheadline
+                    .of(context, emphasized: true)
+                    .copyWith(
+                      color: colorScheme.onSurface,
+                    ),
               ),
               Text(
                 '${isZh ? '共' : 'Total'} ${items.length} ${isZh ? '项' : 'items'}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                style: AppTextStyle.caption1.of(context).copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
               ),
             ],
           ),
@@ -935,10 +933,9 @@ class _RankingCard extends StatelessWidget {
               child: Center(
                 child: Text(
                   isZh ? '当前维度暂无流量记录' : 'No records for this dimension',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                  style: AppTextStyle.footnote.of(context).copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                 ),
               ),
             )
@@ -1027,11 +1024,12 @@ class _RankTile extends StatelessWidget {
                 child: Text(
                   '$index',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: index <= 3 ? primary : colorScheme.onSurfaceVariant,
-                  ),
+                  style: AppTextStyle.caption1
+                      .of(context, emphasized: true)
+                      .copyWith(
+                        color:
+                            index <= 3 ? primary : colorScheme.onSurfaceVariant,
+                      ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1061,19 +1059,19 @@ class _RankTile extends StatelessWidget {
                             item.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: colorScheme.onSurface,
-                            ),
+                            style: AppTextStyle.footnote
+                                .of(context, emphasized: true)
+                                .copyWith(
+                                  color: colorScheme.onSurface,
+                                ),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Text(
                           _bytes(item.total),
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
+                          style: AppTextStyle.footnote
+                              .of(context, emphasized: true)
+                              .copyWith(
                             color: colorScheme.onSurface,
                             fontFeatures: const [FontFeature.tabularFigures()],
                           ),
@@ -1084,30 +1082,16 @@ class _RankTile extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(2),
-                            child: Container(
-                              height: 4,
-                              alignment: Alignment.centerLeft,
-                              color: primary.withValues(alpha: 0.12),
-                              child: FractionallySizedBox(
-                                widthFactor: ratio.clamp(0.0, 1.0),
-                                heightFactor: 1,
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: primary,
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                              ),
-                            ),
+                          child: LinearProgressIndicator(
+                            value: ratio.clamp(0.0, 1.0),
+                            minHeight: 4,
+                            backgroundColor: primary.withValues(alpha: 0.12),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Text(
                           '↑ ${_bytes(item.up)} · ↓ ${_bytes(item.down)}',
-                          style: TextStyle(
-                            fontSize: 10,
+                          style: AppTextStyle.caption2.of(context).copyWith(
                             color: colorScheme.onSurfaceVariant,
                             fontFeatures: const [FontFeature.tabularFigures()],
                           ),
@@ -1187,16 +1171,15 @@ class _HostDetailSheet extends StatelessWidget {
                     children: [
                       Text(
                         _bytes(item.total),
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: colorScheme.onSurface,
-                        ),
+                        style: AppTextStyle.title2
+                            .of(context, emphasized: true)
+                            .copyWith(
+                              color: colorScheme.onSurface,
+                            ),
                       ),
                       Text(
                         '↑ ${_bytes(item.up)}   ↓ ${_bytes(item.down)}',
-                        style: TextStyle(
-                          fontSize: 12,
+                        style: AppTextStyle.caption1.of(context).copyWith(
                           color: colorScheme.onSurfaceVariant,
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
@@ -1211,11 +1194,11 @@ class _HostDetailSheet extends StatelessWidget {
           if (subs.isNotEmpty) ...[
             Text(
               isZh ? '子域名统计明细' : 'Subdomains Breakdown',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: colorScheme.onSurface,
-              ),
+              style: AppTextStyle.subheadline
+                  .of(context, emphasized: true)
+                  .copyWith(
+                    color: colorScheme.onSurface,
+                  ),
             ),
             const SizedBox(height: 8),
             DashboardCard(
@@ -1230,11 +1213,11 @@ class _HostDetailSheet extends StatelessWidget {
                             width: 22,
                             child: Text(
                               '${index + 1}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
+                              style: AppTextStyle.caption2
+                                  .of(context, emphasized: true)
+                                  .copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
                             ),
                           ),
                           Expanded(
@@ -1248,19 +1231,19 @@ class _HostDetailSheet extends StatelessWidget {
                                         sub.name,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: colorScheme.onSurface,
-                                        ),
+                                        style: AppTextStyle.footnote
+                                            .of(context, emphasized: true)
+                                            .copyWith(
+                                              color: colorScheme.onSurface,
+                                            ),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
                                       _bytes(sub.total),
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
+                                      style: AppTextStyle.caption1
+                                          .of(context, emphasized: true)
+                                          .copyWith(
                                         color: colorScheme.onSurface,
                                         fontFeatures: const [
                                           FontFeature.tabularFigures()
@@ -1270,26 +1253,11 @@ class _HostDetailSheet extends StatelessWidget {
                                   ],
                                 ),
                                 const SizedBox(height: 3),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(2),
-                                  child: Container(
-                                    height: 3,
-                                    alignment: Alignment.centerLeft,
-                                    color: colorScheme.primary
-                                        .withValues(alpha: 0.12),
-                                    child: FractionallySizedBox(
-                                      widthFactor:
-                                          (sub.total / maxSub).clamp(0.0, 1.0),
-                                      heightFactor: 1,
-                                      child: DecoratedBox(
-                                        decoration: BoxDecoration(
-                                          color: colorScheme.primary,
-                                          borderRadius:
-                                              BorderRadius.circular(2),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                                LinearProgressIndicator(
+                                  value: (sub.total / maxSub).clamp(0.0, 1.0),
+                                  minHeight: 3,
+                                  backgroundColor: colorScheme.primary
+                                      .withValues(alpha: 0.12),
                                 ),
                               ],
                             ),
@@ -1307,7 +1275,7 @@ class _HostDetailSheet extends StatelessWidget {
   }
 }
 
-class _TrafficStatsSettingsDialog extends StatefulWidget {
+class _TrafficStatsSettingsDialog extends ConsumerStatefulWidget {
   final TrafficStatsOptions initialOptions;
   final bool isZh;
   final ValueChanged<TrafficStatsOptions> onOptionsChanged;
@@ -1321,12 +1289,12 @@ class _TrafficStatsSettingsDialog extends StatefulWidget {
   });
 
   @override
-  State<_TrafficStatsSettingsDialog> createState() =>
+  ConsumerState<_TrafficStatsSettingsDialog> createState() =>
       _TrafficStatsSettingsDialogState();
 }
 
 class _TrafficStatsSettingsDialogState
-    extends State<_TrafficStatsSettingsDialog> {
+    extends ConsumerState<_TrafficStatsSettingsDialog> {
   late TrafficStatsOptions _options;
 
   @override
@@ -1359,11 +1327,10 @@ class _TrafficStatsSettingsDialogState
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text(
               isZh ? '流量统计设置' : 'Traffic Statistics Settings',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: colorScheme.onSurface,
-              ),
+              style:
+                  AppTextStyle.callout.of(context, emphasized: true).copyWith(
+                        color: colorScheme.onSurface,
+                      ),
             ),
           ),
           const SizedBox(height: 12),
@@ -1419,7 +1386,7 @@ class _TrafficStatsSettingsDialogState
                     destructive: true,
                   );
                   if (confirmed == true) {
-                    await coreController.clearTrafficStats();
+                    await ref.read(coreHandlerProvider).clearTrafficStats();
                     widget.onCleared();
                   }
                 },
