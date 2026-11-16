@@ -275,7 +275,10 @@ abstract class CoreHandlerInterface {
         ),
         format: RuleProviderFormat.values.byName(info['format'] as String),
       );
-    }, arguments: {'name': name, 'url': url});
+    }, arguments: {
+      'name': name,
+      'url': url,
+    });
   }
 
   Future<void> updateGeoData(String type) {
@@ -381,13 +384,17 @@ abstract class CoreHandlerInterface {
   }
 
   Future<Map<MitmList, Map<int, String>>> validateMitm(MitmRules rules) {
-    return _query(CoreMethod.mitmValidate, (data) {
-      final lists = _json(data);
-      return {
-        for (final list in MitmList.values)
-          if (lists[list.key] case final Object issues) list: _issues(issues),
-      };
-    }, arguments: rules.toJson());
+    return _query(
+      CoreMethod.mitmValidate,
+      (data) {
+        final lists = _json(data);
+        return {
+          for (final list in MitmList.values)
+            if (lists[list.key] case final Object issues) list: _issues(issues),
+        };
+      },
+      arguments: rules.toJson(),
+    );
   }
 
   Future<String> issueMitmCertificate(String host) {
@@ -479,12 +486,12 @@ Map<String, dynamic> _json(Object? data) =>
     Map<String, dynamic>.from(data as Map);
 
 List<Map<String, dynamic>> _jsonList(Object? data) => [
-  for (final item in data as List) _json(item),
-];
+      for (final item in data as List) _json(item),
+    ];
 
 List<String> _strings(Object data) => [
-  for (final item in data as List) item as String,
-];
+      for (final item in data as List) item as String,
+    ];
 
 T Function(Object) _model<T>(T Function(Map<String, dynamic>) fromJson) =>
     (data) => fromJson(_json(data));
@@ -495,7 +502,8 @@ List<T> Function(Object) _models<T>(
     (data) => [for (final item in data as List) fromJson(_json(item))];
 
 Map<int, String> _issues(Object data) => {
-  for (final item in data as List)
-    if (item case {'index': final num index, 'message': final String message})
-      index.toInt(): message,
-};
+      for (final item in data as List)
+        if (item
+            case {'index': final num index, 'message': final String message})
+          index.toInt(): message,
+    };

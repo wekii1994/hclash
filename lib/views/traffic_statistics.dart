@@ -14,6 +14,7 @@ import 'package:fl_clash/ui/ui.dart';
 import 'package:fl_clash/views/dashboard/style.dart';
 import 'package:fl_clash/views/dashboard/widgets/card.dart';
 import 'package:fl_clash/widgets/widgets.dart';
+import 'package:prism_ui/icons/glyph.dart';
 import 'package:prism_ui/icons/glyph_icon.dart';
 import 'package:prism_ui/prism_ui.dart';
 
@@ -254,9 +255,9 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView>
           // Date Navigator Row
           Row(
             children: [
-              CommonButton(
+              IconButton(
                 onPressed: canBack ? () => _changeOffset(1) : null,
-                child: const GlyphIcon(glyph: AppGlyphs.chevronBack),
+                icon: const GlyphIcon(AppGlyphs.chevronBack),
               ),
               Expanded(
                 child: Text(
@@ -270,9 +271,9 @@ class _TrafficStatisticsViewState extends State<TrafficStatisticsView>
                   ),
                 ),
               ),
-              CommonButton(
+              IconButton(
                 onPressed: _offset > 0 ? () => _changeOffset(-1) : null,
-                child: const GlyphIcon(glyph: AppGlyphs.chevronForward),
+                icon: const GlyphIcon(AppGlyphs.chevronForward),
               ),
             ],
           ),
@@ -357,7 +358,8 @@ class _OverviewCard extends StatelessWidget {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: ShapeDecoration(
                   color: colorScheme.primary.withValues(alpha: 0.1),
                   shape: AppShape.full,
@@ -535,9 +537,8 @@ class _TrendChartCardState extends State<_TrendChartCard> {
     final colorScheme = context.colorScheme;
     final series = widget.series;
     final selected = _selected;
-    final point = selected != null && selected < series.length
-        ? series[selected]
-        : null;
+    final point =
+        selected != null && selected < series.length ? series[selected] : null;
 
     final upColor = DashboardColors.of(context).series2;
     final downColor = colorScheme.primary;
@@ -608,7 +609,11 @@ class _TrendChartCardState extends State<_TrendChartCard> {
                       labels: [
                         for (final (index, p) in series.indexed)
                           _showLabel(index, series.length, widget.hourly)
-                              ? (widget.hourly ? p.label : (int.tryParse(p.label.split('-').last)?.toString() ?? p.label))
+                              ? (widget.hourly
+                                  ? p.label
+                                  : (int.tryParse(p.label.split('-').last)
+                                          ?.toString() ??
+                                      p.label))
                               : '',
                       ],
                     ),
@@ -772,13 +777,16 @@ class _RuleHitsCard extends StatelessWidget {
               itemBuilder: (_, index) {
                 final r = rules[index];
                 final separator = r.name.indexOf(',');
-                final type = separator < 0 ? r.name : r.name.substring(0, separator);
-                final payload = separator < 0 ? '' : r.name.substring(separator + 1);
+                final type =
+                    separator < 0 ? r.name : r.name.substring(0, separator);
+                final payload =
+                    separator < 0 ? '' : r.name.substring(separator + 1);
                 return Container(
                   width: 140,
                   padding: const EdgeInsets.all(10),
                   decoration: ShapeDecoration(
-                    color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                    color: colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.5),
                     shape: AppShape.all(10),
                   ),
                   child: Column(
@@ -815,7 +823,9 @@ class _RuleHitsCard extends StatelessWidget {
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                               color: colorScheme.onSurfaceVariant,
-                              fontFeatures: const [FontFeature.tabularFigures()],
+                              fontFeatures: const [
+                                FontFeature.tabularFigures()
+                              ],
                             ),
                           ),
                           Text(
@@ -824,7 +834,9 @@ class _RuleHitsCard extends StatelessWidget {
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
                               color: colorScheme.onSurface,
-                              fontFeatures: const [FontFeature.tabularFigures()],
+                              fontFeatures: const [
+                                FontFeature.tabularFigures()
+                              ],
                             ),
                           ),
                         ],
@@ -1003,8 +1015,9 @@ class _RankTile extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: CommonButton(
-        onPressed: onTap,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           child: Row(
@@ -1031,7 +1044,7 @@ class _RankTile extends StatelessWidget {
                 ),
                 child: Center(
                   child: GlyphIcon(
-                    glyph: glyph,
+                    glyph,
                     color: primary,
                   ),
                 ),
@@ -1107,7 +1120,7 @@ class _RankTile extends StatelessWidget {
               if (onTap != null) ...[
                 const SizedBox(width: 6),
                 GlyphIcon(
-                  glyph: AppGlyphs.chevronForward,
+                  AppGlyphs.chevronForward,
                   color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
                 ),
               ],
@@ -1162,7 +1175,7 @@ class _HostDetailSheet extends StatelessWidget {
                   ),
                   child: Center(
                     child: GlyphIcon(
-                      glyph: AppGlyphs.language,
+                      AppGlyphs.language,
                       color: colorScheme.primary,
                     ),
                   ),
@@ -1249,7 +1262,9 @@ class _HostDetailSheet extends StatelessWidget {
                                         fontSize: 12,
                                         fontWeight: FontWeight.w700,
                                         color: colorScheme.onSurface,
-                                        fontFeatures: const [FontFeature.tabularFigures()],
+                                        fontFeatures: const [
+                                          FontFeature.tabularFigures()
+                                        ],
                                       ),
                                     ),
                                   ],
@@ -1260,14 +1275,17 @@ class _HostDetailSheet extends StatelessWidget {
                                   child: Container(
                                     height: 3,
                                     alignment: Alignment.centerLeft,
-                                    color: colorScheme.primary.withValues(alpha: 0.12),
+                                    color: colorScheme.primary
+                                        .withValues(alpha: 0.12),
                                     child: FractionallySizedBox(
-                                      widthFactor: (sub.total / maxSub).clamp(0.0, 1.0),
+                                      widthFactor:
+                                          (sub.total / maxSub).clamp(0.0, 1.0),
                                       heightFactor: 1,
                                       child: DecoratedBox(
                                         decoration: BoxDecoration(
                                           color: colorScheme.primary,
-                                          borderRadius: BorderRadius.circular(2),
+                                          borderRadius:
+                                              BorderRadius.circular(2),
                                         ),
                                       ),
                                     ),
@@ -1317,7 +1335,8 @@ class _TrafficStatsSettingsDialogState
     _options = widget.initialOptions;
   }
 
-  void _update(TrafficStatsOptions Function(TrafficStatsOptions state) builder) {
+  void _update(
+      TrafficStatsOptions Function(TrafficStatsOptions state) builder) {
     setState(() {
       _options = builder(_options);
     });
@@ -1351,9 +1370,7 @@ class _TrafficStatsSettingsDialogState
           ListItem.toggle(
             title: Text(isZh ? '启用流量统计' : 'Enable Traffic Statistics'),
             subtitle: Text(
-              isZh
-                  ? '在内核底层进行流量与连接统计'
-                  : 'Track traffic at core engine level',
+              isZh ? '在内核底层进行流量与连接统计' : 'Track traffic at core engine level',
             ),
             value: _options.enable,
             onChanged: (val) => _update((o) => o.copyWith(enable: val)),
@@ -1376,32 +1393,40 @@ class _TrafficStatsSettingsDialogState
             options: const [7, 14, 30],
             value: _options.retentionDays,
             textBuilder: (days) => '$days ${isZh ? '天' : 'days'}',
-            onChanged: (days) => _update((o) => o.copyWith(retentionDays: days)),
+            onChanged: (days) =>
+                _update((o) => o.copyWith(retentionDays: days)),
           ),
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: CommonButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                final cleanTitle = isZh ? '清空流量统计' : 'Clear Traffic Statistics';
-                final cleanTip = isZh
-                    ? '确定要清空所有流量统计历史和明细记录吗？此操作无法撤销。'
-                    : 'Are you sure you want to clear all traffic statistics and history? This action cannot be undone.';
-                final confirmed = await dialogs.showMessage(
-                  context: context,
-                  title: cleanTitle,
-                  message: TextSpan(text: cleanTip),
-                  destructive: true,
-                );
-                if (confirmed == true) {
-                  await coreController.clearTrafficStats();
-                  widget.onCleared();
-                }
-              },
-              child: Text(
-                isZh ? '清空所有统计数据' : 'Clear All Traffic Statistics',
-                style: TextStyle(color: colorScheme.error),
+            child: SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                style: ButtonStyle.from(
+                  foregroundColor: colorScheme.error,
+                ),
+                onPressed: () async {
+                  Navigator.of(context).pop();
+                  final cleanTitle =
+                      isZh ? '清空流量统计' : 'Clear Traffic Statistics';
+                  final cleanTip = isZh
+                      ? '确定要清空所有流量统计历史和明细记录吗？此操作无法撤销。'
+                      : 'Are you sure you want to clear all traffic statistics and history? This action cannot be undone.';
+                  final confirmed = await dialogs.showMessage(
+                    context: context,
+                    title: cleanTitle,
+                    message: TextSpan(text: cleanTip),
+                    destructive: true,
+                  );
+                  if (confirmed == true) {
+                    await coreController.clearTrafficStats();
+                    widget.onCleared();
+                  }
+                },
+                child: Text(
+                  isZh ? '清空所有统计数据' : 'Clear All Traffic Statistics',
+                  style: TextStyle(color: colorScheme.error),
+                ),
               ),
             ),
           ),
