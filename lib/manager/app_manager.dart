@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/common/system_dns.dart';
 import 'package:fl_clash/enum/enum.dart';
-import 'package:fl_clash/features/traffic_stats/traffic_stats.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/mitm.dart';
 import 'package:fl_clash/providers/providers.dart';
@@ -85,7 +84,6 @@ class _AppStateManagerState extends ConsumerState<AppStateManager>
       AppLifecycleState.detached => false,
     };
     ref.read(appVisibleProvider.notifier).value = isVisible;
-    TrafficStatsStore.instance.updateAppVisibility(isVisible);
   }
 
   @override
@@ -103,10 +101,6 @@ class _AppStateManagerState extends ConsumerState<AppStateManager>
         }
         ref.read(routeTrackerProvider.notifier).markResumed();
       });
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden ||
-        state == AppLifecycleState.detached) {
-      unawaited(TrafficStatsStore.instance.save());
     }
   }
 

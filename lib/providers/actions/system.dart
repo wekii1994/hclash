@@ -65,7 +65,6 @@ class SystemAction extends _$SystemAction {
   Future<void> _savePreferencesSafely() async {
     try {
       await savePreferences();
-      await TrafficStatsStore.instance.save();
     } catch (error) {
       commonPrint.log(
         'Preferences save failed: ${compactError(error)}',

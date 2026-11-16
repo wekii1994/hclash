@@ -2,22 +2,12 @@ import 'dart:async';
 
 import 'package:fl_clash/core/event.dart';
 import 'package:fl_clash/enum/enum.dart';
-import 'package:fl_clash/features/traffic_stats/traffic_stats_persistence.dart';
-import 'package:fl_clash/features/traffic_stats/traffic_stats_store.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _CloseListener with CoreEventListener {
-  _CloseListener(this.store);
-
-  final TrafficStatsStore store;
   final order = <String>[];
   final completed = Completer<void>();
-
-  @override
-  void onRequestTrafficSamples(List<RequestTrafficSample> samples) {
-    store.recordRequestTrafficSamples(samples);
-  }
 
   @override
   void onRequestTraffic(Map<String, RequestTraffic> traffic) {
@@ -34,21 +24,11 @@ class _CloseListener with CoreEventListener {
   }
 }
 
-class _MemoryPersistence implements TrafficStatsPersistence {
-  @override
-  Future<Map<String, dynamic>?> read() async => null;
-
-  @override
-  Future<void> write(Map<String, dynamic> snapshot) async {}
-}
-
 void main() {
   test(
     'dispatch final cumulative counters before retiring the connection',
     () async {
-      final store = TrafficStatsStore(persistence: _MemoryPersistence());
-      addTearDown(store.dispose);
-      final listener = _CloseListener(store);
+      final listener = _CloseListener();
       coreEventManager.addListener(listener);
       try {
         coreEventManager.sendEvent(
@@ -68,10 +48,6 @@ void main() {
         );
         await listener.completed.future.timeout(const Duration(seconds: 2));
         expect(listener.order, ['sample:123', 'closed']);
-        expect(store.todayDownload, 123);
-        expect(store.targetSiteUsages['example.com']?.download, 123);
-        expect(store.targetSiteUsages['example.com']?.process, 'browser');
-        expect(store.trackedConnections, 0);
       } finally {
         coreEventManager.removeListener(listener);
       }

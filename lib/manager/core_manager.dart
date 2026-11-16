@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/core/core.dart';
 import 'package:fl_clash/enum/enum.dart';
-import 'package:fl_clash/features/traffic_stats/traffic_stats.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/providers/app.dart';
@@ -37,7 +36,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   @override
   void initState() {
     super.initState();
-    unawaited(TrafficStatsStore.instance.init());
     coreEventManager.addListener(this);
     ref.read(updatingActionProvider.notifier);
     // A rejected profile stays selected on purpose: silently reverting to
@@ -93,9 +91,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
     });
     // Every Core process starts without a log stream.
     ref.listenManual(coreStatusProvider, (prev, next) {
-      if (next == CoreStatus.disconnected && prev == CoreStatus.connected) {
-        TrafficStatsStore.instance.beginCoreEpoch(Object());
-      }
       if (next == CoreStatus.connected && prev != CoreStatus.connected) {
         _syncLogStream();
       }
@@ -128,7 +123,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
 
   @override
   void dispose() {
-    TrafficStatsStore.instance.save();
     coreEventManager.removeListener(this);
     super.dispose();
   }
@@ -175,7 +169,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   void onRequest(TrackerInfo trackerInfo) async {
     ref.read(requestsProvider.notifier).addRequest(trackerInfo);
     ref.read(requestCountProvider.notifier).update((count) => count + 1);
-    TrafficStatsStore.instance.recordRequest(trackerInfo);
     super.onRequest(trackerInfo);
   }
 
@@ -183,12 +176,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   void onRequestTraffic(Map<String, RequestTraffic> traffic) {
     ref.read(requestsProvider.notifier).updateTraffic(traffic);
     super.onRequestTraffic(traffic);
-  }
-
-  @override
-  void onRequestTrafficSamples(List<RequestTrafficSample> samples) {
-    TrafficStatsStore.instance.recordRequestTrafficSamples(samples);
-    super.onRequestTrafficSamples(samples);
   }
 
   @override
