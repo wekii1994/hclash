@@ -183,6 +183,7 @@ class _TrafficStatisticsViewState extends ConsumerState<TrafficStatisticsView>
     );
     if (confirmed == true && mounted) {
       await ref.read(coreHandlerProvider).clearTrafficStats();
+      await siteIconCache.clear();
       await _load();
     }
   }
@@ -309,6 +310,7 @@ class _TrafficStatisticsViewState extends ConsumerState<TrafficStatisticsView>
             range: range,
             hourly: _period == _Period.day,
             isZh: isZh,
+            siteIcon: _options.siteIcon,
             onRankChanged: (newRank) => setState(() => _rank = newRank),
           ),
         ],
@@ -858,6 +860,7 @@ class _RankingCard extends StatelessWidget {
   final _Range range;
   final bool hourly;
   final bool isZh;
+  final bool siteIcon;
   final ValueChanged<_Rank> onRankChanged;
 
   const _RankingCard({
@@ -867,6 +870,7 @@ class _RankingCard extends StatelessWidget {
     required this.hourly,
     required this.isZh,
     required this.onRankChanged,
+    this.siteIcon = true,
   });
 
   List<TrafficStatsItem> get _currentItems => switch (rank) {
@@ -949,6 +953,8 @@ class _RankingCard extends StatelessWidget {
                     item: item,
                     ratio: item.total / maxTotal,
                     isZh: isZh,
+                    isHost: rank == _Rank.hosts,
+                    siteIcon: siteIcon,
                     onTap: rank == _Rank.hosts
                         ? () => _showHostDetailSheet(
                               context,
@@ -957,6 +963,7 @@ class _RankingCard extends StatelessWidget {
                               range: range,
                               hourly: hourly,
                               isZh: isZh,
+                              siteIcon: siteIcon,
                             )
                         : null,
                   ),
@@ -974,6 +981,7 @@ class _RankingCard extends StatelessWidget {
     required _Range range,
     required bool hourly,
     required bool isZh,
+    required bool siteIcon,
   }) {
     showSheet<void>(
       context: context,
@@ -983,6 +991,7 @@ class _RankingCard extends StatelessWidget {
         range: range,
         hourly: hourly,
         isZh: isZh,
+        siteIcon: siteIcon,
       ),
     );
   }
@@ -994,6 +1003,8 @@ class _RankTile extends StatelessWidget {
   final TrafficStatsItem item;
   final double ratio;
   final bool isZh;
+  final bool isHost;
+  final bool siteIcon;
   final VoidCallback? onTap;
 
   const _RankTile({
@@ -1002,6 +1013,8 @@ class _RankTile extends StatelessWidget {
     required this.item,
     required this.ratio,
     required this.isZh,
+    this.isHost = false,
+    this.siteIcon = true,
     this.onTap,
   });
 
@@ -1033,20 +1046,27 @@ class _RankTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: ShapeDecoration(
-                  color: primary.withValues(alpha: 0.1),
-                  shape: AppShape.all(8),
-                ),
-                child: Center(
-                  child: GlyphIcon(
-                    glyph,
-                    color: primary,
+              if (isHost)
+                SiteIcon(
+                  domain: item.name,
+                  size: 32,
+                  enabled: siteIcon,
+                )
+              else
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: ShapeDecoration(
+                    color: primary.withValues(alpha: 0.1),
+                    shape: AppShape.all(8),
+                  ),
+                  child: Center(
+                    child: GlyphIcon(
+                      glyph,
+                      color: primary,
+                    ),
                   ),
                 ),
-              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1122,6 +1142,7 @@ class _HostDetailSheet extends StatelessWidget {
   final _Range range;
   final bool hourly;
   final bool isZh;
+  final bool siteIcon;
 
   const _HostDetailSheet({
     required this.host,
@@ -1129,6 +1150,7 @@ class _HostDetailSheet extends StatelessWidget {
     required this.range,
     required this.hourly,
     required this.isZh,
+    this.siteIcon = true,
   });
 
   @override
@@ -1150,19 +1172,10 @@ class _HostDetailSheet extends StatelessWidget {
           DashboardCard(
             child: Row(
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: ShapeDecoration(
-                    color: colorScheme.primary.withValues(alpha: 0.12),
-                    shape: AppShape.all(12),
-                  ),
-                  child: Center(
-                    child: GlyphIcon(
-                      AppGlyphs.language,
-                      color: colorScheme.primary,
-                    ),
-                  ),
+                SiteIcon(
+                  domain: host,
+                  size: 44,
+                  enabled: siteIcon,
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -1220,6 +1233,12 @@ class _HostDetailSheet extends StatelessWidget {
                                   ),
                             ),
                           ),
+                          SiteIcon(
+                            domain: sub.name,
+                            size: 20,
+                            enabled: siteIcon,
+                          ),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1316,88 +1335,98 @@ class _TrafficStatsSettingsDialogState
     final colorScheme = context.colorScheme;
     final isZh = widget.isZh;
 
-    return Container(
-      width: 360,
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              isZh ? '流量统计设置' : 'Traffic Statistics Settings',
-              style:
-                  AppTextStyle.callout.of(context, emphasized: true).copyWith(
-                        color: colorScheme.onSurface,
-                      ),
+    return AlertDialog(
+      title: isZh ? '流量统计设置' : 'Traffic Statistics Settings',
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(isZh ? '完成' : 'Done'),
+        ),
+      ],
+      child: SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ListItem.toggle(
+              title: Text(isZh ? '启用流量统计' : 'Enable Traffic Statistics'),
+              subtitle: Text(
+                isZh ? '在内核底层进行流量与连接统计' : 'Track traffic at core engine level',
+              ),
+              value: _options.enable,
+              onChanged: (val) => _update((o) => o.copyWith(enable: val)),
             ),
-          ),
-          const SizedBox(height: 12),
-          ListItem.toggle(
-            title: Text(isZh ? '启用流量统计' : 'Enable Traffic Statistics'),
-            subtitle: Text(
-              isZh ? '在内核底层进行流量与连接统计' : 'Track traffic at core engine level',
+            ListItem.toggle(
+              title: Text(isZh ? '记录明细数据' : 'Record Detailed Dimensions'),
+              subtitle: Text(
+                isZh
+                    ? '记录域名、应用、节点与规则维度'
+                    : 'Record hosts, processes, nodes and rules',
+              ),
+              value: _options.detail,
+              onChanged: (val) => _update((o) => o.copyWith(detail: val)),
             ),
-            value: _options.enable,
-            onChanged: (val) => _update((o) => o.copyWith(enable: val)),
-          ),
-          ListItem.toggle(
-            title: Text(isZh ? '记录明细数据' : 'Record Detailed Dimensions'),
-            subtitle: Text(
-              isZh
-                  ? '记录域名、应用、节点与规则维度'
-                  : 'Record hosts, processes, nodes and rules',
+            ListItem.toggle(
+              title: Text(isZh ? '显示网站图标' : 'Show Website Icons'),
+              subtitle: Text(
+                isZh
+                    ? '优先从对应网站获取，无图标时通过公共服务获取'
+                    : 'Fetch icons from sites or public favicon services',
+              ),
+              value: _options.siteIcon,
+              onChanged: (val) => _update((o) => o.copyWith(siteIcon: val)),
             ),
-            value: _options.detail,
-            onChanged: (val) => _update((o) => o.copyWith(detail: val)),
-          ),
-          ListItem<int>.options(
-            title: Text(isZh ? '数据保留时长' : 'Retention Period'),
-            subtitle: Text(
-              '${_options.retentionDays} ${isZh ? '天' : 'days'}',
+            ListItem<int>.options(
+              title: Text(isZh ? '数据保留时长' : 'Retention Period'),
+              subtitle: Text(
+                _options.retentionDays == 0
+                    ? (isZh ? '不保留' : 'Do not keep')
+                    : '${_options.retentionDays} ${isZh ? '天' : 'days'}',
+              ),
+              options: const [0, 1, 3, 7, 14, 30, 90],
+              value: _options.retentionDays,
+              textBuilder: (days) => days == 0
+                  ? (isZh ? '不保留' : 'None')
+                  : '$days ${isZh ? '天' : 'days'}',
+              onChanged: (days) =>
+                  _update((o) => o.copyWith(retentionDays: days)),
             ),
-            options: const [7, 14, 30],
-            value: _options.retentionDays,
-            textBuilder: (days) => '$days ${isZh ? '天' : 'days'}',
-            onChanged: (days) =>
-                _update((o) => o.copyWith(retentionDays: days)),
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                style: ButtonStyle.from(
-                  foregroundColor: colorScheme.error,
-                ),
-                onPressed: () async {
-                  Navigator.of(context).pop();
-                  final cleanTitle =
-                      isZh ? '清空流量统计' : 'Clear Traffic Statistics';
-                  final cleanTip = isZh
-                      ? '确定要清空所有流量统计历史和明细记录吗？此操作无法撤销。'
-                      : 'Are you sure you want to clear all traffic statistics and history? This action cannot be undone.';
-                  final confirmed = await dialogs.showMessage(
-                    context: context,
-                    title: cleanTitle,
-                    message: TextSpan(text: cleanTip),
-                    destructive: true,
-                  );
-                  if (confirmed == true) {
-                    await ref.read(coreHandlerProvider).clearTrafficStats();
-                    widget.onCleared();
-                  }
-                },
-                child: Text(
-                  isZh ? '清空所有统计数据' : 'Clear All Traffic Statistics',
-                  style: TextStyle(color: colorScheme.error),
+            const SizedBox(height: 8),
+            ListItem(
+              title: Text(
+                isZh ? '清空所有统计数据' : 'Clear All Traffic Statistics',
+                style: AppTextStyle.body.of(context).copyWith(
+                  color: colorScheme.error,
                 ),
               ),
+              trailing: GlyphIcon(
+                AppGlyphs.delete,
+                color: colorScheme.error,
+              ),
+              onTap: () async {
+                Navigator.of(context).pop();
+                final cleanTitle =
+                    isZh ? '清空流量统计' : 'Clear Traffic Statistics';
+                final cleanTip = isZh
+                    ? '确定要清空所有流量统计历史、明细记录与图标缓存吗？此操作无法撤销。'
+                    : 'Are you sure you want to clear all traffic statistics, history and icon caches? This action cannot be undone.';
+                final confirmed = await dialogs.showMessage(
+                  context: context,
+                  title: cleanTitle,
+                  message: TextSpan(text: cleanTip),
+                  destructive: true,
+                );
+                if (confirmed == true) {
+                  await ref.read(coreHandlerProvider).clearTrafficStats();
+                  await siteIconCache.clear();
+                  widget.onCleared();
+                }
+              },
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

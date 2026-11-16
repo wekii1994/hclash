@@ -159,12 +159,14 @@ class TrafficStatsOptions {
   final bool detail;
   final int retentionDays;
   final int tzOffset;
+  final bool siteIcon;
 
   const TrafficStatsOptions({
     this.enable = false,
     this.detail = true,
     this.retentionDays = 7,
     this.tzOffset = 0,
+    this.siteIcon = true,
   });
 
   factory TrafficStatsOptions.fromJson(Map<String, dynamic> json) {
@@ -177,6 +179,7 @@ class TrafficStatsOptions {
       tzOffset: (json['tz-offset'] as num?)?.toInt() ??
           (json['tzOffset'] as num?)?.toInt() ??
           0,
+      siteIcon: json['site-icon'] as bool? ?? json['siteIcon'] as bool? ?? true,
     );
   }
 
@@ -185,12 +188,14 @@ class TrafficStatsOptions {
     bool? detail,
     int? retentionDays,
     int? tzOffset,
+    bool? siteIcon,
   }) {
     return TrafficStatsOptions(
       enable: enable ?? this.enable,
       detail: detail ?? this.detail,
       retentionDays: retentionDays ?? this.retentionDays,
       tzOffset: tzOffset ?? this.tzOffset,
+      siteIcon: siteIcon ?? this.siteIcon,
     );
   }
 
@@ -199,6 +204,7 @@ class TrafficStatsOptions {
         'detail': detail,
         'retention-days': retentionDays,
         'tz-offset': tzOffset,
+        'site-icon': siteIcon,
       };
 }
 
