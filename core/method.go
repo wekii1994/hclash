@@ -241,6 +241,13 @@ var methodHandlers = map[CoreMethod]methodHandler{
 	failoverResetMethod: fallibleWithoutArguments(handleResetFailoverStats),
 	"getFailoverStats":   fallibleWithoutArguments(handleGetFailoverStats),
 	"resetFailoverStats": fallibleWithoutArguments(handleResetFailoverStats),
+
+	trafficStatsQueryMethod:     withFallible(handleGetTrafficStats),
+	trafficStatsClearMethod:     fallibleWithoutArguments(handleClearTrafficStats),
+	trafficStatsConfigureMethod: withFallible(handleConfigureTrafficStats),
+	"getTrafficStats":           withFallible(handleGetTrafficStats),
+	"clearTrafficStats":         fallibleWithoutArguments(handleClearTrafficStats),
+	"configureTrafficStats":     withFallible(handleConfigureTrafficStats),
 }
 
 func watchRouteHandler(call *MethodCall) (any, error) {

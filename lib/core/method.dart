@@ -62,6 +62,9 @@ enum CoreMethod {
   mitmBody('mitm.body'),
   failoverStats('failover.stats'),
   failoverReset('failover.reset'),
+  trafficStatsQuery('trafficStats.query'),
+  trafficStatsClear('trafficStats.clear'),
+  trafficStatsConfigure('trafficStats.configure'),
 
   /// The envelope of the Core's event batches, never called.
   message('message');
@@ -72,6 +75,9 @@ enum CoreMethod {
 
   static const CoreMethod getFailoverStats = failoverStats;
   static const CoreMethod resetFailoverStats = failoverReset;
+  static const CoreMethod getTrafficStats = trafficStatsQuery;
+  static const CoreMethod clearTrafficStats = trafficStatsClear;
+  static const CoreMethod configureTrafficStats = trafficStatsConfigure;
 
   static final _byWireName = {
     for (final method in values) method.wireName: method,

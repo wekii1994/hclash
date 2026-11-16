@@ -441,6 +441,36 @@ abstract class CoreHandlerInterface {
   Future<FailoverStats?> resetFailoverStats() {
     return _find(CoreMethod.failoverReset, _model(FailoverStats.fromJson));
   }
+
+  Future<TrafficStatsResult?> getTrafficStats({
+    String? start,
+    String? end,
+    int? top,
+    String? host,
+  }) {
+    final args = <String, dynamic>{
+      if (start != null) 'start': start,
+      if (end != null) 'end': end,
+      if (top != null) 'top': top,
+      if (host != null) 'host': host,
+    };
+    return _find(
+      CoreMethod.trafficStatsQuery,
+      _model(TrafficStatsResult.fromJson),
+      arguments: args,
+    );
+  }
+
+  Future<void> clearTrafficStats() {
+    return _command(CoreMethod.trafficStatsClear);
+  }
+
+  Future<void> configureTrafficStats(TrafficStatsOptions options) {
+    return _command(
+      CoreMethod.trafficStatsConfigure,
+      arguments: options.toJson(),
+    );
+  }
 }
 
 T _cast<T>(Object data) => data as T;

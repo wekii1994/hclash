@@ -8,6 +8,7 @@ import 'package:fl_clash/features/traffic_stats/traffic_stats_engine.dart';
 import 'package:fl_clash/features/traffic_stats/traffic_stats_models.dart';
 import 'package:fl_clash/features/traffic_stats/traffic_stats_persistence.dart';
 import 'package:fl_clash/models/failover_stats.dart';
+import 'package:fl_clash/models/traffic_stats.dart';
 
 void check(bool condition, String description) {
   if (!condition) throw StateError(description);
@@ -1046,6 +1047,112 @@ Future<void> main() async {
         state.total == 0,
         'state must remain C (total=0), not overwritten by B (42)',
       );
+    },
+  );
+
+  await test(
+    'traffic stats Go kernel result contract and 5-dimension deserialization',
+    () async {
+      final goResponse = {
+        'up': 1000,
+        'down': 2000,
+        'proxy-up': 600,
+        'proxy-down': 1400,
+        'rule-hits': 15,
+        'since': '2026-11-10',
+        'series': [
+          {'label': '00', 'up': 100, 'down': 200},
+          {'label': '01', 'up': 300, 'down': 400},
+        ],
+        'hosts': [
+          {
+            'name': 'google.com',
+            'up': 500,
+            'down': 1000,
+            'subs': [
+              {'name': 'api.google.com', 'up': 200, 'down': 400},
+            ],
+          },
+        ],
+        'processes': [
+          {'name': 'chrome.exe', 'path': 'C:\\Chrome.exe', 'up': 400, 'down': 800},
+        ],
+        'nodes': [
+          {'name': 'Hong Kong 01', 'up': 600, 'down': 1400},
+        ],
+        'profiles': [
+          {'name': 'MySub', 'up': 600, 'down': 1400},
+        ],
+        'rules': [
+          {'name': 'GEOIP,CN', 'hits': 10, 'up': 400, 'down': 600},
+        ],
+      };
+
+      final result = TrafficStatsResult.fromJson(goResponse);
+      check(result.up == 1000, 'up mismatch: ${result.up}');
+      check(result.down == 2000, 'down mismatch: ${result.down}');
+      check(result.total == 3000, 'total mismatch: ${result.total}');
+      check(result.proxyUp == 600, 'proxyUp mismatch');
+      check(result.proxyDown == 1400, 'proxyDown mismatch');
+      check(result.proxyTotal == 2000, 'proxyTotal mismatch');
+      check(result.directTotal == 1000, 'directTotal mismatch: ${result.directTotal}');
+      check(result.ruleHits == 15, 'ruleHits mismatch');
+      check(result.since == '2026-11-10', 'since mismatch');
+
+      check(result.series.length == 2, 'series length mismatch');
+      check(result.series[0].label == '00', 'point label mismatch');
+      check(result.series[0].total == 300, 'point total mismatch');
+
+      check(result.hosts.length == 1, 'hosts length mismatch');
+      check(result.hosts[0].name == 'google.com', 'host name mismatch');
+      check(result.hosts[0].subs.length == 1, 'subs length mismatch');
+      check(result.hosts[0].subs[0].name == 'api.google.com', 'sub name mismatch');
+
+      check(result.processes.length == 1, 'processes length mismatch');
+      check(result.processes[0].path == 'C:\\Chrome.exe', 'process path mismatch');
+
+      check(result.nodes.length == 1, 'nodes length mismatch');
+      check(result.nodes[0].name == 'Hong Kong 01', 'node name mismatch');
+
+      check(result.profiles.length == 1, 'profiles length mismatch');
+      check(result.profiles[0].name == 'MySub', 'profile name mismatch');
+
+      check(result.rules.length == 1, 'rules length mismatch');
+      check(result.rules[0].hits == 10, 'rule hits mismatch');
+    },
+  );
+
+  await test(
+    'traffic stats options and query serialization',
+    () async {
+      final opts = TrafficStatsOptions(
+        enable: true,
+        detail: true,
+        retentionDays: 14,
+        tzOffset: 480,
+      );
+      final json = opts.toJson();
+      check(json['enable'] == true, 'enable mismatch');
+      check(json['detail'] == true, 'detail mismatch');
+      check(json['retention-days'] == 14, 'retention-days mismatch');
+      check(json['tz-offset'] == 480, 'tz-offset mismatch');
+
+      final deserialized = TrafficStatsOptions.fromJson(json);
+      check(deserialized.enable == true, 'deserialized enable mismatch');
+      check(deserialized.retentionDays == 14, 'deserialized retention mismatch');
+      check(deserialized.tzOffset == 480, 'deserialized tz-offset mismatch');
+
+      final query = TrafficStatsQuery(
+        start: '2026-11-01',
+        end: '2026-11-07',
+        top: 20,
+        host: 'github.com',
+      );
+      final queryJson = query.toJson();
+      check(queryJson['start'] == '2026-11-01', 'query start mismatch');
+      check(queryJson['end'] == '2026-11-07', 'query end mismatch');
+      check(queryJson['top'] == 20, 'query top mismatch');
+      check(queryJson['host'] == 'github.com', 'query host mismatch');
     },
   );
 

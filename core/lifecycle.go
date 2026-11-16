@@ -31,6 +31,10 @@ func handleInit(params *InitParams) error {
 	sdkVersion.Store(int32(params.Version))
 	constant.SetHomeDir(params.HomeDir)
 	initOwnership(params.HomeDir)
+	InitTrafficStats(params.HomeDir)
+	opts := DefaultTrafficStatsOptions()
+	opts.Enable = true
+	ConfigureTrafficStats(opts, "")
 	clearSpilledResponses()
 	isInit.Store(true)
 	return nil
