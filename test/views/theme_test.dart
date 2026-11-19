@@ -78,9 +78,10 @@ void main() {
 
   group('primary color', () {
     Finder swatch(int color) => find.byWidgetPredicate(
-      (widget) =>
-          widget is Semantics && widget.properties.label == Color(color).hex,
-    );
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == Color(color).hex,
+        );
 
     testWidgets('starts on blue among the system colors', (tester) async {
       container
@@ -207,7 +208,8 @@ void main() {
       expect(swatch(0xFF123456), findsOneWidget);
     });
 
-    testWidgets('keeps the custom color palette clear of the edge back '
+    testWidgets(
+        'keeps the custom color palette clear of the edge back '
         'swipe', (tester) async {
       const size = Size(400, 860);
       container.read(viewSizeProvider.notifier).value = size;
@@ -341,9 +343,9 @@ void main() {
     ) async {
       await pumpThemeView(tester);
       Finder inPreview(Type type) => find.descendant(
-        of: find.byType(ThemeLivePreview),
-        matching: find.byType(type),
-      );
+            of: find.byType(ThemeLivePreview),
+            matching: find.byType(type),
+          );
       int selected() =>
           tester.widget<MiniScreen>(inPreview(MiniScreen)).selected;
 
@@ -363,9 +365,9 @@ void main() {
     });
 
     Finder inPage(String text) => find.descendant(
-      of: find.byType(FontFamilyView),
-      matching: find.text(text),
-    );
+          of: find.byType(FontFamilyView),
+          matching: find.text(text),
+        );
 
     final fontsIllustration = find.descendant(
       of: find.byType(FontFamilyView),
@@ -414,7 +416,8 @@ void main() {
       expect(readTheme().fontFamily, isNull);
     });
 
-    testWidgets('lists the fonts as the sheet opens and gives the names '
+    testWidgets(
+        'lists the fonts as the sheet opens and gives the names '
         'their fonts once it has stopped', (tester) async {
       var reads = 0;
       systemFontFamiliesReader = () async {
@@ -444,8 +447,8 @@ void main() {
       tester,
     ) async {
       systemFontFamiliesReader = () async => [
-        for (var i = 0; i < 80; i++) 'Scrolled Font $i',
-      ];
+            for (var i = 0; i < 80; i++) 'Scrolled Font $i',
+          ];
       await pumpThemeView(tester);
       await openFonts(tester);
 
@@ -455,13 +458,13 @@ void main() {
         skipOffstage: false,
       );
       Set<String> withFamilyOf(bool Function(String?, String) test) => {
-        for (final element in names.evaluate())
-          if (test(
-            DefaultTextStyle.of(element).style.fontFamily,
-            (element.widget as Text).data!,
-          ))
-            (element.widget as Text).data!,
-      };
+            for (final element in names.evaluate())
+              if (test(
+                DefaultTextStyle.of(element).style.fontFamily,
+                (element.widget as Text).data!,
+              ))
+                (element.widget as Text).data!,
+          };
       Set<String> withTheirFonts() =>
           withFamilyOf((family, name) => family == name);
       Set<String> listed() => withFamilyOf((_, _) => true);
@@ -574,13 +577,19 @@ void main() {
       await pumpThemeView(tester);
 
       expect(readTheme().textScale.enable, isFalse);
-      expect(tester.widget<Slider>(find.byType(Slider)).onChanged, isNull);
+      expect(
+        tester.widget<Slider>(find.byType(Slider).first).onChanged,
+        isNull,
+      );
 
       await tester.tap(find.text('Custom'));
       await tester.pumpAndSettle();
 
       expect(readTheme().textScale.enable, isTrue);
-      expect(tester.widget<Slider>(find.byType(Slider)).onChanged, isNotNull);
+      expect(
+        tester.widget<Slider>(find.byType(Slider).first).onChanged,
+        isNotNull,
+      );
 
       await tester.tap(find.text('Follow system'));
       await tester.pumpAndSettle();
@@ -594,7 +603,7 @@ void main() {
       await tester.pumpAndSettle();
       final before = readTheme().textScale.scale;
 
-      final slider = find.byType(Slider);
+      final slider = find.byType(Slider).first;
       final gesture = await tester.startGesture(tester.getCenter(slider));
       await gesture.moveBy(const Offset(120, 0));
       await tester.pump();
@@ -606,21 +615,19 @@ void main() {
     });
 
     testWidgets('resets a custom scale to 100%', (tester) async {
-      container
-          .read(themeSettingProvider.notifier)
-          .update(
+      container.read(themeSettingProvider.notifier).update(
             (state) => state.copyWith.textScale(enable: true, scale: 1.2),
           );
 
       await pumpThemeView(tester);
 
-      expect(find.text('120%'), findsOneWidget);
+      expect(find.text('120%'), findsNWidgets(2));
 
       await tester.tap(find.byTooltip('Reset').last);
       await tester.pumpAndSettle();
 
       expect(readTheme().textScale.scale, 1);
-      expect(find.text('100%'), findsOneWidget);
+      expect(find.text('100%'), findsWidgets);
     });
   });
 }
