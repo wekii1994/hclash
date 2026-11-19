@@ -104,9 +104,7 @@ class _TrafficStatisticsViewState extends ConsumerState<TrafficStatisticsView>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (_demand == null) {
-        _demand = ref.read(connectionBookProvider).demand..acquire();
-      }
+      _demand ??= ref.read(connectionBookProvider).demand..acquire();
       if (_isLive) {
         _load();
       }
@@ -1230,7 +1228,8 @@ class _HostDetailSheet extends StatelessWidget {
           ),
           if (subs.isNotEmpty)
             generateSection(
-              title: '${isZh ? '子域名统计明细' : 'Subdomains Breakdown'} (${subs.length})',
+              title:
+                  '${isZh ? '子域名统计明细' : 'Subdomains Breakdown'} (${subs.length})',
               items: [
                 for (final sub in subs)
                   DecorationListItem(
@@ -1246,12 +1245,14 @@ class _HostDetailSheet extends StatelessWidget {
                     ),
                     trailing: Text(
                       _bytes(sub.total),
-                      style: AppTextStyle.subheadline.of(context, emphasized: true),
+                      style: AppTextStyle.subheadline
+                          .of(context, emphasized: true),
                     ),
                     onPressed: () async {
                       await Clipboard.setData(ClipboardData(text: sub.name));
                       if (context.mounted) {
-                        dialogs.showBanner(context.appLocalizations.copySuccess);
+                        dialogs
+                            .showBanner(context.appLocalizations.copySuccess);
                       }
                     },
                   ),
@@ -1325,7 +1326,9 @@ class _TrafficStatsSettingsDialogState
               ListItem.toggle(
                 title: Text(isZh ? '启用流量统计' : 'Enable Traffic Statistics'),
                 subtitle: Text(
-                  isZh ? '在内核底层进行流量与连接统计' : 'Track traffic at core engine level',
+                  isZh
+                      ? '在内核底层进行流量与连接统计'
+                      : 'Track traffic at core engine level',
                 ),
                 value: _options.enable,
                 onChanged: (val) => _update((o) => o.copyWith(enable: val)),
