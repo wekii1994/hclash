@@ -1,0 +1,284 @@
+name: Build Android APK (RS)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - rs
+    tags:
+      - 'v*'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.agents/**'
+      - '.claude/**'
+      - '.github/workflows/pages.yaml'
+
+concurrency:
+  group: android-rs-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.50.0'
+  NDK_VERSION: r28c
+  CA_BUNDLE: cacert-2026-09-25.pem
+  CA_BUNDLE_SHA256: a41b5d356aea97a529fe27e0f7316d2f9d946d75927476cf9cf1b90637d00505
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Validate sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: plugins/rust_api/rust
+          cache-directories: .dart_tool/hooks_runner
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos
+      - name: Skip the Core build hook for Dart tests
+        run: yq -i '.hooks.user_defines.setup.build_assets = false' pubspec.yaml
+      - run: dart run tool/test.dart -- --reporter expanded
+
+  build-apk:
+    name: Build Android APK
+    needs: quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Free Disk Space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android/sdk/ndk
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/node_modules
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -a -f || true
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            plugins/rust_api/rust
+            android/core/jni
+            concord
+          cache-directories: .dart_tool/hooks_runner
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        id: build-ndk
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+          add-to-path: true
+          link-to-sdk: true
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Setup Android Release Keystore
+        env:
+          KEYSTORE: ${{ secrets.KEYSTORE }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in KEYSTORE KEY_ALIAS STORE_PASSWORD KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Required signing secret is missing: $name"
+              exit 1
+            fi
+          done
+          umask 077
+          python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          keystore = Path('android/app/keystore.jks')
+          encoded = ''.join(os.environ['KEYSTORE'].split())
+          keystore.write_bytes(base64.b64decode(encoded, validate=True))
+          if keystore.stat().st_size == 0:
+              raise RuntimeError('Signing keystore is empty')
+
+          def escape(value):
+              result = []
+              for char in value:
+                  if char == '\\': result.append('\\\\')
+                  elif char == '\n': result.append('\\n')
+                  elif char == '\r': result.append('\\r')
+                  elif char == '\t': result.append('\\t')
+                  elif char in ':=': result.append('\\' + char)
+                  else: result.append(char)
+              return ''.join(result)
+
+          props = Path('android/local.properties')
+          with props.open('a', encoding='utf-8') as handle:
+              handle.write(f'storePassword={escape(os.environ["STORE_PASSWORD"])}\n')
+              handle.write(f'keyAlias={escape(os.environ["KEY_ALIAS"])}\n')
+              handle.write(f'keyPassword={escape(os.environ["KEY_PASSWORD"])}\n')
+          PY
+
+      - name: Fetch CA certificates
+        run: |
+          bundle="android/app/src/main/assets/data/$CA_BUNDLE"
+          if [[ -f "$bundle" ]] && echo "$CA_BUNDLE_SHA256  $bundle" | sha256sum -c -; then
+            exit 0
+          fi
+          mkdir -p "$(dirname "$bundle")"
+          curl -fsSL --retry 3 -o "$bundle" "https://curl.se/ca/$CA_BUNDLE"
+          echo "$CA_BUNDLE_SHA256  $bundle" | sha256sum -c -
+
+      - name: Install dependencies
+        run: |
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+          flutter pub get
+
+      - name: Prepare release identity
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(sed -n 's/^version: *\([^ +]*\).*/\1/p' pubspec.yaml)
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            EXISTING_PRES=$(gh release list --limit 100 --json tagName --jq '.[].tagName' | sed -n "s/^v${VERSION//./\\.}-rs\([0-9][0-9]*\)$/\1/p" | sort -n | tail -n 1)
+            TAG="v${VERSION}-rs$(( ${EXISTING_PRES:-0} + 1 ))"
+          fi
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Unsupported release tag format: $TAG"
+            exit 1
+          fi
+          echo "HCLASH_RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Build Android APK (arm64-v8a)
+        env:
+          ANDROID_NDK_HOME: ${{ steps.build-ndk.outputs.ndk-path }}
+        run: |
+          dart setup.dart android --arch arm64 --env stable -v
+          printf '%s\n' "$HCLASH_RELEASE_TAG" > dist/release-tag.txt
+
+      - name: Generate Checksums
+        run: |
+          cd dist
+          find . -name "*.apk" -type f -exec sha256sum {} + > sha256sum.txt
+          cat sha256sum.txt
+
+      - name: Upload APK Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hclash-android-rs-apks
+          path: dist/
+          overwrite: true
+
+  publish:
+    name: Publish verified APK
+    needs: build-apk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: hclash-rs-release-publishing
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: hclash-android-rs-apks
+          path: dist
+
+      - name: Publish to GitHub Releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=$(cat dist/release-tag.txt)
+          
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Unsupported release tag format"
+            exit 1
+          fi
+          echo "Publishing release for tag: $TAG"
+          
+          find dist -mindepth 2 -name "*.apk" -exec mv -f {} dist/ \; 2>/dev/null || true
+          
+          TAG_CLEAN="${TAG#v}"
+          for f in dist/*.apk; do
+            if [ -f "$f" ]; then
+              base=$(basename "$f")
+              new_base=$(echo "$base" | sed -E "s/FlClash/hclash-rs/g" | sed -E "s/([0-9]+\.[0-9]+\.[0-9]+)/${TAG_CLEAN}/")
+              if [ "$base" != "$new_base" ]; then
+                mv -f "$f" "dist/$new_base"
+              fi
+            fi
+          done
+          
+          cd dist
+          rm -f sha256sum.txt
+          find . -name "*.apk" -type f -exec sha256sum {} + > sha256sum.txt
+          cd ..
+          
+          APK_FILES=$(find dist -maxdepth 1 -name "*.apk" -o -name "sha256sum.txt")
+          echo "Files to upload:"
+          echo "$APK_FILES"
+          
+          COMMIT_TITLE=$(git log -1 --pretty=%s)
+          COMMIT_BODY=$(git log -1 --pretty=%b)
+          
+          echo "### 变更说明 (Concord Rust 内核版)" > release_notes.md
+          echo "**$COMMIT_TITLE**" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "$COMMIT_BODY" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "---" >> release_notes.md
+          echo "- **架构分支**: \`rs\` (基于全新 Concord Rust 代理内核)" >> release_notes.md
+          echo "- **版本**: \`$TAG\`" >> release_notes.md
+          echo "- **Commit**: \`${{ github.sha }}\`" >> release_notes.md
+          
+          echo "Creating new release $TAG..."
+          gh release create "$TAG" $APK_FILES \
+            --title "hclash $TAG (Rust Core Preview)" \
+            --target "${{ github.sha }}" \
+            --notes-file release_notes.md \
+            --prerelease

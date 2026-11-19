@@ -241,6 +241,23 @@ extension type CoreController._(CoreBackend _backend) implements CoreBackend {
     final config = Map<String, dynamic>.from(base.config)..remove('rule');
     return (base: base.copyWith(config: config), path: path);
   }
+
+  Future<TrafficStatsResult> getTrafficStats({
+    required String start,
+    required String end,
+  }) async {
+    await TrafficStatsEngine.instance.init();
+    return TrafficStatsEngine.instance.query(start: start, end: end);
+  }
+
+  Future<void> clearTrafficStats() async {
+    await TrafficStatsEngine.instance.clear();
+  }
+
+  Future<void> configureTrafficStats(TrafficStatsOptions options) async {
+    await TrafficStatsEngine.instance.init();
+    TrafficStatsEngine.instance.configure(options);
+  }
 }
 
 final coreController = CoreController();

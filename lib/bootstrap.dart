@@ -242,18 +242,6 @@ class Bootstrap {
   /// Android's exit only finishes the activity, so Dart keeps running after
   /// [SystemAction.handleExit] returns and must not go on to start the app.
   Future<bool> _handlerDisclaimer() async {
-    final acceptedVersion = _container.read(
-      appSettingProvider.select((state) => state.acceptedDisclaimerVersion),
-    );
-    if (acceptedVersion >= disclaimerVersion) {
-      return true;
-    }
-    final isDisclaimerAccepted =
-        _isDisclaimerAcceptedByEnvironment || await requestDisclaimerConsent();
-    if (!isDisclaimerAccepted) {
-      await _container.read(systemActionProvider.notifier).handleExit();
-      return false;
-    }
     _container
         .read(appSettingProvider.notifier)
         .update(

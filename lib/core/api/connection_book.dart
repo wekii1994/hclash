@@ -1,6 +1,7 @@
 import 'package:fl_clash/models/models.dart';
 import 'package:flutter/foundation.dart';
 
+import '../traffic_stats_engine.dart';
 import 'core_api.dart';
 import 'dto.dart';
 import 'mapping.dart';
@@ -93,10 +94,25 @@ class ConnectionBook {
           upload: counter.upload,
           download: counter.download,
         );
+        TrafficStatsEngine.instance.recordTraffic(
+          connectionId: counter.id,
+          tracker: tracker,
+          totalUp: counter.upload,
+          totalDown: counter.download,
+        );
       }
     }
     for (final id in delta.closed) {
-      _open.remove(id);
+      final tracker = _open.remove(id);
+      if (tracker != null) {
+        TrafficStatsEngine.instance.recordTraffic(
+          connectionId: id,
+          tracker: tracker,
+          totalUp: tracker.upload,
+          totalDown: tracker.download,
+          isClosed: true,
+        );
+      }
     }
     return (opened: opened, counters: counters);
   }
