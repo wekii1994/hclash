@@ -187,7 +187,10 @@ class FailoverEngine {
   }
 
   Future<void> _probeAndFailover(int epoch) async {
-    if (_isProbing) return;
+    while (_isProbing) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (_disposed || epoch != _networkEpoch) return;
+    }
     _isProbing = true;
 
     try {
@@ -309,6 +312,7 @@ class FailoverEngine {
         if (_disposed) return false;
         switch (event) {
           case DelayRunResult(:final result):
+            _ref.read(proxiesActionProvider.notifier).setDelay(delayOf(result));
             if (result.value > 0) {
               delays[result.name] = result.value;
             }
@@ -323,6 +327,8 @@ class FailoverEngine {
       );
       return false;
     }
+
+    _ref.read(proxiesActionProvider.notifier).updateGroupsDebounce();
 
     if (delays.isEmpty) {
       return false;
@@ -339,15 +345,26 @@ class FailoverEngine {
       }
     }
 
-    if (bestProxy != null && bestProxy != group.now) {
-      commonPrint.log(
-        '[Failover] Selecting optimal node for ${group.name}: $bestProxy (${lowestDelay}ms, previous: ${group.now})',
-        logLevel: LogLevel.info,
-      );
-      await _ref.read(proxiesActionProvider.notifier).changeProxy(
-        groupName: group.name,
-        proxyName: bestProxy,
-      );
+    final currentProxy = group.now;
+    final currentDelay = currentProxy != null ? delays[currentProxy] : null;
+
+    if (bestProxy != null && bestProxy != currentProxy) {
+      // If current node is dead/timed out, switch immediately.
+      // If current node is alive, require bestProxy to be at least 30ms faster to avoid jitter flapping.
+      final shouldSwitch = currentDelay == null ||
+          currentDelay <= 0 ||
+          (currentDelay - lowestDelay > 30);
+
+      if (shouldSwitch) {
+        commonPrint.log(
+          '[Failover] Selecting optimal node for ${group.name}: $bestProxy (${lowestDelay}ms, previous: $currentProxy ${currentDelay != null ? "${currentDelay}ms" : ""})',
+          logLevel: LogLevel.info,
+        );
+        await _ref.read(proxiesActionProvider.notifier).changeProxy(
+          groupName: group.name,
+          proxyName: bestProxy,
+        );
+      }
     }
 
     return true;

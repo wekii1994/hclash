@@ -1,6 +1,7 @@
 package com.follow.clash.plugins
 
 import android.net.ConnectivityManager
+import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
@@ -17,14 +18,16 @@ class DefaultNetworkWatcher(
     private val report = Runnable { onChanged(state()) }
     private var registered = false
 
-    private val request = NetworkRequest.Builder()
-        .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-        .build()
+    private val request = NetworkRequest.Builder().build()
 
     private val callback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) = schedule()
 
         override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+            schedule()
+        }
+
+        override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
             schedule()
         }
 
@@ -64,8 +67,7 @@ class DefaultNetworkWatcher(
             if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
                 isVpn = true
             }
-            if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+            if (!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
                 (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
                     capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI_AWARE))
             ) {
@@ -79,4 +81,4 @@ class DefaultNetworkWatcher(
     }
 }
 
-private const val SETTLE_MILLIS = 300L
+private const val SETTLE_MILLIS = 500L
