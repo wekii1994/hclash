@@ -13,3 +13,5 @@ ConnectionBook connectionBook(Ref ref) => ConnectionBook();
 
 @Riverpod(keepAlive: true)
 CoreStateSync coreStateSync(Ref ref) => CoreStateSync();
+
+export 'package:fl_clash/core/failover_engine.dart';
