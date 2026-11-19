@@ -10,6 +10,5 @@ export 'record.dart';
 export 'record_feed_list.dart';
 export 'record_filter.dart';
 export 'record_table.dart';
-export 'site_icon.dart';
 export 'subscription_info_view.dart';
 export 'package:fl_clash/ui/ui.dart';

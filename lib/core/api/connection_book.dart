@@ -1,7 +1,6 @@
 import 'package:fl_clash/models/models.dart';
 import 'package:flutter/foundation.dart';
 
-import '../traffic_stats_engine.dart';
 import 'core_api.dart';
 import 'dto.dart';
 import 'mapping.dart';
@@ -49,9 +48,7 @@ class ConnectionBook {
         _open.clear();
         final opened = <TrackerInfo>[];
         final counters = <int, RequestTraffic>{};
-        final currentIds = <int>{};
         for (final info in snapshot.connections) {
-          currentIds.add(info.id);
           final known = previous[info.id];
           if (known != null) {
             _open[info.id] = known.copyWith(
@@ -64,37 +61,12 @@ class ConnectionBook {
                 upload: info.upload,
                 download: info.download,
               );
-              TrafficStatsEngine.instance.recordTraffic(
-                connectionId: info.id,
-                tracker: _open[info.id]!,
-                totalUp: info.upload,
-                totalDown: info.download,
-              );
             }
             continue;
           }
           final tracker = trackerOf(info);
           _open[info.id] = tracker;
           opened.add(tracker);
-          if (info.upload > 0 || info.download > 0) {
-            TrafficStatsEngine.instance.recordTraffic(
-              connectionId: info.id,
-              tracker: tracker,
-              totalUp: info.upload,
-              totalDown: info.download,
-            );
-          }
-        }
-        for (final entry in previous.entries) {
-          if (!currentIds.contains(entry.key)) {
-            TrafficStatsEngine.instance.recordTraffic(
-              connectionId: entry.key,
-              tracker: entry.value,
-              totalUp: entry.value.upload,
-              totalDown: entry.value.download,
-              isClosed: true,
-            );
-          }
         }
         return (opened: opened, counters: counters);
       case ConnectionsChanged(:final delta):
@@ -121,25 +93,10 @@ class ConnectionBook {
           upload: counter.upload,
           download: counter.download,
         );
-        TrafficStatsEngine.instance.recordTraffic(
-          connectionId: counter.id,
-          tracker: tracker,
-          totalUp: counter.upload,
-          totalDown: counter.download,
-        );
       }
     }
     for (final id in delta.closed) {
-      final tracker = _open.remove(id);
-      if (tracker != null) {
-        TrafficStatsEngine.instance.recordTraffic(
-          connectionId: id,
-          tracker: tracker,
-          totalUp: tracker.upload,
-          totalDown: tracker.download,
-          isClosed: true,
-        );
-      }
+      _open.remove(id);
     }
     return (opened: opened, counters: counters);
   }

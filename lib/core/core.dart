@@ -10,4 +10,3 @@ export 'desktop/model.dart';
 export 'lib.dart';
 export 'service.dart';
 export 'state_sync.dart';
-export 'traffic_stats_engine.dart';
