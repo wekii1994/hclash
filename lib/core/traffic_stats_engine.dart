@@ -5,6 +5,7 @@ import 'dart:math' as math;
 
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/models/models.dart';
+import 'package:flutter/foundation.dart' show VoidCallback;
 import 'package:path/path.dart' as p;
 
 class _AggItem {
@@ -133,11 +134,15 @@ class TrafficStatsEngine {
       const TrafficStatsOptions(enable: true, detail: true);
   final Map<String, _DayBucket> _buckets = {};
   final Map<int, ({int up, int down})> _activeCounters = {};
+  final List<VoidCallback> _listeners = [];
   Timer? _flushTimer;
   bool _dirty = false;
   bool _loaded = false;
 
   TrafficStatsOptions get options => _options;
+
+  void addListener(VoidCallback listener) => _listeners.add(listener);
+  void removeListener(VoidCallback listener) => _listeners.remove(listener);
 
   Future<void> init() async {
     if (_loaded) return;
@@ -149,6 +154,9 @@ class TrafficStatsEngine {
     _options = options;
     _pruneOldDays();
     _scheduleFlush();
+    for (final listener in List.of(_listeners)) {
+      listener();
+    }
   }
 
   void recordTraffic({
@@ -359,13 +367,48 @@ class TrafficStatsEngine {
         final bMap = json['buckets'] as Map;
         for (final entry in bMap.entries) {
           if (entry.value is Map) {
-            _buckets[entry.key.toString()] = _DayBucket.fromJson(
+            final key = entry.key.toString();
+            final diskBucket = _DayBucket.fromJson(
               Map<String, dynamic>.from(entry.value as Map),
             );
+            final existing = _buckets[key];
+            if (existing != null) {
+              _mergeBuckets(existing, diskBucket);
+            } else {
+              _buckets[key] = diskBucket;
+            }
           }
         }
       }
     } catch (_) {}
+  }
+
+  void _mergeBuckets(_DayBucket mem, _DayBucket disk) {
+    mem.up += disk.up;
+    mem.down += disk.down;
+    mem.proxyUp += disk.proxyUp;
+    mem.proxyDown += disk.proxyDown;
+    mem.ruleHits += disk.ruleHits;
+    for (final entry in disk.hourly.entries) {
+      final cur = mem.hourly[entry.key] ?? (up: 0, down: 0);
+      mem.hourly[entry.key] =
+          (up: cur.up + entry.value.up, down: cur.down + entry.value.down);
+    }
+    void mergeMap(
+        Map<String, _AggItem> memMap, Map<String, _AggItem> diskMap) {
+      for (final entry in diskMap.entries) {
+        final item = memMap.putIfAbsent(entry.key, () => _AggItem());
+        item.up += entry.value.up;
+        item.down += entry.value.down;
+        item.hits += entry.value.hits;
+      }
+    }
+
+    mergeMap(mem.hosts, disk.hosts);
+    mergeMap(mem.processes, disk.processes);
+    mergeMap(mem.nodes, disk.nodes);
+    mergeMap(mem.rules, disk.rules);
+    mergeMap(mem.profiles, disk.profiles);
   }
 
   static bool testing = false;
@@ -381,13 +424,19 @@ class TrafficStatsEngine {
   Future<void> flush() async {
     if (!_dirty) return;
     _dirty = false;
+    _pruneOldDays();
     try {
       final file = await _getDbFile();
       final data = {
         'version': 1,
         'buckets': _buckets.map((k, v) => MapEntry(k, v.toJson())),
       };
-      await file.writeAsString(jsonEncode(data), flush: true);
+      final tempFile = File('${file.path}.tmp');
+      await tempFile.writeAsString(jsonEncode(data), flush: true);
+      if (await file.exists()) {
+        await file.delete();
+      }
+      await tempFile.rename(file.path);
     } catch (_) {}
   }
 }

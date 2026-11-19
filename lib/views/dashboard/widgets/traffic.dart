@@ -205,8 +205,8 @@ class NetworkSpeedCard extends ConsumerWidget {
     return DashboardCard(
       semanticLabel: context.appLocalizations.networkSpeed,
       onTap: () {
-        showSheet<void>(
-          context: context,
+        showNestedSheet<void>(
+          context,
           builder: (_) => const TrafficStatisticsView(),
         );
       },

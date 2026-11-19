@@ -192,29 +192,25 @@ class SiteIconCache {
 
   Future<Uint8List?> _download(String url) async {
     try {
-      final res = await request.getFileResponseForUrl(url).timeout(_timeout);
-      final bytes = res.data;
-      if (bytes == null || bytes.isEmpty) return null;
-      return _extractValidImage(bytes);
-    } catch (_) {
+      final cancelToken = CancelToken();
+      final timer = Timer(_timeout, cancelToken.cancel);
       try {
-        final cancelToken = CancelToken();
-        final timer = Timer(_timeout, cancelToken.cancel);
-        try {
-          final res = await request.dio.get<Uint8List>(
-            url,
-            cancelToken: cancelToken,
-            options: Options(responseType: ResponseType.bytes),
-          );
-          final bytes = res.data;
-          if (bytes == null || bytes.isEmpty) return null;
-          return _extractValidImage(bytes);
-        } finally {
-          timer.cancel();
-        }
-      } catch (_) {
-        return null;
+        final res = await request.dio.get<Uint8List>(
+          url,
+          cancelToken: cancelToken,
+          options: Options(
+            responseType: ResponseType.bytes,
+            validateStatus: (status) => status == 200,
+          ),
+        );
+        final bytes = res.data;
+        if (bytes == null || bytes.isEmpty) return null;
+        return _extractValidImage(bytes);
+      } finally {
+        timer.cancel();
       }
+    } catch (_) {
+      return null;
     }
   }
 
