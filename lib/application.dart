@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:fl_clash/bootstrap.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/common/window.dart';
-import 'package:fl_clash/core/core.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/l10n/l10n.dart';
 import 'package:fl_clash/manager/hotkey_manager.dart';
