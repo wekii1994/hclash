@@ -64,6 +64,7 @@ docs/
 /android/core/**/jniLibs/
 
 #FlClash
+/core/
 /libclash/
 /android/app/src/main/jniLibs/
 /services/helper/target
