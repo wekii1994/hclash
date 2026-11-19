@@ -28,9 +28,8 @@ const rootTunOffered = false;
 /// the Helper accepts a Core socket only under a directory of this name.
 const productName = 'FlClash';
 const appHelperService = 'FlClashHelperService';
-const helperServiceName = rsSideBySide
-    ? 'FlClashRsHelperService'
-    : 'FlClashHelperService';
+const helperServiceName =
+    rsSideBySide ? 'FlClashRsHelperService' : 'FlClashHelperService';
 const coreManifestName = 'manifest.json';
 const browserUa =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -48,6 +47,9 @@ const helperProtocolVersionHeader = 'x-flclash-helper-protocol';
 final helperProtocolVersion = Platform.isWindows ? '9' : '7';
 const maxTextScale = 1.4;
 const minTextScale = 0.8;
+const maxPageScale = 1.2;
+const minPageScale = 0.6;
+const defaultPageScale = 1.0;
 
 const watchExecution = false;
 

@@ -1409,6 +1409,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get clearData => 'Borrar datos';
 
   @override
+  String get pageScale => 'Escala de página';
+
+  @override
+  String get pageScaleDesc => 'Escala general de elementos (60% - 120%)';
+
+  @override
   String get textScale => 'Escala del texto';
 
   @override

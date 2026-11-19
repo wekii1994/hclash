@@ -69,8 +69,7 @@ const defaultFilters = [
   ),
   Filter(
     label: 'United States',
-    regex:
-        r'(?i)🇺🇸|美国|美國|美西|美东|美東|洛杉矶|圣何塞|西雅图|硅谷|纽约'
+    regex: r'(?i)🇺🇸|美国|美國|美西|美东|美東|洛杉矶|圣何塞|西雅图|硅谷|纽约'
         r'|(?<![a-z])usa?(?![a-z])|united\s*states',
   ),
   Filter(
@@ -79,8 +78,7 @@ const defaultFilters = [
   ),
   Filter(
     label: 'United Kingdom',
-    regex:
-        r'(?i)🇬🇧|英国|英國|伦敦|倫敦|(?<![a-z])(uk|gb)(?![a-z])'
+    regex: r'(?i)🇬🇧|英国|英國|伦敦|倫敦|(?<![a-z])(uk|gb)(?![a-z])'
         r'|united\s*kingdom|britain|london',
   ),
   Filter(
@@ -91,8 +89,7 @@ const defaultFilters = [
   Filter(label: 'Traffic Reset', regex: r'(?i)重置|reset'),
   Filter(
     label: 'Website & Notices',
-    regex:
-        r'(?i)官网|官網|网址|網址|域名|公告|套餐|客服|群组|群組|频道|頻道'
+    regex: r'(?i)官网|官網|网址|網址|域名|公告|套餐|客服|群组|群組|频道|頻道'
         r'|website|telegram|(?<![a-z])tg(?![a-z])',
   ),
 ];
@@ -328,14 +325,14 @@ extension AccessControlPropsExt on AccessControlProps {
   bool get hasPackages => acceptList.isNotEmpty || rejectList.isNotEmpty;
 
   List<String> get currentList => switch (mode) {
-    AccessControlMode.acceptSelected => acceptList,
-    AccessControlMode.rejectSelected => rejectList,
-  };
+        AccessControlMode.acceptSelected => acceptList,
+        AccessControlMode.rejectSelected => rejectList,
+      };
 
   AccessControlProps copyWithNewList(List<String> value) => switch (mode) {
-    AccessControlMode.acceptSelected => copyWith(acceptList: value),
-    AccessControlMode.rejectSelected => copyWith(rejectList: value),
-  };
+        AccessControlMode.acceptSelected => copyWith(acceptList: value),
+        AccessControlMode.rejectSelected => copyWith(rejectList: value),
+      };
 }
 
 @freezed
@@ -391,8 +388,8 @@ abstract class AuthenticationProps with _$AuthenticationProps {
 
   factory AuthenticationProps.fromJson(Map<String, Object?>? json) =>
       json == null
-      ? defaultAuthenticationProps
-      : _$AuthenticationPropsFromJson(json);
+          ? defaultAuthenticationProps
+          : _$AuthenticationPropsFromJson(json);
 }
 
 extension AuthenticationPropsExt on AuthenticationProps {
@@ -504,6 +501,7 @@ abstract class ThemeProps with _$ThemeProps {
     @JsonKey(readValue: _readLiquidGlass)
     LiquidGlassMode liquidGlass,
     @Default(TextScale()) TextScale textScale,
+    @Default(1.0) double pageScale,
     // `fontFamily` held the names of a removed enum, which old configs may
     // still carry.
     @JsonKey(name: 'systemFontFamily') String? fontFamily,

@@ -1355,6 +1355,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get clearData => '清除数据';
 
   @override
+  String get pageScale => '页面缩放';
+
+  @override
+  String get pageScaleDesc => '整体界面元素缩放（60% - 120%）';
+
+  @override
   String get textScale => '文本缩放';
 
   @override

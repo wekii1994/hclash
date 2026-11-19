@@ -1365,6 +1365,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get clearData => 'データを消去';
 
   @override
+  String get pageScale => '画面の拡大縮小';
+
+  @override
+  String get pageScaleDesc => 'UI要素全体の拡大縮小（60% - 120%）';
+
+  @override
   String get textScale => 'テキストの拡大縮小';
 
   @override

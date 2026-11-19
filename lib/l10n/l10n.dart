@@ -68,7 +68,7 @@ import 'l10n_zh.dart';
 /// property.
 abstract class AppLocalizations {
   AppLocalizations(String locale)
-    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+      : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -91,11 +91,11 @@ abstract class AppLocalizations {
   /// of delegates is preferred or required.
   static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
       <LocalizationsDelegate<dynamic>>[
-        delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-      ];
+    delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+  ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
@@ -2741,6 +2741,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Clear data'**
   String get clearData;
+
+  /// No description provided for @pageScale.
+  ///
+  /// In en, this message translates to:
+  /// **'Page scaling'**
+  String get pageScale;
+
+  /// No description provided for @pageScaleDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Scale overall interface elements (60% - 120%)'**
+  String get pageScaleDesc;
 
   /// No description provided for @textScale.
   ///
@@ -7020,14 +7032,14 @@ class _AppLocalizationsDelegate
 
   @override
   bool isSupported(Locale locale) => <String>[
-    'en',
-    'es',
-    'fr',
-    'ja',
-    'ko',
-    'ru',
-    'zh',
-  ].contains(locale.languageCode);
+        'en',
+        'es',
+        'fr',
+        'ja',
+        'ko',
+        'ru',
+        'zh',
+      ].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;

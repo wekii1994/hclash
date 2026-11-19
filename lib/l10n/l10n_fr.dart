@@ -1409,6 +1409,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get clearData => 'Effacer les données';
 
   @override
+  String get pageScale => 'Échelle de la page';
+
+  @override
+  String get pageScaleDesc => 'Mise à l’échelle globale (60% - 120%)';
+
+  @override
   String get textScale => 'Taille du texte';
 
   @override

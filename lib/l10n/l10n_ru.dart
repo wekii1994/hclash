@@ -1392,6 +1392,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get clearData => 'Очистить данные';
 
   @override
+  String get pageScale => 'Масштаб страницы';
+
+  @override
+  String get pageScaleDesc => 'Масштаб элементов интерфейса (60% - 120%)';
+
+  @override
   String get textScale => 'Масштаб текста';
 
   @override

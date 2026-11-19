@@ -1394,6 +1394,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get clearData => 'Clear data';
 
   @override
+  String get pageScale => 'Page scaling';
+
+  @override
+  String get pageScaleDesc => 'Scale overall interface elements (60% - 120%)';
+
+  @override
   String get textScale => 'Text scaling';
 
   @override

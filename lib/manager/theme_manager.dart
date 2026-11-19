@@ -131,22 +131,57 @@ class AppViewScope extends ConsumerWidget {
   }
 }
 
-class _AppMediaQuery extends StatelessWidget {
+class _AppMediaQuery extends ConsumerWidget {
   const _AppMediaQuery({required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pageScale = ref.watch(
+      themeSettingProvider.select((state) => state.pageScale),
+    );
     final data = MediaQuery.of(context);
     final padding = data.padding;
+    final mediaQueryData = data.copyWith(
+      padding: padding.copyWith(
+        top: padding.top > data.size.height * 0.3 ? 20.0 : padding.top,
+      ),
+    );
+    final effectiveScale = pageScale.isFinite
+        ? pageScale.clamp(minPageScale, maxPageScale).toDouble()
+        : defaultPageScale;
+    if ((effectiveScale - 1.0).abs() < 0.001) {
+      return MediaQuery(
+        data: mediaQueryData,
+        child: child,
+      );
+    }
+    final originalSize = mediaQueryData.size;
+    final scaledSize = originalSize / effectiveScale;
     return MediaQuery(
-      data: data.copyWith(
-        padding: padding.copyWith(
-          top: padding.top > data.size.height * 0.3 ? 20.0 : padding.top,
+      data: mediaQueryData.copyWith(
+        size: scaledSize,
+        padding: mediaQueryData.padding / effectiveScale,
+        viewPadding: mediaQueryData.viewPadding / effectiveScale,
+        viewInsets: mediaQueryData.viewInsets / effectiveScale,
+      ),
+      child: SizedBox(
+        width: originalSize.width,
+        height: originalSize.height,
+        child: OverflowBox(
+          minWidth: scaledSize.width,
+          maxWidth: scaledSize.width,
+          minHeight: scaledSize.height,
+          maxHeight: scaledSize.height,
+          alignment: Alignment.topLeft,
+          child: Transform.scale(
+            scale: effectiveScale,
+            alignment: Alignment.topLeft,
+            child: child,
+          ),
         ),
       ),
-      child: child,
     );
   }
 }

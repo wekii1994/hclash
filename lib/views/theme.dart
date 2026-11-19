@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/services.dart';
+
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
@@ -48,6 +50,8 @@ class ThemeView extends StatelessWidget {
           const _FontFamilyItem(),
           const SizedBox(height: 16),
           const _TextScaleFactorItem(),
+          const SizedBox(height: 16),
+          const _PageScaleItem(),
         ],
       ),
     );
@@ -213,9 +217,8 @@ class _PrimaryColorItem extends ConsumerWidget {
         }
         return state.copyWith(
           primaryColors: primaryColors,
-          primaryColor: state.primaryColor == color
-              ? edited
-              : state.primaryColor,
+          primaryColor:
+              state.primaryColor == color ? edited : state.primaryColor,
         );
       }),
     );
@@ -234,8 +237,7 @@ class _PrimaryColorItem extends ConsumerWidget {
           primaryColor: state.primaryColor,
           primaryColors: state.primaryColors,
           colorStyle: state.colorStyle,
-          isDefault:
-              state.primaryColor == defaultPrimaryColor &&
+          isDefault: state.primaryColor == defaultPrimaryColor &&
               intListEquality.equals(
                 state.primaryColors,
                 defaultPrimaryColors,
@@ -321,9 +323,8 @@ class _ColorSwatches extends ConsumerWidget {
     final appLocalizations = context.appLocalizations;
     final colorScheme = context.colorScheme;
     final level = context.raisedSurfaceLevel;
-    final systemColor = ref
-        .watch(dynamicColorProvider)
-        .seedOf(Theme.of(context).brightness);
+    final systemColor =
+        ref.watch(dynamicColorProvider).seedOf(Theme.of(context).brightness);
     return Container(
       padding: const EdgeInsets.all(_inset),
       decoration: ShapeDecoration(
@@ -572,14 +573,14 @@ class _PureBlackItem extends ConsumerWidget {
     final floatingBar = ref.watch(_floatingBarProvider);
     final liquidGlass = ref.watch(_liquidGlassProvider);
     Widget preview(bool pureBlack) => MiniScreenThumb(
-      screen: MiniScreen(
-        colorScheme: ref.watch(
-          genColorSchemeProvider(Brightness.dark, pureBlack: pureBlack),
-        ),
-        floatingBar: floatingBar,
-        liquidGlass: liquidGlass,
-      ),
-    );
+          screen: MiniScreen(
+            colorScheme: ref.watch(
+              genColorSchemeProvider(Brightness.dark, pureBlack: pureBlack),
+            ),
+            floatingBar: floatingBar,
+            liquidGlass: liquidGlass,
+          ),
+        );
     return PreviewChoiceGroup<bool>(
       info: Info(
         label: appLocalizations.pureBlackMode,
@@ -664,16 +665,16 @@ class _TabAnimationItem extends ConsumerWidget {
     final liquidGlass = ref.watch(_liquidGlassProvider);
     final colorScheme = context.colorScheme;
     Widget switching(TabAnimation tabAnimation) => MiniScreenThumb(
-      screen: MiniScreen(
-        colorScheme: colorScheme,
-        floatingBar: floatingBar,
-        liquidGlass: liquidGlass,
-        selected: 1,
-        previous: 0,
-        progress: 0.55,
-        tabAnimation: tabAnimation,
-      ),
-    );
+          screen: MiniScreen(
+            colorScheme: colorScheme,
+            floatingBar: floatingBar,
+            liquidGlass: liquidGlass,
+            selected: 1,
+            previous: 0,
+            progress: 0.55,
+            tabAnimation: tabAnimation,
+          ),
+        );
     return PreviewChoiceGroup<TabAnimation>(
       info: Info(label: appLocalizations.tabAnimation, glyph: AppGlyphs.motion),
       value: tabAnimation,
@@ -711,13 +712,13 @@ class _LiquidGlassItem extends ConsumerWidget {
     // Floating either way, as a docked bar stays a fill, over the list page,
     // whose rows run on under the bar where glass shows them.
     Widget preview(bool liquidGlass) => MiniScreenThumb(
-      screen: MiniScreen(
-        colorScheme: colorScheme,
-        floatingBar: true,
-        liquidGlass: liquidGlass,
-        selected: 1,
-      ),
-    );
+          screen: MiniScreen(
+            colorScheme: colorScheme,
+            floatingBar: true,
+            liquidGlass: liquidGlass,
+            selected: 1,
+          ),
+        );
     return PreviewChoiceGroup<LiquidGlassMode>(
       info: Info(
         label: appLocalizations.liquidGlass,
@@ -807,9 +808,7 @@ class _FontFamilyItem extends ConsumerWidget {
               fontFamily ?? appLocalizations.defaultText,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppTextStyle.subheadline
-                  .of(context)
-                  .copyWith(
+              style: AppTextStyle.subheadline.of(context).copyWith(
                     fontFamily: fontFamily,
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -825,13 +824,13 @@ class _FontFamilyItem extends ConsumerWidget {
     );
     final cardColor = context.raisedSurfaceLevel.colorOf(colorScheme);
     Widget card(VoidCallback onTap) => PressSurface(
-      fill: cardColor,
-      shape: AppShape.lg,
-      childFills: true,
-      clipsChild: true,
-      onPressed: onTap,
-      child: preview,
-    );
+          fill: cardColor,
+          shape: AppShape.lg,
+          childFills: true,
+          clipsChild: true,
+          onPressed: onTap,
+          child: preview,
+        );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -979,11 +978,11 @@ class _TextScaleFactorItemState extends ConsumerState<_TextScaleFactorItem> {
                             style: AppTextStyle.subheadline
                                 .of(context, emphasized: true)
                                 .copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures(),
-                                  ],
-                                ),
+                              color: colorScheme.onSurfaceVariant,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -996,9 +995,7 @@ class _TextScaleFactorItemState extends ConsumerState<_TextScaleFactorItem> {
                           ExcludeSemantics(
                             child: Text(
                               'A',
-                              style: AppTextStyle.footnote
-                                  .of(context)
-                                  .copyWith(
+                              style: AppTextStyle.footnote.of(context).copyWith(
                                     color: colorScheme.onSurfaceVariant,
                                   ),
                             ),
@@ -1021,9 +1018,7 @@ class _TextScaleFactorItemState extends ConsumerState<_TextScaleFactorItem> {
                           ExcludeSemantics(
                             child: Text(
                               'A',
-                              style: AppTextStyle.title2
-                                  .of(context)
-                                  .copyWith(
+                              style: AppTextStyle.title2.of(context).copyWith(
                                     color: colorScheme.onSurfaceVariant,
                                   ),
                             ),
@@ -1035,6 +1030,184 @@ class _TextScaleFactorItemState extends ConsumerState<_TextScaleFactorItem> {
                 ),
               ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PageScaleItem extends ConsumerStatefulWidget {
+  const _PageScaleItem();
+
+  static const _step = 0.01;
+
+  @override
+  ConsumerState<_PageScaleItem> createState() => _PageScaleItemState();
+}
+
+class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
+  double? _draft;
+
+  void _update(double scale) {
+    setState(() => _draft = null);
+    ref
+        .read(themeSettingProvider.notifier)
+        .update((state) => state.copyWith(pageScale: scale));
+  }
+
+  Future<void> _showCustomInputDialog(
+    BuildContext context,
+    double currentScale,
+  ) async {
+    final text = await dialogs.showCommonDialog<String>(
+      context: context,
+      child: InputDialog(
+        title: context.appLocalizations.pageScale,
+        value: '${(currentScale * 100).round()}',
+        suffixText: '%',
+        labelText: '60 - 120',
+        keyboardType: TextInputType.number,
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(3),
+        ],
+        validator: (value) {
+          final intVal = int.tryParse(value ?? '');
+          if (intVal == null || intVal < 60 || intVal > 120) {
+            return '60% - 120%';
+          }
+          return null;
+        },
+      ),
+    );
+    if (text != null && mounted) {
+      final intVal = int.tryParse(text);
+      if (intVal != null) {
+        final clamped = (intVal.clamp(60, 120) / 100).toDouble();
+        _update(clamped);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
+    final colorScheme = context.colorScheme;
+    final pageScale = ref.watch(
+      themeSettingProvider.select((state) => state.pageScale),
+    );
+    final scale = _draft ?? pageScale;
+    final percent = '${(scale * 100).round()}%';
+    final level = context.raisedSurfaceLevel;
+    final divisions =
+        ((maxPageScale - minPageScale) / _PageScaleItem._step).round();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InfoHeader(
+          info: Info(
+            label: appLocalizations.pageScale,
+            glyph: AppGlyphs.customize,
+          ),
+          actions: [
+            if (pageScale != defaultPageScale)
+              _ResetButton(
+                onPressed: () => _update(defaultPageScale),
+              ),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            decoration: ShapeDecoration(
+              color: level.colorOf(colorScheme),
+              shape: AppShape.lg,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        appLocalizations.pageScaleDesc,
+                        style: AppTextStyle.subheadline.of(context).copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElasticPress(
+                      child: InkWell(
+                        onTap: () => _showCustomInputDialog(context, scale),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: ShapeDecoration(
+                            color: level.next.colorOf(colorScheme),
+                            shape: AppShape.full,
+                          ),
+                          child: Text(
+                            percent,
+                            style: AppTextStyle.subheadline
+                                .of(context, emphasized: true)
+                                .copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  spacing: 12,
+                  children: [
+                    ExcludeSemantics(
+                      child: Text(
+                        '${(minPageScale * 100).round()}%',
+                        style: AppTextStyle.footnote.of(context).copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Slider(
+                        min: minPageScale,
+                        max: maxPageScale,
+                        divisions: divisions,
+                        value: scale,
+                        label: percent,
+                        onChanged: (value) => setState(() => _draft = value),
+                        onChangeEnd: (value) => _update(
+                          (value * 100).round() / 100,
+                        ),
+                      ),
+                    ),
+                    ExcludeSemantics(
+                      child: Text(
+                        '${(maxPageScale * 100).round()}%',
+                        style: AppTextStyle.footnote.of(context).copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -1145,25 +1318,25 @@ class _CustomColorPreview extends ConsumerWidget {
     final liquidGlass = ref.watch(_liquidGlassProvider);
     final level = context.raisedSurfaceLevel;
     Widget screen(Brightness brightness) => ExcludeSemantics(
-      child: SizedBox.fromSize(
-        size: _screenSize * _scale,
-        child: ClipRSuperellipse(
-          borderRadius: AppRadius.md,
-          child: FittedBox(
-            child: SizedBox.fromSize(
-              size: _screenSize,
-              child: MiniScreen(
-                colorScheme: ref.watch(
-                  genColorSchemeProvider(brightness, color: color),
+          child: SizedBox.fromSize(
+            size: _screenSize * _scale,
+            child: ClipRSuperellipse(
+              borderRadius: AppRadius.md,
+              child: FittedBox(
+                child: SizedBox.fromSize(
+                  size: _screenSize,
+                  child: MiniScreen(
+                    colorScheme: ref.watch(
+                      genColorSchemeProvider(brightness, color: color),
+                    ),
+                    floatingBar: floatingBar,
+                    liquidGlass: liquidGlass,
+                  ),
                 ),
-                floatingBar: floatingBar,
-                liquidGlass: liquidGlass,
               ),
             ),
           ),
-        ),
-      ),
-    );
+        );
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: ShapeDecoration(

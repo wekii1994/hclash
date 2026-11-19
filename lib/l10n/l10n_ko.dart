@@ -1363,6 +1363,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get clearData => '데이터 지우기';
 
   @override
+  String get pageScale => '페이지 크기 조절';
+
+  @override
+  String get pageScaleDesc => '전체 UI 요소 크기 조절（60% - 120%）';
+
+  @override
   String get textScale => '글자 크기 조절';
 
   @override
