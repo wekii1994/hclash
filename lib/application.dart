@@ -77,6 +77,7 @@ class ApplicationState extends ConsumerState<Application> {
       }
       _autoUpdateProfilesTask();
       _initLink();
+      ref.read(failoverEngineProvider).init();
       if (!safeModeBuild) {
         unawaited(app?.initShortcuts());
       }
@@ -132,14 +133,7 @@ class ApplicationState extends ConsumerState<Application> {
     final hasVpn = state.vpn;
     if (_preHasVpn == hasVpn) {
       ref.read(routeTrackerProvider.notifier).bumpHostEpoch();
-      // Android's NetworkObserver tells the Core about a new network itself.
-      if (system.isDesktop) {
-        debouncer.call(
-          FunctionTag.networkChange,
-          ref.read(coreActionProvider.notifier).reportNetworkChange,
-          duration: const Duration(milliseconds: 200),
-        );
-      }
+      unawaited(ref.read(failoverEngineProvider).onNetworkChanged(state));
     }
     _preHasVpn = hasVpn;
   }
