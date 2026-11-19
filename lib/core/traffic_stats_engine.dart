@@ -71,7 +71,8 @@ class _DayBucket {
         'proxyDown': proxyDown,
         'ruleHits': ruleHits,
         'hourly': hourly.map(
-            (k, v) => MapEntry(k.toString(), {'up': v.up, 'down': v.down})),
+          (k, v) => MapEntry(k.toString(), {'up': v.up, 'down': v.down}),
+        ),
         'hosts': hosts.map((k, v) => MapEntry(k, v.toJson())),
         'processes': processes.map((k, v) => MapEntry(k, v.toJson())),
         'nodes': nodes.map((k, v) => MapEntry(k, v.toJson())),
@@ -229,7 +230,11 @@ class TrafficStatsEngine {
   }
 
   void _accumulateItem(
-      Map<String, _AggItem> map, String key, int up, int down) {
+    Map<String, _AggItem> map,
+    String key,
+    int up,
+    int down,
+  ) {
     final item = map.putIfAbsent(key, () => _AggItem());
     item.up += up;
     item.down += down;
@@ -295,19 +300,26 @@ class TrafficStatsEngine {
     }
 
     final series = seriesMap.entries
-        .map((e) =>
-            TrafficStatsPoint(label: e.key, up: e.value.up, down: e.value.down))
+        .map(
+          (e) => TrafficStatsPoint(
+            label: e.key,
+            up: e.value.up,
+            down: e.value.down,
+          ),
+        )
         .toList();
 
     List<TrafficStatsItem> toSortedList(Map<String, _AggItem> map) {
       final list = map.entries
-          .map((e) => TrafficStatsItem(
-                name: e.key,
-                up: e.value.up,
-                down: e.value.down,
-                hits: e.value.hits,
-                path: e.value.path,
-              ))
+          .map(
+            (e) => TrafficStatsItem(
+              name: e.key,
+              up: e.value.up,
+              down: e.value.down,
+              hits: e.value.hits,
+              path: e.value.path,
+            ),
+          )
           .toList();
       list.sort((a, b) => b.total.compareTo(a.total));
       return list;
@@ -395,7 +407,9 @@ class TrafficStatsEngine {
           (up: cur.up + entry.value.up, down: cur.down + entry.value.down);
     }
     void mergeMap(
-        Map<String, _AggItem> memMap, Map<String, _AggItem> diskMap) {
+      Map<String, _AggItem> memMap,
+      Map<String, _AggItem> diskMap,
+    ) {
       for (final entry in diskMap.entries) {
         final item = memMap.putIfAbsent(entry.key, () => _AggItem());
         item.up += entry.value.up;

@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/core/api/connection_book.dart' show CounterDemand;
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/ui/icons/icons.dart';
@@ -77,6 +78,7 @@ class _TrafficStatisticsViewState extends ConsumerState<TrafficStatisticsView>
   bool _isLoading = false;
   Timer? _timer;
   int _serial = 0;
+  CounterDemand? _demand;
   TrafficStatsOptions _options = const TrafficStatsOptions(
     enable: true,
     detail: true,
@@ -90,6 +92,7 @@ class _TrafficStatisticsViewState extends ConsumerState<TrafficStatisticsView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _demand = ref.read(connectionBookProvider).demand..acquire();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _load();
@@ -100,8 +103,17 @@ class _TrafficStatisticsViewState extends ConsumerState<TrafficStatisticsView>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _isLive) {
-      _load();
+    if (state == AppLifecycleState.resumed) {
+      if (_demand == null) {
+        _demand = ref.read(connectionBookProvider).demand..acquire();
+      }
+      if (_isLive) {
+        _load();
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _demand?.release();
+      _demand = null;
     }
     _syncTimer();
   }
@@ -110,6 +122,8 @@ class _TrafficStatisticsViewState extends ConsumerState<TrafficStatisticsView>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    _demand?.release();
+    _demand = null;
     super.dispose();
   }
 
@@ -1153,286 +1167,96 @@ class _HostDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = context.colorScheme;
-    final upColor = DashboardColors.of(context).series2;
-    final downColor = colorScheme.primary;
-    final subs = item.subs;
-    final maxSub = subs.isEmpty ? 1 : math.max(subs.first.total, 1);
     final isAddress = _isAddress;
+    final subs = item.subs;
 
     return Scaffold(
-      title: host,
+      title: isZh ? '域名详情' : 'Host Details',
       body: ListView(
-        shrinkWrap: true,
         padding: const EdgeInsets.symmetric(horizontal: 16).copyWith(
           top: context.sectionsTopPadding,
-          bottom: 24 + context.bottomInset,
+          bottom: 20 + context.bottomInset,
         ),
         children: [
-          DashboardCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
+          generateSection(
+            title: isZh ? '基本信息' : 'Basic Info',
+            items: [
+              DetailRow(
+                title: isZh ? '目标地址' : 'Target Host',
+                copyText: host,
+                value: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     SiteIcon(
                       domain: host,
-                      size: 44,
+                      size: 20,
                       enabled: siteIcon,
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _bytes(item.total),
-                            style: AppTextStyle.title2
-                                .of(context, emphasized: true)
-                                .copyWith(
-                                  color: colorScheme.onSurface,
-                                ),
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Text(
-                                '↑ ${_bytes(item.up)}',
-                                style:
-                                    AppTextStyle.caption1.of(context).copyWith(
-                                  color: upColor,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures()
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                '↓ ${_bytes(item.down)}',
-                                style:
-                                    AppTextStyle.caption1.of(context).copyWith(
-                                  color: downColor,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures()
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        host,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
-                if (item.total > 0) ...[
-                  const SizedBox(height: 12),
-                  LinearProgressIndicator(
-                    value: (item.down / item.total).clamp(0.0, 1.0),
-                    minHeight: 4,
-                    backgroundColor: upColor.withValues(alpha: 0.25),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            isZh ? '连接信息' : 'Connection Details',
-            style:
-                AppTextStyle.subheadline.of(context, emphasized: true).copyWith(
-                      color: colorScheme.onSurface,
-                    ),
-          ),
-          const SizedBox(height: 8),
-          DashboardCard(
-            child: Column(
-              children: [
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () async {
-                    await Clipboard.setData(ClipboardData(text: host));
-                    if (context.mounted) {
-                      dialogs.showBanner(context.appLocalizations.copySuccess);
-                    }
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        Text(
-                          isZh ? '目标地址' : 'Target Host',
-                          style: AppTextStyle.subheadline.of(context).copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                        const Spacer(),
-                        Expanded(
-                          flex: 2,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  host,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.end,
-                                  style: AppTextStyle.subheadline
-                                      .of(context, emphasized: true)
-                                      .copyWith(
-                                        color: colorScheme.primary,
-                                      ),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              GlyphIcon(
-                                AppGlyphs.copy,
-                                size: 14,
-                                color: colorScheme.primary,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        isZh ? '地址类型' : 'Address Type',
-                        style: AppTextStyle.subheadline.of(context).copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                      ),
-                      Text(
-                        isAddress
-                            ? (isZh ? 'IP 直连目标' : 'Direct IP')
-                            : (isZh ? '域名解析目标' : 'Resolved Domain'),
-                        style: AppTextStyle.subheadline
-                            .of(context, emphasized: true)
-                            .copyWith(
-                              color: colorScheme.onSurface,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (item.hits > 0)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          isZh ? '命中请求' : 'Request Hits',
-                          style: AppTextStyle.subheadline.of(context).copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                        Text(
-                          '${item.hits} ${isZh ? '次' : 'hits'}',
-                          style: AppTextStyle.subheadline
-                              .of(context, emphasized: true)
-                              .copyWith(
-                            color: colorScheme.onSurface,
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          if (subs.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              '${isZh ? '子域名统计明细' : 'Subdomains Breakdown'} (${subs.length})',
-              style: AppTextStyle.subheadline
-                  .of(context, emphasized: true)
-                  .copyWith(
-                    color: colorScheme.onSurface,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            DashboardCard(
-              child: Column(
-                children: [
-                  for (final (index, sub) in subs.indexed)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 22,
-                            child: Text(
-                              '${index + 1}',
-                              style: AppTextStyle.caption2
-                                  .of(context, emphasized: true)
-                                  .copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
-                          ),
-                          SiteIcon(
-                            domain: sub.name,
-                            size: 20,
-                            enabled: siteIcon,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        sub.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: AppTextStyle.footnote
-                                            .of(context, emphasized: true)
-                                            .copyWith(
-                                              color: colorScheme.onSurface,
-                                            ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      _bytes(sub.total),
-                                      style: AppTextStyle.caption1
-                                          .of(context, emphasized: true)
-                                          .copyWith(
-                                        color: colorScheme.onSurface,
-                                        fontFeatures: const [
-                                          FontFeature.tabularFigures()
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 3),
-                                LinearProgressIndicator(
-                                  value: (sub.total / maxSub).clamp(0.0, 1.0),
-                                  minHeight: 3,
-                                  backgroundColor: colorScheme.primary
-                                      .withValues(alpha: 0.12),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
               ),
+              DetailRow.text(
+                title: isZh ? '地址类型' : 'Address Type',
+                value: isAddress
+                    ? (isZh ? 'IP 直连目标' : 'Direct IP')
+                    : (isZh ? '域名解析目标' : 'Resolved Domain'),
+              ),
+              DetailRow.text(
+                title: isZh ? '总流量' : 'Total Traffic',
+                value: _bytes(item.total),
+              ),
+              DetailRow.text(
+                title: isZh ? '上行流量' : 'Upload Traffic',
+                value: '↑ ${_bytes(item.up)}',
+              ),
+              DetailRow.text(
+                title: isZh ? '下行流量' : 'Download Traffic',
+                value: '↓ ${_bytes(item.down)}',
+              ),
+              if (item.hits > 0)
+                DetailRow.text(
+                  title: isZh ? '请求命中' : 'Request Hits',
+                  value: '${item.hits} ${isZh ? '次' : 'hits'}',
+                ),
+            ],
+          ),
+          if (subs.isNotEmpty)
+            generateSection(
+              title: '${isZh ? '子域名统计明细' : 'Subdomains Breakdown'} (${subs.length})',
+              items: [
+                for (final sub in subs)
+                  DecorationListItem(
+                    leading: SiteIcon(
+                      domain: sub.name,
+                      size: 24,
+                      enabled: siteIcon,
+                    ),
+                    title: Text(
+                      sub.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: Text(
+                      _bytes(sub.total),
+                      style: AppTextStyle.subheadline.of(context, emphasized: true),
+                    ),
+                    onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: sub.name));
+                      if (context.mounted) {
+                        dialogs.showBanner(context.appLocalizations.copySuccess);
+                      }
+                    },
+                  ),
+              ],
             ),
-          ],
         ],
       ),
     );
@@ -1468,7 +1292,8 @@ class _TrafficStatsSettingsDialogState
   }
 
   void _update(
-      TrafficStatsOptions Function(TrafficStatsOptions state) builder) {
+    TrafficStatsOptions Function(TrafficStatsOptions state) builder,
+  ) {
     setState(() {
       _options = builder(_options);
     });

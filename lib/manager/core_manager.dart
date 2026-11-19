@@ -40,7 +40,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   final _feeds = <String, StreamSubscription<Object?>>{};
   StreamSubscription<String>? _crashes;
   bool _countersOpen = true;
-  int _batchMs = 250;
   bool _away = false;
 
   bool get _pausesInBackground => widget.pausesInBackground ?? system.isAndroid;
@@ -50,8 +49,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _demand.addListener(_syncConnectionCounters);
-    TrafficStatsEngine.instance.addListener(_syncConnectionCounters);
-    TrafficStatsEngine.instance.init();
     _crashes = _core.crashes.listen(_onCrash);
     ref.read(updatingActionProvider.notifier);
     // A rejected profile stays selected on purpose: silently reverting to
@@ -156,13 +153,10 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   }
 
   void _openConnections() {
-    final statsEnabled = TrafficStatsEngine.instance.options.enable;
-    final viewWanted = _demand.wanted;
-    _countersOpen = viewWanted || statsEnabled;
-    _batchMs = viewWanted ? 250 : 5000;
+    _countersOpen = _demand.wanted;
     _feed(
       'connections',
-      _core.api.watchConnections(maxBatchMs: _batchMs, counters: _countersOpen),
+      _core.api.watchConnections(maxBatchMs: 250, counters: _countersOpen),
       _onConnections,
     );
     if (_away) {
@@ -171,11 +165,7 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   }
 
   void _syncConnectionCounters() {
-    final statsEnabled = TrafficStatsEngine.instance.options.enable;
-    final needCounters = _demand.wanted || statsEnabled;
-    final targetBatch = _demand.wanted ? 250 : 5000;
-    if (_feeds.containsKey('connections') &&
-        (needCounters != _countersOpen || targetBatch != _batchMs)) {
+    if (_feeds.containsKey('connections') && _demand.wanted != _countersOpen) {
       _openConnections();
     }
   }
@@ -221,7 +211,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _demand.removeListener(_syncConnectionCounters);
-    TrafficStatsEngine.instance.removeListener(_syncConnectionCounters);
     unawaited(_crashes?.cancel());
     _closeFeeds();
     super.dispose();
