@@ -200,7 +200,7 @@ jobs:
         env:
           ANDROID_NDK_HOME: ${{ steps.build-ndk.outputs.ndk-path }}
         run: |
-          dart setup.dart android --arch arm64 --env stable -v
+          dart tool/package.dart android --arch arm64 --env stable -v
           printf '%s\n' "$HCLASH_RELEASE_TAG" > dist/release-tag.txt
 
       - name: Generate Checksums
