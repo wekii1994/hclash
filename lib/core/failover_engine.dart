@@ -97,21 +97,37 @@ class FailoverEngine {
       }
     }
 
+    final autoGroups = allGroups.where((g) {
+      final type = g.type.toLowerCase();
+      return type == 'url-test' || type == 'fallback';
+    }).toList();
+
+    final activeAutoGroups = autoGroups
+        .where((g) => activeNames.contains(g.name))
+        .toList();
+
     final primary = <GroupInfo>[];
     final secondary = <GroupInfo>[];
 
-    for (final group in allGroups) {
-      final type = group.type.toLowerCase();
-      final isAuto = type == 'url-test' || type == 'fallback';
-      if (!isAuto) continue;
-
-      final isActive = activeNames.contains(group.name);
-      final hasKeyword = _hasPrimaryKeyword(group.name);
-
-      if (isActive || hasKeyword) {
-        primary.add(group);
-      } else {
-        secondary.add(group);
+    if (activeAutoGroups.isNotEmpty) {
+      // If active auto groups are carrying traffic, they are primary.
+      // Other auto groups are secondary standby groups.
+      for (final group in autoGroups) {
+        if (activeNames.contains(group.name)) {
+          primary.add(group);
+        } else {
+          secondary.add(group);
+        }
+      }
+    } else {
+      // Fallback heuristics when no auto group is directly selected:
+      // Groups with primary keywords (and no secondary keywords) are primary.
+      for (final group in autoGroups) {
+        if (_hasPrimaryKeyword(group.name) && !_hasSecondaryKeyword(group.name)) {
+          primary.add(group);
+        } else {
+          secondary.add(group);
+        }
       }
     }
 
@@ -140,6 +156,19 @@ class FailoverEngine {
       '优选',
       '极速',
       '主力',
+    ]) {
+      if (lower.contains(kw)) return true;
+    }
+    return false;
+  }
+
+  static bool _hasSecondaryKeyword(String name) {
+    final lower = name.toLowerCase();
+    for (final kw in const [
+      'standby',
+      'backup',
+      '备用',
+      '备选',
     ]) {
       if (lower.contains(kw)) return true;
     }

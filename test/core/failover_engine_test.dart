@@ -93,12 +93,23 @@ void main() {
           icon: '',
           emptyFallback: '',
         ),
+        GroupInfo(
+          name: 'Standby-Auto',
+          type: 'fallback',
+          now: 'SG-01',
+          all: ['SG-01'],
+          testUrl: 'http://cp.cloudflare.com',
+          hidden: false,
+          icon: '',
+          emptyFallback: '',
+        ),
       ];
 
       final result = engine.classifyAutoGroups(allGroups);
 
       expect(result.primary.map((g) => g.name).toList(), contains('自动优选节点'));
       expect(result.secondary.map((g) => g.name).toList(), contains('OtherGroup'));
+      expect(result.secondary.map((g) => g.name).toList(), contains('Standby-Auto'));
     });
 
     test('gracefully prevents selector reference loops without infinite recursion', () {
