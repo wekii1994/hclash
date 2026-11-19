@@ -112,6 +112,38 @@ void main() {
       expect(result.secondary.map((g) => g.name).toList(), contains('Standby-Auto'));
     });
 
+    test('identifies selector group directly holding leaf proxy node as primary', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final engine = container.read(failoverEngineProvider);
+
+      const allGroups = [
+        GroupInfo(
+          name: 'GLOBAL',
+          type: 'select',
+          now: 'Proxy',
+          testUrl: 'http://cp.cloudflare.com',
+          hidden: false,
+          icon: '',
+          emptyFallback: '',
+        ),
+        GroupInfo(
+          name: 'Proxy',
+          type: 'select',
+          now: 'HK-01',
+          all: ['HK-01', 'HK-02', 'US-01'],
+          testUrl: 'http://cp.cloudflare.com',
+          hidden: false,
+          icon: '',
+          emptyFallback: '',
+        ),
+      ];
+
+      final result = engine.classifyAutoGroups(allGroups);
+
+      expect(result.primary.map((g) => g.name).toList(), contains('Proxy'));
+    });
+
     test('gracefully prevents selector reference loops without infinite recursion', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);

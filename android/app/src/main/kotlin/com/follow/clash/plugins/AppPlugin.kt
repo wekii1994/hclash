@@ -761,6 +761,11 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
                     channel.invokeMethod("networkChanged", state)
                 }
             }
+        com.follow.clash.service.NetworkObserver.onNetworkSwitched = {
+            mainHandler.post {
+                networkWatcher?.notifyChanged()
+            }
+        }
         flutterPluginBinding.applicationContext.registerReceiverCompat(
             installStatusReceiver,
             IntentFilter(INSTALL_STATUS_ACTION),
@@ -779,6 +784,7 @@ class AppPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware 
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        com.follow.clash.service.NetworkObserver.onNetworkSwitched = null
         networkWatcher?.stop()
         networkWatcher = null
         packageChangeContext?.unregisterReceiver(packageChangeReceiver)

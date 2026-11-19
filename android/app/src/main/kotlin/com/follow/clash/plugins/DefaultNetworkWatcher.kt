@@ -3,11 +3,12 @@ package com.follow.clash.plugins
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Handler
 import android.os.Looper
 import com.follow.clash.common.GlobalState
 
-// `activeNetwork` can name the previous default for seconds after the callbacks moved on.
+// Watches physical and VPN network states to notify Flutter of connectivity transitions.
 class DefaultNetworkWatcher(
     private val connectivity: ConnectivityManager,
     private val onChanged: (Map<String, Boolean>) -> Unit,
@@ -16,31 +17,25 @@ class DefaultNetworkWatcher(
     private val report = Runnable { onChanged(state()) }
     private var registered = false
 
-    @Volatile
-    private var current: Pair<Network, NetworkCapabilities>? = null
+    private val request = NetworkRequest.Builder()
+        .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        .build()
 
     private val callback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) = schedule()
 
         override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-            current = network to capabilities
             schedule()
         }
 
-        override fun onLost(network: Network) {
-            if (current?.first == network) current = null
-            schedule()
-        }
+        override fun onLost(network: Network) = schedule()
     }
 
     fun start() {
         if (registered) return
-        current = connectivity.activeNetwork?.let { network ->
-            connectivity.getNetworkCapabilities(network)?.let { network to it }
-        }
-        runCatching { connectivity.registerDefaultNetworkCallback(callback) }
+        runCatching { connectivity.registerNetworkCallback(request, callback) }
             .onSuccess { registered = true }
-            .onFailure { error -> GlobalState.log("Unable to watch the default network: $error") }
+            .onFailure { error -> GlobalState.log("Unable to watch networks: $error") }
         handler.post(report)
     }
 
@@ -51,20 +46,37 @@ class DefaultNetworkWatcher(
         registered = false
     }
 
+    fun notifyChanged() {
+        schedule()
+    }
+
     private fun schedule() {
         handler.removeCallbacks(report)
         handler.postDelayed(report, SETTLE_MILLIS)
     }
 
     private fun state(): Map<String, Boolean> {
-        val capabilities = current?.second
-        fun has(transport: Int) = capabilities?.hasTransport(transport) == true
+        var isWifi = false
+        var isVpn = false
+        val networks = runCatching { connectivity.allNetworks }.getOrNull() ?: emptyArray()
+        for (network in networks) {
+            val capabilities = connectivity.getNetworkCapabilities(network) ?: continue
+            if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
+                isVpn = true
+            }
+            if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI_AWARE))
+            ) {
+                isWifi = true
+            }
+        }
         return mapOf(
-            "wifi" to (has(NetworkCapabilities.TRANSPORT_WIFI) ||
-                has(NetworkCapabilities.TRANSPORT_WIFI_AWARE)),
-            "vpn" to has(NetworkCapabilities.TRANSPORT_VPN),
+            "wifi" to isWifi,
+            "vpn" to isVpn,
         )
     }
 }
 
-private const val SETTLE_MILLIS = 500L
+private const val SETTLE_MILLIS = 300L

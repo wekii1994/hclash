@@ -75,54 +75,73 @@ class FailoverEngine {
     await _probeAndFailover(currentEpoch);
   }
 
-  /// Classifies auto groups into primary (actively carrying traffic) and secondary.
+  /// Classifies proxy groups into primary (actively carrying traffic) and secondary.
   ({List<GroupInfo> primary, List<GroupInfo> secondary}) classifyAutoGroups(
     List<GroupInfo> allGroups,
   ) {
     final groupMap = {for (final g in allGroups) g.name: g};
-    final activeNames = <String>{};
+    final activeCarryingGroups = <GroupInfo>[];
 
-    // Trace active selectors down the hierarchy up to depth 6 to find active auto groups
+    // 1. Trace active selectors down the hierarchy up to depth 6
+    // to find the exact groups actively carrying traffic.
     for (final group in allGroups) {
       if (group.type.toLowerCase() != 'select') continue;
       var curr = group;
+      final visited = <String>{curr.name};
+
       for (var depth = 0; depth < 6; depth++) {
         final nowName = curr.now;
         if (nowName == null || nowName.isEmpty) break;
-        if (!activeNames.add(nowName)) break; // Loop detected, break
 
         final next = groupMap[nowName];
-        if (next == null) break;
+        if (next == null) {
+          // nowName is a leaf proxy node (not another group).
+          // That means 'curr' is directly carrying traffic!
+          if (curr.all != null && curr.all!.isNotEmpty) {
+            if (!activeCarryingGroups.any((g) => g.name == curr.name)) {
+              activeCarryingGroups.add(curr);
+            }
+          }
+          break;
+        }
+
+        if (!visited.add(next.name)) break; // Loop detected
+
+        final nextType = next.type.toLowerCase();
+        if (nextType == 'url-test' || nextType == 'fallback') {
+          // 'next' is an active auto group carrying traffic!
+          if (!activeCarryingGroups.any((g) => g.name == next.name)) {
+            activeCarryingGroups.add(next);
+          }
+          break;
+        }
+
         curr = next;
       }
     }
 
-    final autoGroups = allGroups.where((g) {
-      final type = g.type.toLowerCase();
-      return type == 'url-test' || type == 'fallback';
-    }).toList();
-
-    final activeAutoGroups = autoGroups
-        .where((g) => activeNames.contains(g.name))
-        .toList();
-
     final primary = <GroupInfo>[];
     final secondary = <GroupInfo>[];
 
-    if (activeAutoGroups.isNotEmpty) {
-      // If active auto groups are carrying traffic, they are primary.
-      // Other auto groups are secondary standby groups.
-      for (final group in autoGroups) {
-        if (activeNames.contains(group.name)) {
-          primary.add(group);
-        } else {
+    if (activeCarryingGroups.isNotEmpty) {
+      primary.addAll(activeCarryingGroups);
+
+      // Remaining url-test / fallback groups are secondary
+      for (final group in allGroups) {
+        final type = group.type.toLowerCase();
+        final isAuto = type == 'url-test' || type == 'fallback';
+        if (isAuto && !primary.any((g) => g.name == group.name)) {
           secondary.add(group);
         }
       }
     } else {
-      // Fallback heuristics when no auto group is directly selected:
+      // Fallback heuristics when no active carrying group is found:
       // Groups with primary keywords (and no secondary keywords) are primary.
-      for (final group in autoGroups) {
+      for (final group in allGroups) {
+        final type = group.type.toLowerCase();
+        final isAuto = type == 'url-test' || type == 'fallback';
+        if (!isAuto) continue;
+
         if (_hasPrimaryKeyword(group.name) && !_hasSecondaryKeyword(group.name)) {
           primary.add(group);
         } else {
@@ -134,14 +153,6 @@ class FailoverEngine {
     if (primary.isEmpty && secondary.isNotEmpty) {
       return (primary: secondary, secondary: const <GroupInfo>[]);
     }
-
-    // Sort to prioritize currently active groups
-    primary.sort((a, b) {
-      final aActive = activeNames.contains(a.name);
-      final bActive = activeNames.contains(b.name);
-      if (aActive != bActive) return aActive ? -1 : 1;
-      return a.name.compareTo(b.name);
-    });
 
     return (primary: primary, secondary: secondary);
   }
@@ -274,12 +285,21 @@ class FailoverEngine {
       return false;
     }
 
+    final proxyCandidates = candidates.where((c) {
+      final lower = c.toLowerCase();
+      return lower != 'direct' && lower != 'reject' && lower != 'compatible';
+    }).toList();
+
+    if (proxyCandidates.isEmpty) {
+      return false;
+    }
+
     final testUrl = group.testUrl.isNotEmpty ? group.testUrl : null;
     final delays = <String, int>{};
 
     try {
       final stream = _core.api.runDelays(
-        candidates,
+        proxyCandidates,
         url: testUrl,
         timeout: _probeTimeoutMs,
         concurrency: _probeCandidateConcurrency,
@@ -311,7 +331,7 @@ class FailoverEngine {
     // Pick candidate with minimum positive delay
     String? bestProxy;
     var lowestDelay = 999999;
-    for (final candidate in candidates) {
+    for (final candidate in proxyCandidates) {
       final delay = delays[candidate];
       if (delay != null && delay > 0 && delay < lowestDelay) {
         lowestDelay = delay;
@@ -379,17 +399,11 @@ class FailoverEngine {
     _healthSentryTimer = null;
   }
 
-  /// Runs a zero-overhead single-node probe on the active primary node only when traffic is active.
+  /// Runs a zero-overhead single-node probe on the active primary node.
   Future<void> _checkActivePrimaryHealth() async {
     if (_disposed ||
         _isProbing ||
         _ref.read(coreStatusProvider) != CoreStatus.connected) {
-      return;
-    }
-
-    // Battery saver: if there are no open connections, the device is idle; skip probing.
-    final book = _ref.read(connectionBookProvider);
-    if (book.count == 0) {
       return;
     }
 
@@ -401,7 +415,12 @@ class FailoverEngine {
 
       final primary = primaryGroups.first;
       final currentNode = primary.now;
-      if (currentNode == null || currentNode.isEmpty) return;
+      if (currentNode == null ||
+          currentNode.isEmpty ||
+          currentNode.toLowerCase() == 'direct' ||
+          currentNode.toLowerCase() == 'reject') {
+        return;
+      }
 
       final testUrl = primary.testUrl.isNotEmpty ? primary.testUrl : null;
       final result = await _core.api.testDelay(
@@ -410,7 +429,7 @@ class FailoverEngine {
         timeout: _sentryTimeoutMs,
       );
 
-      // If active node timed out or failed (< 0), immediately trigger full group probe to failover!
+      // If active node timed out or failed (<= 0), immediately trigger full group probe to failover!
       if (result.value <= 0) {
         commonPrint.log(
           '[Failover] Primary node [$currentNode] in ${primary.name} degraded (delay: ${result.value}ms). Initiating failover...',

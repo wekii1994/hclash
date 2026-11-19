@@ -59,7 +59,7 @@ class Application extends ConsumerStatefulWidget {
 
 class ApplicationState extends ConsumerState<Application> {
   Timer? _autoUpdateProfilesTaskTimer;
-  bool _preHasVpn = false;
+  bool? _preHasVpn;
   // Windows can only watch SIGINT and SIGHUP.
   final _terminateSignals = system.isDesktop && !system.isWindows
       ? ProcessSignal.sigterm.watch()
@@ -131,11 +131,12 @@ class ApplicationState extends ConsumerState<Application> {
     );
     unawaited(ref.read(systemActionProvider.notifier).updateLocalIp());
     final hasVpn = state.vpn;
-    if (_preHasVpn == hasVpn) {
+    final isVpnStateFlip = _preHasVpn != null && _preHasVpn != hasVpn;
+    _preHasVpn = hasVpn;
+    if (!isVpnStateFlip) {
       ref.read(routeTrackerProvider.notifier).bumpHostEpoch();
       unawaited(ref.read(failoverEngineProvider).onNetworkChanged(state));
     }
-    _preHasVpn = hasVpn;
   }
 
   @override
