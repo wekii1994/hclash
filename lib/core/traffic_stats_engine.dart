@@ -198,13 +198,13 @@ class TrafficStatsEngine {
     if (_options.detail) {
       final host = tracker.metadata.host.isNotEmpty
           ? tracker.metadata.host
-          : (tracker.metadata.destinationIP ?? '');
+          : tracker.metadata.destinationIP;
       if (host.isNotEmpty) {
         _accumulateItem(bucket.hosts, host, upDiff, downDiff);
       }
 
       final process = tracker.metadata.process;
-      if (process != null && process.isNotEmpty) {
+      if (process.isNotEmpty) {
         _accumulateItem(bucket.processes, process, upDiff, downDiff);
       }
 
