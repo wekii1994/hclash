@@ -979,8 +979,8 @@ class _RankingCard extends StatelessWidget {
     required bool isZh,
     required bool siteIcon,
   }) {
-    showSheet<void>(
-      context: context,
+    showNestedSheet<void>(
+      context,
       builder: (_) => _HostDetailSheet(
         host: host,
         item: item,
@@ -1165,7 +1165,7 @@ class _HostDetailSheet extends StatelessWidget {
       body: ListView(
         shrinkWrap: true,
         padding: const EdgeInsets.symmetric(horizontal: 16).copyWith(
-          top: context.contentTopPadding + 10,
+          top: context.sectionsTopPadding,
           bottom: 24 + context.bottomInset,
         ),
         children: [
@@ -1480,96 +1480,100 @@ class _TrafficStatsSettingsDialogState
     final colorScheme = context.colorScheme;
     final isZh = widget.isZh;
 
-    return AlertDialog(
-      title: isZh ? '流量统计设置' : 'Traffic Statistics Settings',
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(isZh ? '完成' : 'Done'),
-        ),
-      ],
-      child: SizedBox(
-        width: 320,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ListItem.toggle(
-              title: Text(isZh ? '启用流量统计' : 'Enable Traffic Statistics'),
-              subtitle: Text(
-                isZh ? '在内核底层进行流量与连接统计' : 'Track traffic at core engine level',
+    return LiquidGlassScope(
+      enabled: false,
+      child: AlertDialog(
+        title: isZh ? '流量统计设置' : 'Traffic Statistics Settings',
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(isZh ? '完成' : 'Done'),
+          ),
+        ],
+        child: SizedBox(
+          width: 320,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListItem.toggle(
+                title: Text(isZh ? '启用流量统计' : 'Enable Traffic Statistics'),
+                subtitle: Text(
+                  isZh ? '在内核底层进行流量与连接统计' : 'Track traffic at core engine level',
+                ),
+                value: _options.enable,
+                onChanged: (val) => _update((o) => o.copyWith(enable: val)),
               ),
-              value: _options.enable,
-              onChanged: (val) => _update((o) => o.copyWith(enable: val)),
-            ),
-            ListItem.toggle(
-              title: Text(isZh ? '记录明细数据' : 'Record Detailed Dimensions'),
-              subtitle: Text(
-                isZh
-                    ? '记录域名、应用、节点与规则维度'
-                    : 'Record hosts, processes, nodes and rules',
+              ListItem.toggle(
+                title: Text(isZh ? '记录明细数据' : 'Record Detailed Dimensions'),
+                subtitle: Text(
+                  isZh
+                      ? '记录域名、应用、节点与规则维度'
+                      : 'Record hosts, processes, nodes and rules',
+                ),
+                value: _options.detail,
+                onChanged: (val) => _update((o) => o.copyWith(detail: val)),
               ),
-              value: _options.detail,
-              onChanged: (val) => _update((o) => o.copyWith(detail: val)),
-            ),
-            ListItem.toggle(
-              title: Text(isZh ? '显示网站图标' : 'Show Website Icons'),
-              subtitle: Text(
-                isZh
-                    ? '优先从对应网站获取，无图标时通过公共服务获取'
-                    : 'Fetch icons from sites or public favicon services',
+              ListItem.toggle(
+                title: Text(isZh ? '显示网站图标' : 'Show Website Icons'),
+                subtitle: Text(
+                  isZh
+                      ? '优先从对应网站获取，无图标时通过公共服务获取'
+                      : 'Fetch icons from sites or public favicon services',
+                ),
+                value: _options.siteIcon,
+                onChanged: (val) => _update((o) => o.copyWith(siteIcon: val)),
               ),
-              value: _options.siteIcon,
-              onChanged: (val) => _update((o) => o.copyWith(siteIcon: val)),
-            ),
-            ListItem<int>.options(
-              title: Text(isZh ? '数据保留时长' : 'Retention Period'),
-              subtitle: Text(
-                _options.retentionDays == 0
-                    ? (isZh ? '不保留' : 'Do not keep')
-                    : '${_options.retentionDays} ${isZh ? '天' : 'days'}',
+              ListItem<int>.options(
+                title: Text(isZh ? '数据保留时长' : 'Retention Period'),
+                subtitle: Text(
+                  _options.retentionDays == 0
+                      ? (isZh ? '不保留' : 'Do not keep')
+                      : '${_options.retentionDays} ${isZh ? '天' : 'days'}',
+                ),
+                options: const [0, 1, 3, 7, 14, 30, 90],
+                value: _options.retentionDays,
+                textBuilder: (days) => days == 0
+                    ? (isZh ? '不保留' : 'None')
+                    : '$days ${isZh ? '天' : 'days'}',
+                onChanged: (days) =>
+                    _update((o) => o.copyWith(retentionDays: days)),
               ),
-              options: const [0, 1, 3, 7, 14, 30, 90],
-              value: _options.retentionDays,
-              textBuilder: (days) => days == 0
-                  ? (isZh ? '不保留' : 'None')
-                  : '$days ${isZh ? '天' : 'days'}',
-              onChanged: (days) =>
-                  _update((o) => o.copyWith(retentionDays: days)),
-            ),
-            const SizedBox(height: 8),
-            ListItem(
-              title: Text(
-                isZh ? '清空所有统计数据' : 'Clear All Traffic Statistics',
-                style: AppTextStyle.body.of(context).copyWith(
-                      color: colorScheme.error,
-                    ),
+              const SizedBox(height: 8),
+              ListItem(
+                title: Text(
+                  isZh ? '清空所有统计数据' : 'Clear All Traffic Statistics',
+                  style: AppTextStyle.body.of(context).copyWith(
+                        color: colorScheme.error,
+                      ),
+                ),
+                trailing: GlyphIcon(
+                  AppGlyphs.delete,
+                  color: colorScheme.error,
+                ),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  final cleanTitle =
+                      isZh ? '清空流量统计' : 'Clear Traffic Statistics';
+                  final cleanTip = isZh
+                      ? '确定要清空所有流量统计历史、明细记录与图标缓存吗？此操作无法撤销。'
+                      : 'Are you sure you want to clear all traffic statistics, history and icon caches? This action cannot be undone.';
+                  final confirmed = await dialogs.showMessage(
+                    context: context,
+                    title: cleanTitle,
+                    message: TextSpan(text: cleanTip),
+                    destructive: true,
+                  );
+                  if (confirmed == true) {
+                    await ref.read(coreHandlerProvider).clearTrafficStats();
+                    await siteIconCache.clear();
+                    widget.onCleared();
+                  }
+                },
               ),
-              trailing: GlyphIcon(
-                AppGlyphs.delete,
-                color: colorScheme.error,
-              ),
-              onTap: () async {
-                Navigator.of(context).pop();
-                final cleanTitle = isZh ? '清空流量统计' : 'Clear Traffic Statistics';
-                final cleanTip = isZh
-                    ? '确定要清空所有流量统计历史、明细记录与图标缓存吗？此操作无法撤销。'
-                    : 'Are you sure you want to clear all traffic statistics, history and icon caches? This action cannot be undone.';
-                final confirmed = await dialogs.showMessage(
-                  context: context,
-                  title: cleanTitle,
-                  message: TextSpan(text: cleanTip),
-                  destructive: true,
-                );
-                if (confirmed == true) {
-                  await ref.read(coreHandlerProvider).clearTrafficStats();
-                  await siteIconCache.clear();
-                  widget.onCleared();
-                }
-              },
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

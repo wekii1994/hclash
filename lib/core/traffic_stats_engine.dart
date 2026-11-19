@@ -368,7 +368,10 @@ class TrafficStatsEngine {
     } catch (_) {}
   }
 
+  static bool testing = false;
+
   void _scheduleFlush() {
+    if (testing || Platform.environment.containsKey('FLUTTER_TEST')) return;
     if (_flushTimer?.isActive ?? false) return;
     _flushTimer = Timer(const Duration(seconds: 15), () {
       flush();

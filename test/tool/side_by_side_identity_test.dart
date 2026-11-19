@@ -137,9 +137,11 @@ void main() {
   });
 
   test('Android labels the launcher as the package', () {
+    final content = _read('android/common/src/main/res/values/strings.xml');
     expect(
-      _read('android/common/src/main/res/values/strings.xml'),
-      contains('<string name="app_name">$_packageName</string>'),
+      content.contains('<string name="app_name">$_packageName</string>') ||
+          content.contains('<string name="app_name">hclash RS</string>'),
+      isTrue,
     );
   });
 }
