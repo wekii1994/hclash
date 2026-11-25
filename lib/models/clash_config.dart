@@ -1939,7 +1939,7 @@ extension RuleExt on Rule {
     ].join(',');
   }
 
-  List<String> get searchFields => [ruleAction.name, rawValue];
+  List<String> get searchFields => [ruleAction.value, rawValue];
 }
 
 Set<String> customExitsOf(Iterable<Rule> rules) => {
@@ -2268,6 +2268,8 @@ Map<String, Object> _mitmLimits({required bool isAndroid}) =>
     isAndroid ? _androidMitmLimits : _desktopMitmLimits;
 
 extension MitmExt on Mitm {
+  bool get capturesHttp => enable && capture;
+
   int captureLimit({required bool isAndroid}) =>
       captureEntries ??
       _mitmLimits(isAndroid: isAndroid)['capture-entries']! as int;

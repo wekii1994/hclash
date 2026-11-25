@@ -2515,6 +2515,24 @@ class AppLocalizationsJa extends AppLocalizations {
   String get noSearchResults => '一致する結果はありません';
 
   @override
+  String get noActiveConnections => 'アクティブな接続はありません';
+
+  @override
+  String get noFailedConnections => '失敗した接続はありません';
+
+  @override
+  String get noFailedDnsQueries => '失敗したDNSクエリはありません';
+
+  @override
+  String get noCachedDnsQueries => 'キャッシュから応答したDNSクエリはありません';
+
+  @override
+  String get noFailedHttpRequests => '失敗した HTTP リクエストはありません';
+
+  @override
+  String get noRewrittenHttpRequests => '書き換えられた HTTP リクエストはありません';
+
+  @override
   String get showPassword => 'パスワードを表示';
 
   @override
@@ -3670,11 +3688,6 @@ class AppLocalizationsJa extends AppLocalizations {
       'URL-REGEX と USER-AGENT のルールは URL 書き換えとして動作し、HTTPS ではホスト名に含まれるホストだけが対象です。';
 
   @override
-  String mitmExtendedMatchingNote(Object count) {
-    return 'うち $count 件は拡張マッチング';
-  }
-
-  @override
   String mitmActionModule(Object module) {
     return '$module から';
   }
@@ -3910,6 +3923,9 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get mitmModuleUnreadableRisk =>
       'モジュールファイルを読み取れないため、何が変更されるかわかりません。提供元を信頼できる場合にのみオンにしてください。';
+
+  @override
+  String get mitmModuleHostsUnread => 'このモジュールのホスト名を読み込めませんでした';
 
   @override
   String get skipServerCertVerify => 'サーバー証明書の検証をスキップ';

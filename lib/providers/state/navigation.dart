@@ -10,15 +10,15 @@ NavigationItemsState navigationItemsState(Ref ref) {
     currentGroupsStateProvider.select((state) => state.value.isNotEmpty),
   );
   final isInit = ref.watch(initProvider);
-  final decrypting = ref.watch(
-    patchClashConfigProvider.select((state) => state.mitm.enable),
+  final capturing = ref.watch(
+    patchClashConfigProvider.select((state) => state.mitm.capturesHttp),
   );
   return NavigationItemsState(
     value:
         navigationPort?.getItems(
           openLogs: openLogs,
           hasProxies: !isInit ? hasProfiles : hasProxies,
-          decrypting: decrypting,
+          capturing: capturing,
         ) ??
         const [],
   );

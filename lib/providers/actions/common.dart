@@ -4,7 +4,7 @@ part of '../action.dart';
 class CommonAction extends _$CommonAction {
   CoreController get _core => ref.read(coreHandlerProvider);
   StreamSubscription<TrafficSample>? _trafficSubscription;
-  bool _trafficWanted = false;
+  var _trafficFeed = TrafficFeed.off;
   CancelToken? _updateCancelToken;
 
   @override
@@ -62,20 +62,20 @@ class CommonAction extends _$CommonAction {
     });
   }
 
-  /// The Core pushes a sample a second while this is on; the subscription ends
-  /// with it, so a hidden window costs the Core nothing.
-  void setTrafficFeed(bool wanted) {
-    if (_trafficWanted == wanted) {
+  /// The subscription ends with [TrafficFeed.off], so a feed nobody shows
+  /// costs the Core nothing.
+  void setTrafficFeed(TrafficFeed feed) {
+    if (_trafficFeed == feed) {
       return;
     }
-    _trafficWanted = wanted;
+    _trafficFeed = feed;
     _syncTrafficFeed();
   }
 
   void _syncTrafficFeed() {
     unawaited(_trafficSubscription?.cancel());
     _trafficSubscription = null;
-    if (!_trafficWanted ||
+    if (_trafficFeed == TrafficFeed.off ||
         ref.read(coreStatusProvider) != CoreStatus.connected) {
       return;
     }
@@ -83,7 +83,11 @@ class CommonAction extends _$CommonAction {
       appSettingProvider.select((state) => state.onlyStatisticsProxy),
     );
     _trafficSubscription = _core.api
-        .watchTraffic(intervalMs: 1000, onlyProxy: onlyProxy)
+        .watchTraffic(
+          intervalMs: 1000,
+          onlyProxy: onlyProxy,
+          changesOnly: _trafficFeed == TrafficFeed.changesOnly,
+        )
         .listen(
           (sample) {
             ref
@@ -249,7 +253,12 @@ class CommonAction extends _$CommonAction {
           );
         },
       );
-      download.value = UpdateReady(tag, path);
+      final ready = switch (macosAppUpdate) {
+        final macos? => await macos.stage(path, directory),
+        null => path,
+      };
+      if (cancelToken.cancelError case final cancelled?) throw cancelled;
+      download.value = UpdateReady(tag, ready);
       dialogs.showBanner(
         currentAppLocalizations.updateReadyTip,
         level: BannerLevel.success,
@@ -306,6 +315,10 @@ class CommonAction extends _$CommonAction {
       }
       return;
     }
+    if (macosAppUpdate case final macos?) {
+      await _installMacosUpdate(macos, download);
+      return;
+    }
     final started = windows?.runas(download.path, windowsUpdateArguments(pid));
     if (started == true) {
       await ref.read(systemActionProvider.notifier).handleExit();
@@ -315,6 +328,49 @@ class CommonAction extends _$CommonAction {
         currentAppLocalizations.updateInstallFailed,
       );
     }
+  }
+
+  Future<void> _installMacosUpdate(
+    MacosAppUpdate macos,
+    UpdateReady download,
+  ) async {
+    try {
+      final started = await macos.install(
+        staged: download.path,
+        tag: download.tag,
+        marker: await macosInstallFailurePath,
+      );
+      if (!started) return;
+    } catch (error) {
+      commonPrint.log(
+        'Update install failed: ${compactError(error)}',
+        logLevel: LogLevel.warning,
+      );
+      await _showUpdateFailure(
+        download.tag,
+        currentAppLocalizations.updateInstallFailed,
+      );
+      return;
+    }
+    await ref.read(systemActionProvider.notifier).handleExit();
+  }
+
+  /// Clears what an earlier update left behind and reports a macOS install
+  /// that could not finish after the app quit.
+  Future<void> settleUpdateDownloads() async {
+    final failure = system.isMacOS
+        ? await takeMacosInstallFailure(await macosInstallFailurePath)
+        : null;
+    await clearUpdateDownloads();
+    if (failure == null) return;
+    commonPrint.log(
+      'Update install failed: ${failure.reason}',
+      logLevel: LogLevel.warning,
+    );
+    await _showUpdateFailure(
+      failure.tag,
+      currentAppLocalizations.updateInstallFailed,
+    );
   }
 
   Future<void> _showUpdateFailure(String tag, String message) async {

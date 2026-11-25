@@ -2672,6 +2672,25 @@ class AppLocalizationsEs extends AppLocalizations {
   String get noSearchResults => 'No hay resultados';
 
   @override
+  String get noActiveConnections => 'No hay conexiones activas';
+
+  @override
+  String get noFailedConnections => 'No hay conexiones fallidas';
+
+  @override
+  String get noFailedDnsQueries => 'No hay consultas DNS fallidas';
+
+  @override
+  String get noCachedDnsQueries =>
+      'No hay consultas DNS respondidas desde la caché';
+
+  @override
+  String get noFailedHttpRequests => 'No hay solicitudes HTTP fallidas';
+
+  @override
+  String get noRewrittenHttpRequests => 'No hay solicitudes HTTP reescritas';
+
+  @override
   String get showPassword => 'Mostrar contraseña';
 
   @override
@@ -3897,11 +3916,6 @@ class AppLocalizationsEs extends AppLocalizations {
       'Las reglas URL-REGEX y USER-AGENT funcionan como reescrituras de URL; en HTTPS, solo para los hosts de la lista.';
 
   @override
-  String mitmExtendedMatchingNote(Object count) {
-    return '$count usan coincidencia extendida';
-  }
-
-  @override
   String mitmActionModule(Object module) {
     return 'De $module';
   }
@@ -4155,6 +4169,10 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get mitmModuleUnreadableRisk =>
       'No se pudo leer el archivo del módulo, así que no se sabe qué cambia. Actívalo solo si confías en su origen.';
+
+  @override
+  String get mitmModuleHostsUnread =>
+      'No se pudieron leer los hosts de este módulo';
 
   @override
   String get skipServerCertVerify =>

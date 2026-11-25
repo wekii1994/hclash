@@ -22,6 +22,8 @@ void main() {
           channel.answer(message['id'], {
             'result': {'id': 7},
           });
+        case 'mitm.readModule':
+          channel.answer(message['id'], {'format': 'surge'});
         case 'mitm.validate':
           channel.answer(message['id'], {
             'issues': {
@@ -209,7 +211,53 @@ void main() {
     },
   );
 
+  test('what reading a module throws reaches the caller as it is', () async {
+    expect(
+      await api.readMitmModule('', read: (answer) => answer['format']),
+      'surge',
+    );
+    await expectLater(
+      api.readMitmModule<Object?>(
+        '',
+        read: (_) => throw const FormatException('bad field'),
+      ),
+      throwsA(isA<FormatException>()),
+    );
+    try {
+      await api.readMitmModule<Object?>('', read: (_) => _refuse());
+      fail('the read did not throw');
+    } on FormatException catch (_, stack) {
+      expect('$stack', contains('_refuse'));
+    }
+  });
+
   test('an MITM record the Core has dropped reads as null', () async {
     expect(await api.mitmBody(7, response: true), isNull);
   });
+
+  test('traffic samples go out as taken, with no batch window', () async {
+    final subscription = api.watchTraffic(intervalMs: 1000).listen((_) {});
+    await pumpEventQueue();
+    expect(channel.lastCall('traffic.watch')['params'], {
+      'intervalMs': 1000,
+      'onlyProxy': false,
+      'credit': 0,
+      'maxBatchMs': 0,
+    });
+    await subscription.cancel();
+  });
+
+  test('a traffic watch of changes says so to the Core', () async {
+    final subscription = api
+        .watchTraffic(intervalMs: 1000, changesOnly: true)
+        .listen((_) {});
+    await pumpEventQueue();
+    expect(
+      channel.lastCall('traffic.watch')['params'],
+      containsPair('changesOnly', true),
+    );
+    await subscription.cancel();
+  });
 }
+
+Never _refuse() => throw const FormatException('bad field');

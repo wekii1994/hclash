@@ -2564,6 +2564,24 @@ class AppLocalizationsKo extends AppLocalizations {
   String get noSearchResults => '일치하는 결과 없음';
 
   @override
+  String get noActiveConnections => '활성 연결이 없습니다';
+
+  @override
+  String get noFailedConnections => '실패한 연결이 없습니다';
+
+  @override
+  String get noFailedDnsQueries => '실패한 DNS 쿼리가 없습니다';
+
+  @override
+  String get noCachedDnsQueries => '캐시에서 응답한 DNS 쿼리가 없습니다';
+
+  @override
+  String get noFailedHttpRequests => '실패한 HTTP 요청이 없습니다';
+
+  @override
+  String get noRewrittenHttpRequests => '재작성된 HTTP 요청이 없습니다';
+
+  @override
   String get showPassword => '비밀번호 표시';
 
   @override
@@ -3746,11 +3764,6 @@ class AppLocalizationsKo extends AppLocalizations {
       'URL-REGEX 및 USER-AGENT 규칙은 URL 재작성으로 동작하며, HTTPS는 목록의 호스트에만 적용됩니다.';
 
   @override
-  String mitmExtendedMatchingNote(Object count) {
-    return '이 중 $count개는 확장 매칭 사용';
-  }
-
-  @override
   String mitmActionModule(Object module) {
     return '$module에서';
   }
@@ -3988,6 +4001,9 @@ class AppLocalizationsKo extends AppLocalizations {
   @override
   String get mitmModuleUnreadableRisk =>
       '모듈 파일을 읽을 수 없어 무엇을 바꾸는지 알 수 없습니다. 출처를 신뢰할 때만 켜세요.';
+
+  @override
+  String get mitmModuleHostsUnread => '이 모듈의 호스트 이름을 읽을 수 없습니다';
 
   @override
   String get skipServerCertVerify => '서버 인증서 검증 건너뛰기';

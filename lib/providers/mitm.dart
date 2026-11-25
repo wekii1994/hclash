@@ -329,6 +329,21 @@ typedef MitmModuleDetails = ({
   Map<MitmList, List<MitmModuleLine>> lists,
 });
 
+typedef MitmHostRow = ({String host, bool exclude, String? issue});
+
+String mitmHostText(MitmHostEntry entry) => switch (entry.port) {
+  final port? when entry.host.contains(':') => '[${entry.host}]:$port',
+  final port? => '${entry.host}:$port',
+  null => entry.host,
+};
+
+/// An issue the Core gives no item for stays with its whole line.
+bool _reasonsCover(MitmLineView? view) =>
+    view is MitmHostsView && view.entries.any((entry) => entry.reason != null);
+
+final _hostRows = Expando<List<MitmHostRow>>();
+final _hostSearchTexts = Expando<({String excluded, List<String> texts})>();
+
 extension MitmModuleDetailsExt on MitmModuleDetails {
   MitmNetwork get network => MitmNetwork.fromCoreJson(read.network);
 
@@ -349,9 +364,40 @@ extension MitmModuleDetailsExt on MitmModuleDetails {
     for (final line in lists[list] ?? const <MitmModuleLine>[])
       if (line.view case MitmHostsView(:final entries))
         for (final entry in entries)
-          if (!entry.exclude)
+          if (!entry.exclude && entry.reason == null)
             entry.port == null ? entry.host : '${entry.host}:${entry.port}',
   ];
+
+  List<MitmHostRow> get hostRows => _hostRows[lists] ??= [
+    for (final line
+        in lists[MitmList.hostname] ?? const <MitmModuleLine>[]) ...[
+      if (line.view case MitmHostsView(:final entries))
+        for (final entry in entries)
+          (
+            host: mitmHostText(entry),
+            exclude: entry.exclude,
+            issue: entry.reason,
+          ),
+      if (line.issue case final issue? when !_reasonsCover(line.view))
+        (host: line.text, exclude: false, issue: issue),
+    ],
+  ];
+
+  /// What a search matches in each of [hostRows], made once per label for
+  /// the excluded ones: the rows are records, which an [Expando] cannot key.
+  List<String> hostSearchTexts(String excluded) {
+    final rows = hostRows;
+    if (_hostSearchTexts[rows] case final cached?
+        when cached.excluded == excluded) {
+      return cached.texts;
+    }
+    final texts = [
+      for (final row in rows)
+        SearchQuery.textOf([row.host, row.issue, if (row.exclude) excluded]),
+    ];
+    _hostSearchTexts[rows] = (excluded: excluded, texts: texts);
+    return texts;
+  }
 
   List<String> get clientSources => [
     for (final line
@@ -370,10 +416,11 @@ Future<MitmModuleDetails> readMitmModule(
 }) async {
   final source =
       text ??
-      await File(
+      await compute<String, String>(
+        _readModuleText,
         join(await appPath.mitmModulesDirPath, module.fileName),
-      ).readAsString();
-  final result = await ref
+      );
+  return ref
       .read(coreHandlerProvider)
       .api
       .getMitmModuleRead(
@@ -381,9 +428,16 @@ Future<MitmModuleDetails> readMitmModule(
         arguments: arguments ?? module.arguments,
         attachments: mitmAttachments(module),
         language: mitmModuleLanguage,
+        map: _detailsOf(source),
       );
-  return mitmModuleDetailsOf(source, result.read, result.check);
 }
+
+/// Made outside [readMitmModule], whose async frame holds `ref`: a closure
+/// made there would carry it and could not reach the decoding isolate.
+MitmModuleDetails Function(MitmModuleRead, MitmCheck) _detailsOf(
+  String source,
+) =>
+    (read, check) => mitmModuleDetailsOf(source, read, check);
 
 MitmModuleDetails mitmModuleDetailsOf(
   String source,
@@ -611,5 +665,13 @@ Future<MitmModuleDetails?> mitmModuleContent(Ref ref, int id) async {
   if (!await file.exists()) {
     return null;
   }
-  return readMitmModule(ref, module, text: await file.readAsString());
+  return readMitmModule(
+    ref,
+    module,
+    text: await compute(_readModuleText, file.path),
+  );
 }
+
+/// A module runs to hundreds of kilobytes, too long to decode on the UI isolate
+/// while a page that shows it moves in.
+String _readModuleText(String path) => File(path).readAsStringSync();

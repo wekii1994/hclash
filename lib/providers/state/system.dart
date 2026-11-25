@@ -191,8 +191,11 @@ Group? _findPrimaryGroup(
       groups.where((g) => g.name.toUpperCase() != 'GLOBAL').toList();
   if (nonGlobalGroups.isEmpty) return groups.first;
 
-  final selectorGroups =
-      nonGlobalGroups.where((g) => g.type == GroupType.Selector).toList();
+  final selectorGroups = nonGlobalGroups
+      .where(
+        (g) => g.type == GroupType.Selector || g.type == GroupType.Smart,
+      )
+      .toList();
   final searchPool =
       selectorGroups.isNotEmpty ? selectorGroups : nonGlobalGroups;
 
@@ -410,6 +413,9 @@ SharedState sharedState(Ref ref) {
       ),
     ),
     vpnOptions: ref.watch(vpnOptionsProvider).value,
+    mitm: ref.watch(
+      patchClashConfigProvider.select((config) => config.mitm.enable),
+    ),
   );
 }
 

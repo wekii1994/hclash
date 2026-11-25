@@ -549,7 +549,7 @@ void main() {
               'PROXY',
               builtin: false,
             ),
-            moduleRule(4, 'PROTOCOL,UDP', 'REJECT'),
+            moduleRule(4, 'USER-AGENT,httpdns*', 'REJECT'),
             moduleRule(5, 'RULE-SET,mitm-0123456789ab', 'REJECT'),
             moduleRule(6, 'SCRIPT,pick', 'PROXY', requiresResolve: true),
           ],
@@ -567,7 +567,7 @@ void main() {
       ),
     );
     final l10n = currentAppLocalizations;
-    expect(find.text(l10n.invalidOfCount(1, 6)), findsOneWidget);
+    expect(find.text(l10n.itemsCount(6)), findsOneWidget);
 
     await tester.tap(find.text(l10n.mitmRoutingRules));
     await tester.pumpAndSettle();
@@ -584,7 +584,7 @@ void main() {
         matching: find.byType(RuleItem),
       );
       expect(
-        find.descendant(of: row, matching: find.text(action.name)),
+        find.descendant(of: row, matching: find.text(action.value)),
         findsOneWidget,
       );
       expect(
@@ -601,19 +601,23 @@ void main() {
     expect(colorOf('DIRECT'), colorScheme.success);
     expect(colorOf('PROXY'), colorScheme.tertiary);
 
-    expect(find.text('PROTOCOL,UDP,REJECT'), findsOneWidget);
-    expect(
-      tester
-          .widget<DecorationListItem>(
-            find.ancestor(
-              of: find.text('SCRIPT,pick,PROXY,requires-resolve'),
-              matching: find.byType(DecorationListItem),
-            ),
-          )
-          .invalid,
-      isFalse,
-    );
-    expect(find.text(l10n.mitmSkipRule), findsOneWidget);
+    for (final line in [
+      'USER-AGENT,httpdns*,REJECT',
+      'SCRIPT,pick,PROXY,requires-resolve',
+    ]) {
+      expect(
+        tester
+            .widget<DecorationListItem>(
+              find.ancestor(
+                of: find.text(line),
+                matching: find.byType(DecorationListItem),
+              ),
+            )
+            .invalid,
+        isFalse,
+      );
+    }
+    expect(find.text(l10n.mitmSkipRule), findsNothing);
 
     expect(find.byType(Checkbox), findsNothing);
     await tester.tap(find.text('ads.example.com'));
@@ -626,35 +630,88 @@ void main() {
     await tester.tap(find.text(l10n.confirm));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('PROTOCOL,UDP,REJECT'));
+    await tester.tap(find.text('USER-AGENT,httpdns*,REJECT'));
     await tester.pumpAndSettle();
     expect(
-      find.text(
-        'PROTOCOL,UDP,REJECT\n\n${l10n.mitmSkipRule}',
-        findRichText: true,
-      ),
-      findsOneWidget,
+      find.text('USER-AGENT,httpdns*,REJECT', findRichText: true),
+      findsNWidgets(2),
     );
   });
 
-  testWidgets('routing rules say which ask for extended matching', (
+  testWidgets('a routing rule shows as skipped only with the Core\'s reason', (
     tester,
   ) async {
-    Future<void> show(List<JsonMap> rules) => pump(
+    await pump(
       tester,
       MitmModuleView(id: _remote.id),
-      remoteContent: moduleDetails('', moduleRead(rules: rules)),
+      remoteContent: moduleDetails(
+        '',
+        moduleRead(
+          rules: [
+            moduleRule(1, 'DOMAIN-KEYWORD,httpdns', 'REJECT'),
+            moduleRule(2, 'USER-AGENT,Httpsdns*', 'REJECT'),
+            moduleRule(
+              3,
+              r'URL-REGEX,^http:\/\/\[[0-9a-fA-F:]+\](?:\/v?[0-9]+)?\/(?:sign_)?(?:(?:d|ss)[46]?|resolve)\?',
+              'REJECT',
+            ),
+            moduleRule(4, 'USER-AGENT,refused*', 'REJECT'),
+          ],
+        ),
+      ),
+      statuses: {
+        '${_remote.id}': MitmModuleStatus.fromJson({
+          'name': '${_remote.id}',
+          'inForce': true,
+          'refusedRules': [
+            {'line': 4, 'detail': 'the Core says why'},
+          ],
+        }),
+      },
     );
-    final note = currentAppLocalizations.mitmExtendedMatchingNote(1);
+    final l10n = currentAppLocalizations;
+    expect(find.text(l10n.invalidOfCount(1, 4)), findsOneWidget);
 
-    await show([
-      moduleRule(1, 'DOMAIN-SUFFIX,ads.example.com', 'REJECT'),
-      moduleRule(2, 'DOMAIN,a.example.com', 'REJECT', extendedMatching: true),
-    ]);
-    expect(find.textContaining(note), findsOneWidget);
+    await tester.tap(find.text(l10n.mitmRoutingRules));
+    await tester.pumpAndSettle();
 
-    await show([moduleRule(1, 'DOMAIN-SUFFIX,ads.example.com', 'REJECT')]);
-    expect(find.textContaining(note), findsNothing);
+    expect(find.text('DOMAIN-KEYWORD'), findsOneWidget);
+    expect(find.text('DOMAIN_KEYWORD'), findsNothing);
+    expect(find.text(l10n.mitmSkipRule), findsNothing);
+    expect(find.text('the Core says why'), findsOneWidget);
+    bool invalid(String prefix) => tester
+        .widget<DecorationListItem>(
+          find.ancestor(
+            of: find.textContaining(prefix),
+            matching: find.byType(DecorationListItem),
+          ),
+        )
+        .invalid;
+    expect(invalid('USER-AGENT,Httpsdns*'), isFalse);
+    expect(invalid('URL-REGEX,'), isFalse);
+    expect(invalid('USER-AGENT,refused*'), isTrue);
+  });
+
+  testWidgets('the routing rules row gives only their count', (tester) async {
+    await pump(
+      tester,
+      MitmModuleView(id: _remote.id),
+      remoteContent: moduleDetails(
+        '',
+        moduleRead(
+          rules: [
+            moduleRule(1, 'DOMAIN-SUFFIX,ads.example.com', 'REJECT'),
+            moduleRule(
+              2,
+              'DOMAIN,a.example.com',
+              'REJECT',
+              extendedMatching: true,
+            ),
+          ],
+        ),
+      ),
+    );
+    expect(find.text(currentAppLocalizations.itemsCount(2)), findsOneWidget);
   });
 
   testWidgets('a line the Core reads shows what it matches and what it does', (
@@ -763,24 +820,6 @@ void main() {
     await tester.pumpAndSettle();
     await back();
 
-    await tester.tap(find.text(MitmList.hostname.label));
-    await tester.pumpAndSettle();
-    const shown = '*.example.com, -login.example.com:8443';
-    expect(find.text(shown), findsOneWidget);
-    expect(find.text('unsupported character'), findsOneWidget);
-    expect(
-      tester
-          .widget<DecorationListItem>(
-            find.ancestor(
-              of: find.text(shown),
-              matching: find.byType(DecorationListItem),
-            ),
-          )
-          .invalid,
-      isFalse,
-    );
-    await back();
-
     await tester.tap(find.text(MitmList.script.label));
     await tester.pumpAndSettle();
     expect(find.text('Daily'), findsOneWidget);
@@ -797,6 +836,167 @@ void main() {
     expect(find.text('a.json'), findsOneWidget);
     expect(find.text('Content-Type: application/json'), findsOneWidget);
     expect(find.text('X-A: 1  +1'), findsOneWidget);
+  });
+
+  testWidgets('a hostname line with no host to show leaves no hostname row', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      MitmModuleView(id: _remote.id),
+      remoteContent: moduleDetails(
+        '[MITM]\nhostname = %APPEND%\n',
+        moduleRead(
+          views: {
+            'hostname': [lineEntry(2, const MitmLineView.hosts(entries: []))],
+          },
+        ),
+      ),
+    );
+
+    expect(find.text(currentAppLocalizations.hostname), findsNothing);
+    expect(find.text(currentAppLocalizations.itemsCount(0)), findsNothing);
+  });
+
+  testWidgets('a refusal no item carries stays with its whole line', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      MitmModuleView(id: _remote.id),
+      remoteContent: moduleDetails(
+        '[MITM]\nhostname = a.test, b c\n',
+        moduleRead(
+          issues: {
+            'hostname': [lineIssue(2, '"b c": unsupported')],
+          },
+          views: {
+            'hostname': [
+              lineEntry(
+                2,
+                const MitmLineView.hosts(
+                  entries: [MitmHostEntry(host: 'a.test')],
+                ),
+              ),
+            ],
+          },
+        ),
+      ),
+    );
+    final l10n = currentAppLocalizations;
+
+    expect(find.text(l10n.invalidOfCount(1, 2)), findsOneWidget);
+    await tester.tap(find.text(l10n.hostname));
+    await tester.pumpAndSettle();
+    expect(find.text('a.test'), findsOneWidget);
+    expect(find.text('hostname = a.test, b c'), findsOneWidget);
+    expect(find.text('"b c": unsupported'), findsOneWidget);
+  });
+
+  testWidgets(
+    'the hostname row opens on each host of the module, one to a row',
+    (tester) async {
+      const line =
+          'hostname = *.example.com, -login.example.com:8443, bad host';
+      await pump(
+        tester,
+        MitmModuleView(id: _remote.id),
+        remoteContent: moduleDetails(
+          '[MITM]\n$line\nhostname = %BOTH% x.test\n',
+          moduleRead(
+            issues: {
+              'hostname': [
+                lineIssue(2, '"bad host": unsupported character U+0020'),
+                lineIssue(3, 'unknown prefix'),
+              ],
+            },
+            views: {
+              'hostname': [
+                lineEntry(
+                  2,
+                  const MitmLineView.hosts(
+                    entries: [
+                      MitmHostEntry(host: '*.example.com'),
+                      MitmHostEntry(
+                        host: 'login.example.com',
+                        port: 8443,
+                        exclude: true,
+                      ),
+                      MitmHostEntry(
+                        host: 'bad host',
+                        reason: 'unsupported character U+0020',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            },
+          ),
+        ),
+      );
+      final l10n = currentAppLocalizations;
+      DecorationListItem row(String text) => tester.widget(
+        find.ancestor(
+          of: find.text(text),
+          matching: find.byType(DecorationListItem),
+        ),
+      );
+
+      expect(find.text(l10n.invalidOfCount(2, 4)), findsOneWidget);
+      expect(find.text('*.example.com'), findsNothing);
+      await tester.tap(find.text(l10n.hostname));
+      await tester.pumpAndSettle();
+
+      expect(row('*.example.com').invalid, isFalse);
+      expect(row('login.example.com:8443').trailing, isA<Text>());
+      expect(find.text(l10n.mitmExcluded), findsOneWidget);
+      expect(row('bad host').invalid, isTrue);
+      expect(find.text('unsupported character U+0020'), findsOneWidget);
+      expect(row('hostname = %BOTH% x.test').invalid, isTrue);
+
+      await tester.tap(find.text('bad host'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          'bad host\n\nunsupported character U+0020',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text(l10n.confirm));
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('a long host list builds only the rows in view', (tester) async {
+    await pump(
+      tester,
+      MitmModuleView(id: _remote.id),
+      remoteContent: moduleDetails(
+        '[MITM]\nhostname = many\n',
+        moduleRead(
+          views: {
+            'hostname': [
+              lineEntry(
+                2,
+                MitmLineView.hosts(
+                  entries: [
+                    for (var i = 0; i < 1000; i++)
+                      MitmHostEntry(host: 'h$i.example.com'),
+                  ],
+                ),
+              ),
+            ],
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.text(currentAppLocalizations.hostname));
+    await tester.pumpAndSettle();
+
+    expect(find.text('h0.example.com'), findsOneWidget);
+    expect(find.text('h999.example.com', skipOffstage: false), findsNothing);
   });
 
   testWidgets('a line opens in full, its issue below it', (tester) async {

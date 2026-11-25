@@ -50,10 +50,11 @@ class TrackerPathSection extends ConsumerWidget {
             title: metadata.process.isNotEmpty
                 ? metadata.process
                 : '${metadata.uid}',
-            subtitle: [
-              appLocalizations.process,
-              if (metadata.uid != 0) appLocalizations.processUid(metadata.uid),
-            ].join(' · '),
+            subtitle: appLocalizations.process,
+            labels: [
+              if (metadata.uid != 0)
+                RecordLabel(label: appLocalizations.processUid(metadata.uid)),
+            ],
           ),
         TrackerRailRow(
           first: metadata.process.isEmpty && metadata.uid == 0,
@@ -68,30 +69,30 @@ class TrackerPathSection extends ConsumerWidget {
               last: step == hops.length - 1,
               mark: step == hops.length - 1 ? RailMark.end : RailMark.step,
               title: name,
-              subtitle: '${appLocalizations.proxyGroup} · ${group.type.name}',
+              subtitle: appLocalizations.proxyGroup,
+              labels: [RecordLabel(label: group.type.name)],
             )
           else
             _ProxyNodeHop(
               name: name,
-              type: types[name],
               testUrl: groups
                   .getGroup(trackerInfo.chains.elementAtOrNull(index + 1) ?? '')
                   ?.testUrl,
-              builder: (subtitle, delay) => TrackerRailRow(
+              builder: (delay) => TrackerRailRow(
                 last: step == hops.length - 1,
                 mark: step == hops.length - 1 ? RailMark.end : RailMark.step,
                 title: name,
-                subtitle: subtitle,
+                subtitle: appLocalizations.proxyNode,
+                labels: [
+                  if (types[name] case final type?) RecordLabel(label: type),
+                ],
                 trailing: delay == null
                     ? null
                     : Text(
                         '$delay ms',
-                        style: AppTextStyle.body
-                            .of(context)
-                            .toTabular
-                            .copyWith(
-                              color: context.colorScheme.delayColor(delay),
-                            ),
+                        style: TextStyle(
+                          color: context.colorScheme.delayColor(delay),
+                        ).toTabular,
                       ),
               ),
             ),
@@ -102,15 +103,13 @@ class TrackerPathSection extends ConsumerWidget {
 
 class _ProxyNodeHop extends ConsumerWidget {
   final String name;
-  final String? type;
 
   /// Its group's, as the proxies page tests it.
   final String? testUrl;
-  final Widget Function(String subtitle, int? delay) builder;
+  final Widget Function(int? delay) builder;
 
   const _ProxyNodeHop({
     required this.name,
-    required this.type,
     required this.testUrl,
     required this.builder,
   });
@@ -118,10 +117,7 @@ class _ProxyNodeHop extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final delay = ref.watch(delayProvider(proxyName: name, testUrl: testUrl));
-    return builder(
-      [context.appLocalizations.proxyNode, ?type].join(' · '),
-      delay != null && delay > 0 ? delay : null,
-    );
+    return builder(delay != null && delay > 0 ? delay : null);
   }
 }
 
@@ -277,23 +273,27 @@ class TrackerInfoDetailView extends StatelessWidget {
             ).select((value) => value.value?.exchanges.length ?? 0),
           )
         : 0;
-    return DetailTabs(
-      header: header,
-      initialIndex: opensRequests && capturing ? 1 : 0,
-      tabs: [
-        (
-          appLocalizations.timeline,
-          (context) => _buildTimeline(context, capturing: capturing && !ended),
-        ),
-        if (capturing)
+    return ListTextScope(
+      scale: ListTextScale.compact,
+      child: DetailTabs(
+        header: header,
+        initialIndex: opensRequests && capturing ? 1 : 0,
+        tabs: [
           (
-            exchanges == 0
-                ? appLocalizations.httpRequests
-                : '${appLocalizations.httpRequests} $exchanges',
-            (_) => MitmExchangesView(trackerInfo: trackerInfo, ended: ended),
+            appLocalizations.timeline,
+            (context) =>
+                _buildTimeline(context, capturing: capturing && !ended),
           ),
-        (appLocalizations.connectionInfo, _buildOverview),
-      ],
+          if (capturing)
+            (
+              exchanges == 0
+                  ? appLocalizations.httpRequests
+                  : '${appLocalizations.httpRequests} $exchanges',
+              (_) => MitmExchangesView(trackerInfo: trackerInfo, ended: ended),
+            ),
+          (appLocalizations.connectionInfo, _buildOverview),
+        ],
+      ),
     );
   }
 }

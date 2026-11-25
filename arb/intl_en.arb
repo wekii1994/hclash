@@ -871,6 +871,12 @@
   "nextMatch": "Next match",
   "clearSearch": "Clear search",
   "noSearchResults": "No matching results",
+  "noActiveConnections": "No active connections",
+  "noFailedConnections": "No failed connections",
+  "noFailedDnsQueries": "No failed DNS queries",
+  "noCachedDnsQueries": "No DNS queries answered from cache",
+  "noFailedHttpRequests": "No failed HTTP requests",
+  "noRewrittenHttpRequests": "No rewritten HTTP requests",
   "showPassword": "Show password",
   "hidePassword": "Hide password",
   "authorize": "Authorize",
@@ -1277,12 +1283,6 @@
   "mitmIgnoredLines": "Ignored lines",
   "mitmModuleRulesDesc": "Matched before the profile’s rules.",
   "mitmRequestRulesDesc": "URL-REGEX and USER-AGENT rules run as URL rewrites, on HTTPS only for listed hosts.",
-  "mitmExtendedMatchingNote": "{count} use extended matching",
-  "@mitmExtendedMatchingNote": {
-    "placeholders": {
-      "count": {}
-    }
-  },
   "mitmActionModule": "From {module}",
   "mitmModuleSystemTip": "Written for {system}; some lines may not match apps on this device.",
   "mitmModuleRequirementTip": "The module requires {requirement}, which this device does not meet; it may not work as intended.",
@@ -1356,6 +1356,7 @@
   "mitmModulesTurnedOffDesc": "{count, plural, other{{count} modules got updates with scripts or network changes you have not agreed to}}",
   "mitmScriptRisk": "Its scripts read and change the traffic of the hosts they match, cookies and tokens included, and can send requests of their own. Turn it on only if you trust where it comes from. Once on, its updates take effect without asking again.",
   "mitmModuleUnreadableRisk": "The module file could not be read, so what it changes is unknown. Turn it on only if you trust where it comes from.",
+  "mitmModuleHostsUnread": "Couldn't read this module's hosts",
   "skipServerCertVerify": "Skip server certificate verification",
   "blockQuic": "Block QUIC",
   "http2": "HTTP/2",

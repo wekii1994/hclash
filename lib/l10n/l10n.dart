@@ -4788,6 +4788,42 @@ abstract class AppLocalizations {
   /// **'No matching results'**
   String get noSearchResults;
 
+  /// No description provided for @noActiveConnections.
+  ///
+  /// In en, this message translates to:
+  /// **'No active connections'**
+  String get noActiveConnections;
+
+  /// No description provided for @noFailedConnections.
+  ///
+  /// In en, this message translates to:
+  /// **'No failed connections'**
+  String get noFailedConnections;
+
+  /// No description provided for @noFailedDnsQueries.
+  ///
+  /// In en, this message translates to:
+  /// **'No failed DNS queries'**
+  String get noFailedDnsQueries;
+
+  /// No description provided for @noCachedDnsQueries.
+  ///
+  /// In en, this message translates to:
+  /// **'No DNS queries answered from cache'**
+  String get noCachedDnsQueries;
+
+  /// No description provided for @noFailedHttpRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'No failed HTTP requests'**
+  String get noFailedHttpRequests;
+
+  /// No description provided for @noRewrittenHttpRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'No rewritten HTTP requests'**
+  String get noRewrittenHttpRequests;
+
   /// No description provided for @showPassword.
   ///
   /// In en, this message translates to:
@@ -6816,12 +6852,6 @@ abstract class AppLocalizations {
   /// **'URL-REGEX and USER-AGENT rules run as URL rewrites, on HTTPS only for listed hosts.'**
   String get mitmRequestRulesDesc;
 
-  /// No description provided for @mitmExtendedMatchingNote.
-  ///
-  /// In en, this message translates to:
-  /// **'{count} use extended matching'**
-  String mitmExtendedMatchingNote(Object count);
-
   /// No description provided for @mitmActionModule.
   ///
   /// In en, this message translates to:
@@ -7217,6 +7247,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The module file could not be read, so what it changes is unknown. Turn it on only if you trust where it comes from.'**
   String get mitmModuleUnreadableRisk;
+
+  /// No description provided for @mitmModuleHostsUnread.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t read this module\'s hosts'**
+  String get mitmModuleHostsUnread;
 
   /// No description provided for @skipServerCertVerify.
   ///

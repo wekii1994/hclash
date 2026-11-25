@@ -14,6 +14,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../helpers/record_lines.dart';
 import '../helpers/glyph_finders.dart';
 import '../helpers/test_app.dart';
 import '../helpers/host_scaffold.dart';
@@ -361,7 +362,7 @@ void main() {
     );
 
     expect(find.text('2 HTTP requests'), findsOneWidget);
-    expect(find.text('HTTP · Latest POST /graphql 502'), findsOneWidget);
+    expect(findRecordLine('HTTP [Latest POST /graphql 502]'), findsOneWidget);
     expect(find.byType(MitmExchangesView), findsNothing);
 
     await tester.tap(find.text('2 HTTP requests'));
@@ -410,29 +411,28 @@ void main() {
             ),
           )
           .height,
-      listRowExtent(titleHeight: 22, subtitleHeight: 20),
+      listRowExtent(titleHeight: 20, subtitleHeight: 18 + recordLabelLineGap),
     );
     expect(
-      find.text(
-        'GET · 200 · ${2048.traffic.show} · 35 ms · '
-        '${appLocalizations.headerRewrite} +2',
+      findRecordLine(
+        'GET [+200] [${2048.traffic.show}] [35 ms] '
+        '[${appLocalizations.headerRewrite} +2]',
       ),
       findsOneWidget,
     );
     expect(find.text('/upload'), findsOneWidget);
-    expect(find.text('POST · ${appLocalizations.inProgress}'), findsOneWidget);
+    expect(
+      findRecordLine('POST [${appLocalizations.inProgress}]'),
+      findsOneWidget,
+    );
     expect(find.text(appLocalizations.httpRequestsMissing), findsNothing);
 
     await tester.tap(find.text('/new?x=1'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.descendant(
-        of: find.byType(DetailHeader),
-        matching: find.text('200 OK · 35 ms · ${2048.traffic.show}'),
-      ),
-      findsOneWidget,
-    );
+    expect(recordLinesIn(tester, find.byType(DetailHeader)), [
+      '[+200 OK] [35 ms] [${2048.traffic.show}]',
+    ]);
     expect(find.text('https://a.test/old?x=1'), findsOneWidget);
     expect(find.text('HTTP/2.0'), findsOneWidget);
     expect(find.text('URLRegex(/new)'), findsOneWidget);
@@ -446,20 +446,19 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('header'), findsOneWidget);
-    expect(
-      find.text(
-        '${appLocalizations.response} · sign · '
-        '${appLocalizations.mitmActionModule('Sign-in')}',
-      ),
-      findsOneWidget,
+    expect(find.text('sign'), findsOneWidget);
+    final signLabels = findRecordLine(
+      '[${appLocalizations.response}] '
+      '[${appLocalizations.mitmActionModule('Sign-in')}]',
     );
+    expect(signLabels, findsOneWidget);
     expect(
-      find.text(
-        '${appLocalizations.request} · '
-        '${appLocalizations.delete} X-Forwarded-For',
-      ),
-      findsOneWidget,
+      tester.getRect(signLabels).top,
+      greaterThanOrEqualTo(tester.getRect(find.text('sign')).bottom),
     );
+    final deleted = find.text('${appLocalizations.delete} X-Forwarded-For');
+    expect(tester.widget<Text>(deleted).maxLines, 3);
+    expect(findRecordLine('[${appLocalizations.request}]'), findsOneWidget);
 
     await _openTab(tester, appLocalizations.request);
     expect(find.text('Host'), findsOneWidget);

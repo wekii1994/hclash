@@ -58,23 +58,26 @@ class MitmExchangeView extends StatelessWidget {
               load: () async => exchange,
             ),
           );
-    final content = NullStatusSwitcher(
-      isLoading: value != null && value.isLoading && !value.hasValue,
-      isEmpty: exchange == null,
-      nullStatus: NullStatus(
-        label: appLocalizations.httpRequestCleared,
-        illustration: NullStatusIllustration.requests,
-      ),
-      child: exchange == null
-          ? const SizedBox.shrink()
-          : _BodyHold(
-              child: _MitmExchangeDetail(
-                exchange: exchange,
-                menu: inPane ? menu : null,
-                showsConnection: showsConnection,
-                onOpenConnection: onOpenConnection,
+    final content = ListTextScope(
+      scale: ListTextScale.compact,
+      child: NullStatusSwitcher(
+        isLoading: value != null && value.isLoading && !value.hasValue,
+        isEmpty: exchange == null,
+        nullStatus: NullStatus(
+          label: appLocalizations.httpRequestCleared,
+          illustration: NullStatusIllustration.requests,
+        ),
+        child: exchange == null
+            ? const SizedBox.shrink()
+            : _BodyHold(
+                child: _MitmExchangeDetail(
+                  exchange: exchange,
+                  menu: inPane ? menu : null,
+                  showsConnection: showsConnection,
+                  onOpenConnection: onOpenConnection,
+                ),
               ),
-            ),
+      ),
     );
     if (inPane) {
       return content;
@@ -219,15 +222,19 @@ class _MitmExchangeDetail extends StatelessWidget {
             title: appLocalizations.matchedRules,
             items: [
               for (final action in exchange.actions)
-                DetailRow.stacked(
+                _MatchedRuleRow(
                   title: mitmActionLabel(appLocalizations, action.kind),
-                  value: [
+                  detail: mitmActionDetail(appLocalizations, action),
+                  labels: [
                     if (action.phase.isNotEmpty)
-                      _phaseLabel(appLocalizations, action.phase),
-                    mitmActionDetail(appLocalizations, action),
+                      RecordLabel(
+                        label: _phaseLabel(appLocalizations, action.phase),
+                      ),
                     if (action.module.isNotEmpty)
-                      appLocalizations.mitmActionModule(action.module),
-                  ].where((part) => part.isNotEmpty).join(' · '),
+                      RecordLabel(
+                        label: appLocalizations.mitmActionModule(action.module),
+                      ),
+                  ],
                 ),
             ],
           ),
@@ -377,19 +384,17 @@ class _MitmExchangeHeader extends StatelessWidget {
       well: (size) => LabelWell(label: exchange.method, size: size),
       actions: [?menu],
       title: exchangePathOf(exchange.url),
-      subtitle: Text.rich(
-        joinedSpan(
-          outcomeParts(
-            context,
-            status: exchange.status,
-            reason: exchange.reason,
-            error: exchange.error,
-            pending: exchange.pending,
-            finished: [
-              httpMillisText(exchange.duration),
-              exchange.responseSize.traffic.show,
-            ],
-          ),
+      subtitle: RecordLabelLine(
+        labels: outcomeLabels(
+          context,
+          status: exchange.status,
+          reason: exchange.reason,
+          error: exchange.error,
+          pending: exchange.pending,
+          finished: [
+            httpMillisText(exchange.duration),
+            exchange.responseSize.traffic.show,
+          ],
         ),
       ),
     );
@@ -402,4 +407,34 @@ String _phaseLabel(AppLocalizations appLocalizations, String phase) {
     'response' => appLocalizations.response,
     _ => phase,
   };
+}
+
+/// Holds [detail] to three lines as [DetailRow.stacked] holds its value.
+class _MatchedRuleRow extends StatelessWidget {
+  final String title;
+  final String detail;
+  final List<Widget> labels;
+
+  const _MatchedRuleRow({
+    required this.title,
+    required this.detail,
+    required this.labels,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DecorationListItem(
+      title: Text(title),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: recordLabelLineGap,
+        children: [
+          if (detail.isNotEmpty)
+            Text(detail, maxLines: 3, overflow: TextOverflow.ellipsis),
+          if (labels.isNotEmpty)
+            RecordLabelLine(labels: labels, underTitle: detail.isEmpty),
+        ],
+      ),
+    );
+  }
 }

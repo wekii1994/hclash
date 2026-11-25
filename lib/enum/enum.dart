@@ -37,6 +37,8 @@ const desktopPlatforms = [
 
 enum GroupName { GLOBAL }
 
+enum TrafficFeed { off, everySecond, changesOnly }
+
 /// Why a dial failed, spelled as the Core sends it. `handshake`: the path to the
 /// target opened but the exchange over it failed.
 enum ConnectionFailureKind {
@@ -137,7 +139,7 @@ enum ViewMode { mobile, laptop, desktop }
 
 enum LogLevel { debug, info, warning, error, silent }
 
-enum RecordTone { neutral, warning, error }
+enum RecordTone { neutral, success, warning, error }
 
 enum RecordFacetKind {
   network,
@@ -156,6 +158,7 @@ extension RecordToneExt on RecordTone {
   Color? accentColor(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return switch (this) {
+      RecordTone.success => colorScheme.success,
       RecordTone.warning => colorScheme.warning,
       RecordTone.error => colorScheme.error,
       RecordTone.neutral => null,
@@ -166,6 +169,7 @@ extension RecordToneExt on RecordTone {
     final colorScheme = Theme.of(context).colorScheme;
     return switch (this) {
       RecordTone.neutral => colorScheme.onSurfaceVariant,
+      RecordTone.success => colorScheme.onSuccessContainer,
       RecordTone.warning => colorScheme.onWarningContainer,
       RecordTone.error => colorScheme.onErrorContainer,
     };
@@ -175,6 +179,7 @@ extension RecordToneExt on RecordTone {
     final colorScheme = Theme.of(context).colorScheme;
     return switch (this) {
       RecordTone.neutral => context.raisedSurfaceLevel.colorOf(colorScheme),
+      RecordTone.success => colorScheme.successContainer,
       RecordTone.warning => colorScheme.warningContainer,
       RecordTone.error => colorScheme.errorContainer,
     };

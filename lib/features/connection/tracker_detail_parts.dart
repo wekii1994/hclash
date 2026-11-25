@@ -22,6 +22,7 @@ enum RailMark { step, end, error }
 class TrackerRailRow extends StatelessWidget {
   final String title;
   final String subtitle;
+  final List<Widget> labels;
   final Widget? trailing;
   final RailMark mark;
   final bool first;
@@ -32,6 +33,7 @@ class TrackerRailRow extends StatelessWidget {
     super.key,
     required this.title,
     this.subtitle = '',
+    this.labels = const [],
     this.trailing,
     this.mark = RailMark.step,
     this.first = false,
@@ -49,10 +51,14 @@ class TrackerRailRow extends StatelessWidget {
     return CustomPaint(
       foregroundPainter: _RailPainter(
         x: insets.leading + listLeadingSlotWidth / 2,
-        subtitleLine: subtitle.isEmpty
-            ? 0
-            : MediaQuery.textScalerOf(context).scale(subtitleStyle.fontSize!) *
-                  subtitleStyle.height!,
+        subtitleLine:
+            (subtitle.isEmpty
+                ? 0
+                : MediaQuery.textScalerOf(
+                        context,
+                      ).scale(subtitleStyle.fontSize!) *
+                      subtitleStyle.height!) +
+            (labels.isEmpty ? 0 : recordLabelLineGap),
         ring: colorScheme.outline,
         line: Divider.colorOf(context),
         fill: switch (mark) {
@@ -73,17 +79,17 @@ class TrackerRailRow extends StatelessWidget {
           title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: mark == RailMark.end
-              ? AppTextStyle.body.of(context, emphasized: true)
-              : null,
+          style: mark == RailMark.end ? AppTextStyle.emphasis : null,
         ),
-        subtitle: subtitle.isEmpty
+        subtitle: subtitle.isEmpty && labels.isEmpty
             ? null
-            : Text(
-                subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            : DefaultTextStyle.merge(
                 style: subtitleStyle.toTabular,
+                child: RecordLabelLine(
+                  text: subtitle,
+                  labels: labels,
+                  underTitle: true,
+                ),
               ),
         trailing: trailing == null && !opens
             ? null

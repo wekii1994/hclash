@@ -30,6 +30,20 @@ class ListEditorPage<T, K> extends ConsumerStatefulWidget {
   final Iterable<String?> Function(T item)? searchFieldsOf;
   final List<PopupMenuItem> Function(T item)? menuItemsOf;
 
+  /// Read-only sliver sections after the items, made for the search on; null
+  /// while they are still on their way. With no item shown, the first section
+  /// heads the list and drops the gap above it.
+  final List<Widget>? Function(
+    WidgetRef ref,
+    SearchQuery query, {
+    required bool atTop,
+  })?
+  sectionsOf;
+
+  /// Heads the items on a page with [sectionsOf] from its first frame, unless the
+  /// sections come back empty, so sections arriving only add to the list.
+  final String? itemsTitle;
+
   const ListEditorPage({
     super.key,
     required this.title,
@@ -45,6 +59,8 @@ class ListEditorPage<T, K> extends ConsumerStatefulWidget {
     this.onDelete,
     this.searchFieldsOf,
     this.menuItemsOf,
+    this.sectionsOf,
+    this.itemsTitle,
   });
 
   @override
@@ -183,6 +199,10 @@ class _ListEditorPageState<T, K> extends ConsumerState<ListEditorPage<T, K>> {
     final loadedItems = widget.itemsOf(ref);
     final items = _visibleItems(loadedItems ?? const []);
     final isSearching = widget.searchFieldsOf != null && _query.isNotEmpty;
+    final sectionsOf = widget.sectionsOf;
+    final builtSections = sectionsOf == null
+        ? const <Widget>[]
+        : sectionsOf(ref, _query, atTop: items.isEmpty);
     final selected = _liveSelection(loadedItems);
     final visibleSelected = isSearching ? _liveSelection(items) : selected;
     final isSelecting = selected.isNotEmpty;
@@ -224,32 +244,62 @@ class _ListEditorPageState<T, K> extends ConsumerState<ListEditorPage<T, K>> {
           ),
       ],
       selectionActions: isSelecting ? selectionActions : const [],
-      body: NullStatusSwitcher(
-        isLoading: loadedItems == null,
-        isEmpty: items.isEmpty,
-        isSearching: isSearching,
-        nullStatus: NullStatus(
-          label: widget.emptyLabel,
-          illustration: NullStatusIllustration.data,
-        ),
-        child: Builder(
-          builder: (context) {
-            final rowAt = _rowsOf(
-              context,
-              items,
-              selected,
-              reorderable: !isSearching,
-            );
-            return Scrollbar(
-              controller: _scrollController,
-              child: ArrivalCacheExtentBuilder(
-                builder: (cacheExtent) => isSearching
-                    ? _buildSearchResults(context, items, rowAt, cacheExtent)
-                    : _buildReorderableList(context, items, rowAt, cacheExtent),
+      body: _SectionsGate(
+        deferred: sectionsOf != null && items.isNotEmpty,
+        read: builtSections != null,
+        builder: (showsSections) {
+          final sectionsOrNull = showsSections ? builtSections : null;
+          final sections = sectionsOrNull ?? const <Widget>[];
+          return NullStatusSwitcher(
+            isLoading:
+                loadedItems == null || sectionsOrNull == null && items.isEmpty,
+            isEmpty: items.isEmpty && sections.isEmpty,
+            isSearching: isSearching,
+            nullStatus: NullStatus(
+              label: widget.emptyLabel,
+              illustration: NullStatusIllustration.data,
+            ),
+            child: _RowsAfterPush(
+              child: Builder(
+                builder: (context) {
+                  final rowAt = _rowsOf(
+                    context,
+                    items,
+                    selected,
+                    reorderable: !isSearching,
+                  );
+                  return Scrollbar(
+                    controller: _scrollController,
+                    child: ArrivalCacheExtentBuilder(
+                      builder: (cacheExtent) => sectionsOf != null
+                          ? _buildSections(
+                              context,
+                              items,
+                              rowAt,
+                              cacheExtent,
+                              sectionsOrNull,
+                              reorderable: !isSearching,
+                            )
+                          : isSearching
+                          ? _buildSearchResults(
+                              context,
+                              items,
+                              rowAt,
+                              cacheExtent,
+                            )
+                          : _buildReorderableList(
+                              context,
+                              items,
+                              rowAt,
+                              cacheExtent,
+                            ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -295,6 +345,52 @@ class _ListEditorPageState<T, K> extends ConsumerState<ListEditorPage<T, K>> {
       proxyDecorator: (child, index, animation) =>
           commonProxyDecorator(rowAt(index), index, animation),
       onReorderItem: widget.onReorder,
+    );
+  }
+
+  Widget _buildSections(
+    BuildContext context,
+    List<T> items,
+    Widget Function(int index) rowAt,
+    ScrollCacheExtent? cacheExtent,
+    List<Widget>? sections, {
+    required bool reorderable,
+  }) {
+    final itemsTitle = widget.itemsTitle;
+    return CustomScrollView(
+      controller: _scrollController,
+      scrollCacheExtent: cacheExtent,
+      slivers: [
+        SliverPadding(
+          padding: _listPadding(context),
+          sliver: SliverMainAxisGroup(
+            slivers: [
+              if (itemsTitle != null &&
+                  items.isNotEmpty &&
+                  sections?.isEmpty != true)
+                SliverToBoxAdapter(
+                  child: ListHeader(title: itemsTitle, atTop: true),
+                ),
+              if (reorderable)
+                SliverPrismReorderableList(
+                  itemBuilder: (_, index) => rowAt(index),
+                  itemExtent: widget.itemExtent,
+                  itemCount: items.length,
+                  proxyDecorator: (child, index, animation) =>
+                      commonProxyDecorator(rowAt(index), index, animation),
+                  onReorderItem: widget.onReorder,
+                )
+              else
+                SliverPrismList(
+                  itemBuilder: (_, index) => rowAt(index),
+                  itemExtent: widget.itemExtent,
+                  itemCount: items.length,
+                ),
+              ...?sections,
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -367,5 +463,106 @@ class ListEditorAddAction extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Lays out [child] a held frame after the rest of a page its route pushes.
+/// Only this element depends on the route, so the page does not rebuild when
+/// another page covers or uncovers it.
+class _RowsAfterPush extends StatefulWidget {
+  const _RowsAfterPush({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_RowsAfterPush> createState() => _RowsAfterPushState();
+}
+
+class _RowsAfterPushState extends State<_RowsAfterPush> {
+  var _ready = true;
+  var _checked = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_checked) {
+      return;
+    }
+    _checked = true;
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation == null ||
+        animation.status != AnimationStatus.forward ||
+        animation.value > 0) {
+      return;
+    }
+    _ready = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() => _ready = true);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => ArrivalHold(
+    ready: _ready,
+    child: _ready ? widget.child : const SizedBox.shrink(),
+  );
+}
+
+/// Shows the sections a page reads, keeping ones read after the page mounted
+/// until the route has settled so a whole screen of rows does not land in a
+/// moving frame. Only this element depends on the route, and it keeps what it
+/// built while the route alone changes.
+class _SectionsGate extends StatefulWidget {
+  const _SectionsGate({
+    required this.deferred,
+    required this.read,
+    required this.builder,
+  });
+
+  final bool deferred;
+  final bool read;
+  final Widget Function(bool showsSections) builder;
+
+  @override
+  State<_SectionsGate> createState() => _SectionsGateState();
+}
+
+class _SectionsGateState extends State<_SectionsGate>
+    with RouteMotionHoldMixin<_SectionsGate> {
+  late var _shows = !widget.deferred || widget.read;
+  var _requested = false;
+  Widget? _built;
+
+  @override
+  void didUpdateWidget(_SectionsGate oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _built = null;
+  }
+
+  void _request() {
+    if (_requested) {
+      return;
+    }
+    _requested = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        updateWhenRouteSettled(
+          () => setState(() {
+            _shows = true;
+            _built = null;
+          }),
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.read && !_shows) {
+      _request();
+    }
+    return _built ??= widget.builder(_shows);
   }
 }

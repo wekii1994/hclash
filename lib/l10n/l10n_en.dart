@@ -2638,6 +2638,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noSearchResults => 'No matching results';
 
   @override
+  String get noActiveConnections => 'No active connections';
+
+  @override
+  String get noFailedConnections => 'No failed connections';
+
+  @override
+  String get noFailedDnsQueries => 'No failed DNS queries';
+
+  @override
+  String get noCachedDnsQueries => 'No DNS queries answered from cache';
+
+  @override
+  String get noFailedHttpRequests => 'No failed HTTP requests';
+
+  @override
+  String get noRewrittenHttpRequests => 'No rewritten HTTP requests';
+
+  @override
   String get showPassword => 'Show password';
 
   @override
@@ -3855,11 +3873,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'URL-REGEX and USER-AGENT rules run as URL rewrites, on HTTPS only for listed hosts.';
 
   @override
-  String mitmExtendedMatchingNote(Object count) {
-    return '$count use extended matching';
-  }
-
-  @override
   String mitmActionModule(Object module) {
     return 'From $module';
   }
@@ -4111,6 +4124,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mitmModuleUnreadableRisk =>
       'The module file could not be read, so what it changes is unknown. Turn it on only if you trust where it comes from.';
+
+  @override
+  String get mitmModuleHostsUnread => 'Couldn\'t read this module\'s hosts';
 
   @override
   String get skipServerCertVerify => 'Skip server certificate verification';

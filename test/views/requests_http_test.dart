@@ -16,6 +16,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/core_mocks.dart';
 import '../helpers/glyph_finders.dart';
+import '../helpers/record_lines.dart';
+import '../helpers/status_menu.dart';
 import '../helpers/test_app.dart';
 import '../helpers/test_profiles.dart';
 
@@ -169,11 +171,6 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 2));
   }
-
-  Finder statusSegment(String label) => find.descendant(
-    of: find.byType(SegmentedControl<HttpRequestStatus>),
-    matching: find.textContaining(label),
-  );
 
   testWidgets('the HTTP segment stands between connections and DNS only '
       'while capture records', (tester) async {
@@ -471,7 +468,7 @@ void main() {
     await teardownView(tester);
   });
 
-  testWidgets('every connection\'s requests are listed by path, host and app, '
+  testWidgets('every connection\'s requests are listed by path and host, '
       'with their status, size and time', (tester) async {
     setUpContainer();
     capture();
@@ -479,30 +476,22 @@ void main() {
 
     final row = find.widgetWithText(HttpRequestRow, '/missing');
     expect(row, findsOneWidget);
-    expect(
-      find.descendant(of: row, matching: find.text('api.test · curl')),
-      findsOneWidget,
-    );
+    expect(recordLinesIn(tester, row), ['api.test [35 ms]']);
+    expect(find.descendant(of: row, matching: find.text('curl')), findsNothing);
     final status = tester.widget<Text>(
       find.descendant(of: row, matching: find.text('404')),
     );
     expect(status.style?.color, tester.element(row).colorScheme.error);
     expect(
-      find.descendant(
-        of: row,
-        matching: find.text('${2048.traffic.show} · 35 ms'),
-      ),
+      find.descendant(of: row, matching: find.text(2048.traffic.show)),
       findsOneWidget,
     );
     expect(
-      find.descendant(
-        of: find.widgetWithText(HttpRequestRow, '/rewritten'),
-        matching: find.widgetWithText(
-          MetaChip,
-          '${currentAppLocalizations.headerRewrite} +1',
-        ),
-      ),
-      findsOneWidget,
+      recordLinesIn(
+        tester,
+        find.widgetWithText(HttpRequestRow, '/rewritten'),
+      ).single,
+      endsWith('[${currentAppLocalizations.headerRewrite} +1]'),
     );
     expect(
       find.descendant(
@@ -521,16 +510,34 @@ void main() {
     capture();
     await pumpHttp(tester);
 
-    expect(statusSegment('All 4'), findsOneWidget);
-    await tester.tap(statusSegment('Failed 2'));
-    await tester.pumpAndSettle();
+    expect(shownStatusText(tester), 'All 4');
+    await pickStatus(tester, 'Failed 2');
     expect(find.byType(HttpRequestRow), findsNWidgets(2));
     expect(find.text('/ok'), findsNothing);
 
-    await tester.tap(statusSegment('Rewritten 1'));
-    await tester.pumpAndSettle();
+    await pickStatus(tester, 'Rewritten 1');
     expect(find.byType(HttpRequestRow), findsOneWidget);
     expect(find.text('/rewritten'), findsOneWidget);
+
+    await teardownView(tester);
+  });
+
+  testWidgets('a status with no requests says so rather than that nothing '
+      'matched', (tester) async {
+    setUpContainer();
+    capture();
+    await pumpHttp(
+      tester,
+      query: ({before, since, required limit}) async => MitmQueryPage(
+        capturing: true,
+        version: 1,
+        exchanges: [_exchanges.first],
+      ),
+    );
+
+    await pickStatus(tester, 'Rewritten 0');
+    expect(find.text('No rewritten HTTP requests'), findsOneWidget);
+    expect(find.text('No matching results'), findsNothing);
 
     await teardownView(tester);
   });

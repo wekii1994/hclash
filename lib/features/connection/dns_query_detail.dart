@@ -34,7 +34,7 @@ class DnsQueryDetailSheet extends StatelessWidget {
   );
 }
 
-String _failureTitle(AppLocalizations appLocalizations, DnsQuery dnsQuery) {
+String dnsFailureTitle(AppLocalizations appLocalizations, DnsQuery dnsQuery) {
   final error = dnsQuery.error;
   // A rule answers through mihomo's rcode:// upstream; the rest is Go's wording.
   if (dnsQuery.upstream.startsWith('rcode://')) {
@@ -111,74 +111,77 @@ class DnsQueryDetailView extends ConsumerWidget {
         ),
     ];
     final margin = context.listInsets.margin;
-    return CustomScrollView(
-      slivers: [
-        SliverPadding(
-          padding: EdgeInsets.fromLTRB(
-            margin,
-            context.contentTopPadding,
-            margin,
-            margin + context.bottomInset,
-          ),
-          sliver: SliverMainAxisGroup(
-            slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: _headerGap),
-                  child: _DnsQueryHeader(
-                    dnsQuery: dnsQuery,
-                    showsMenu: showsMenu,
+    return ListTextScope(
+      scale: ListTextScale.compact,
+      child: CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              margin,
+              context.contentTopPadding,
+              margin,
+              margin + context.bottomInset,
+            ),
+            sliver: SliverMainAxisGroup(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: _headerGap),
+                    child: _DnsQueryHeader(
+                      dnsQuery: dnsQuery,
+                      showsMenu: showsMenu,
+                    ),
                   ),
                 ),
-              ),
-              if (failed)
+                if (failed)
+                  SliverToBoxAdapter(
+                    child: generateSection(
+                      title: appLocalizations.error,
+                      atTop: true,
+                      items: [
+                        DetailRow.stacked(
+                          leading: GlyphIcon(
+                            AppGlyphs.error,
+                            color: context.colorScheme.error,
+                          ),
+                          title: dnsFailureTitle(appLocalizations, dnsQuery),
+                          value: dnsQuery.error.isNotEmpty
+                              ? dnsQuery.error
+                              : dnsQuery.rcode,
+                          copyable: true,
+                        ),
+                      ],
+                    ),
+                  ),
                 SliverToBoxAdapter(
                   child: generateSection(
-                    title: appLocalizations.error,
-                    atTop: true,
+                    title: '${appLocalizations.answers} ${answers.length}',
+                    atTop: !failed,
                     items: [
-                      DetailRow.stacked(
-                        leading: GlyphIcon(
-                          AppGlyphs.error,
-                          color: context.colorScheme.error,
-                        ),
-                        title: _failureTitle(appLocalizations, dnsQuery),
-                        value: dnsQuery.error.isNotEmpty
-                            ? dnsQuery.error
-                            : dnsQuery.rcode,
-                        copyable: true,
-                      ),
+                      for (final answer in answers) _AnswerRow(answer: answer),
                     ],
                   ),
                 ),
-              SliverToBoxAdapter(
-                child: generateSection(
-                  title: '${appLocalizations.answers} ${answers.length}',
-                  atTop: !failed,
-                  items: [
-                    for (final answer in answers) _AnswerRow(answer: answer),
-                  ],
+                if (related.isNotEmpty)
+                  SliverRelatedConnections(
+                    title:
+                        '${appLocalizations.relatedConnections} ${related.length}',
+                    ids: related,
+                    atTop: !failed && answers.isEmpty,
+                    onOpenConnection: onOpenConnection,
+                  ),
+                SliverToBoxAdapter(
+                  child: generateSection(
+                    title: appLocalizations.dnsQueryFields,
+                    atTop: !failed && answers.isEmpty && related.isEmpty,
+                    items: fields,
+                  ),
                 ),
-              ),
-              if (related.isNotEmpty)
-                SliverRelatedConnections(
-                  title:
-                      '${appLocalizations.relatedConnections} ${related.length}',
-                  ids: related,
-                  atTop: !failed && answers.isEmpty,
-                  onOpenConnection: onOpenConnection,
-                ),
-              SliverToBoxAdapter(
-                child: generateSection(
-                  title: appLocalizations.dnsQueryFields,
-                  atTop: !failed && answers.isEmpty && related.isEmpty,
-                  items: fields,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -213,16 +216,19 @@ class _DnsQueryHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final initiator = dnsQuery.initiator;
-    final subtitle = [
-      if (initiator != null)
-        context.appLocalizations.dnsQueryAskedBy(initiator.label),
-      dnsQuery.time.showTime,
-      '${dnsQuery.delay} ms',
-    ].join(' · ');
     return DetailHeader(
       well: (size) => LabelWell(label: dnsQuery.type, size: size),
       title: dnsQuery.domain,
-      subtitle: Text(subtitle),
+      subtitle: RecordLabelLine(
+        labels: [
+          if (initiator != null)
+            RecordLabel(
+              label: context.appLocalizations.dnsQueryAskedBy(initiator.label),
+            ),
+          RecordLabel(label: dnsQuery.time.showTime),
+          RecordLabel(label: '${dnsQuery.delay} ms'),
+        ],
+      ),
       actions: [
         if (showsMenu)
           DetailMenuButton(items: () => dnsQueryMenuItems(context, dnsQuery)),
@@ -244,7 +250,7 @@ class _AnswerRow extends StatelessWidget {
         answer,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: AppTextStyle.body.of(context).toTabular,
+        style: const TextStyle().toTabular,
       ),
     );
   }

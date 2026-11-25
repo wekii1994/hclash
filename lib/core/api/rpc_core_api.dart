@@ -359,13 +359,19 @@ final class RpcCoreApi implements CoreApi {
   Stream<TrafficSample> watchTraffic({
     int? intervalMs,
     bool onlyProxy = false,
+    bool changesOnly = false,
   }) {
     return client
         .watch<TrafficSample, TrafficSample>(
           'traffic.watch',
-          params: {'intervalMs': ?intervalMs, 'onlyProxy': onlyProxy},
+          params: {
+            'intervalMs': ?intervalMs,
+            'onlyProxy': onlyProxy,
+            if (changesOnly) 'changesOnly': true,
+          },
           decodeSnapshot: (r) => TrafficSample.fromJson(_object(r)),
           decodeEvent: TrafficSample.fromJson,
+          maxBatchMs: 0,
         )
         .expand((frame) => [?frame.snapshot, ...frame.events]);
   }
@@ -428,11 +434,11 @@ final class RpcCoreApi implements CoreApi {
   }
 
   @override
-  Stream<List<DnsEntry>> watchDns() {
+  Stream<({List<DnsEntry> entries, int dropped})> watchDns() {
     return client
         .watch<Object?, DnsEntry>('dns.watch', decodeEvent: DnsEntry.fromJson)
-        .map((frame) => frame.events)
-        .where((events) => events.isNotEmpty);
+        .where((frame) => frame.events.isNotEmpty || frame.dropped > 0)
+        .map((frame) => (entries: frame.events, dropped: frame.dropped));
   }
 
   @override
@@ -583,21 +589,44 @@ final class RpcCoreApi implements CoreApi {
   );
 
   @override
-  Future<JsonMap> readMitmModule(
+  Future<T> readMitmModule<T>(
     String text, {
     Map<String, String> arguments = const {},
     Map<String, String> attachments = const {},
     String language = '',
-  }) => _call(
-    'mitm.readModule',
-    (r) => _object(r),
-    params: {
-      'text': text,
-      'arguments': arguments,
-      'attachments': attachments,
-      'language': language,
-    },
-  );
+    required T Function(JsonMap answer) read,
+  }) async {
+    final mapped = await _call(
+      'mitm.readModule',
+      _carrying(read),
+      params: {
+        'text': text,
+        'arguments': arguments,
+        'attachments': attachments,
+        'language': language,
+      },
+    );
+    if (mapped.error case final error?) {
+      return Future.error(error, mapped.stack);
+    }
+    return mapped.value as T;
+  }
+
+  /// Made outside an async body, whose frame the closure would carry; the
+  /// stack goes back as text, which any isolate can send.
+  static ({T? value, Object? error, StackTrace? stack}) Function(Object? result)
+  _carrying<T>(T Function(JsonMap answer) read) => (result) {
+    final answer = _object(result);
+    try {
+      return (value: read(answer), error: null, stack: null);
+    } catch (error, stack) {
+      return (
+        value: null,
+        error: error,
+        stack: StackTrace.fromString('$stack'),
+      );
+    }
+  };
 
   @override
   Future<JsonMap> mitmModuleStatus() =>

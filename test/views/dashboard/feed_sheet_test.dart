@@ -17,6 +17,7 @@ import '../../helpers/glyph_finders.dart';
 import '../../helpers/test_app.dart';
 import '../../helpers/test_profiles.dart';
 import '../../helpers/host_scaffold.dart';
+import '../../helpers/status_menu.dart';
 
 const _mobileSize = Size(400, 800);
 final _shortTop = _mobileSize.height * (1 - snapSheetDetents.first);
@@ -94,6 +95,33 @@ void main() {
       900,
     );
   }
+
+  testWidgets('live connections open on the active ones and recent requests '
+      'on all of them', (tester) async {
+    await pumpCard(tester);
+
+    for (final (label, status, empty) in [
+      ('Live connections', 'Active 0', 'No active connections'),
+      ('Recent requests', 'All 0', 'No Connections yet'),
+    ]) {
+      await tester.tap(
+        find.descendant(
+          of: find.byType(ConnectionStatsCard),
+          matching: find.text(label),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(shownStatusText(tester), status);
+      expect(find.text(empty), findsOneWidget);
+
+      await tester.tap(find.byGlyph(AppGlyphs.close));
+      await tester.pumpAndSettle();
+    }
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 2));
+  });
 
   testWidgets('a wide window opens the DNS list beside the card', (
     tester,
