@@ -51,6 +51,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get outboundMode => 'Mode sortant';
 
   @override
+  String get noProfileDirect => 'Sans profil, tout le trafic passe en direct';
+
+  @override
   String get serviceStatus => 'État des services';
 
   @override
@@ -188,6 +191,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get autoCheckUpdate => 'Rechercher les mises à jour automatiquement';
+
+  @override
+  String get updateChannel => 'Canal de mise à jour';
+
+  @override
+  String get updateChannelStable => 'Stable';
+
+  @override
+  String get updateChannelPre => 'Préversion';
 
   @override
   String get checkCertificate => 'Vérifier les certificats TLS';
@@ -509,7 +521,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get externalControllerDesc =>
-      'Le contrôleur externe permet de piloter le cœur via le port 9090.';
+      'Le contrôleur externe écoute sur le port 9090.';
 
   @override
   String get externalControllerSecret => 'Secret du contrôleur externe';
@@ -532,9 +544,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get startupAndBackground => 'Démarrage et arrière-plan';
-
-  @override
-  String get requestsAndUpdates => 'Requêtes et mises à jour';
 
   @override
   String get logsAndDiagnostics => 'Journaux et diagnostic';
@@ -568,6 +577,247 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get liveConnections => 'Connexions en direct';
+
+  @override
+  String get speed => 'Débit';
+
+  @override
+  String get closeActiveConnections => 'Fermer toutes les connexions actives';
+
+  @override
+  String closeActiveConnectionsTip(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Fermer les $count connexions actives ? Les applications qui les utilisent se reconnectent d\'elles-mêmes, mais les téléchargements et appels en cours peuvent être coupés.',
+      one:
+          'Fermer la connexion active ? L\'application qui l\'utilise se reconnecte d\'elle-même, mais un téléchargement ou un appel en cours peut être coupé.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get connectionsAll => 'Toutes';
+
+  @override
+  String get connectionsActive => 'Actives';
+
+  @override
+  String get connectionsFailed => 'Échouées';
+
+  @override
+  String get connectionsDecrypted => 'Déchiffrées';
+
+  @override
+  String get connectionRuleGlobal => 'Mode global';
+
+  @override
+  String get connectionRuleNone => 'Aucune règle';
+
+  @override
+  String get failureRefused => 'Refusée';
+
+  @override
+  String get failureUnreachable => 'Injoignable';
+
+  @override
+  String get failureDns => 'Échec DNS';
+
+  @override
+  String get dnsNoSuchDomain => 'Le domaine n’existe pas';
+
+  @override
+  String get dnsServerFailure => 'Échec du serveur amont';
+
+  @override
+  String get dnsRefused => 'Refusée par le serveur amont';
+
+  @override
+  String get dnsTimedOut => 'La requête a expiré';
+
+  @override
+  String get dnsBlockedByRule => 'Bloquée par une règle';
+
+  @override
+  String get failureHandshake => 'Échec de la négociation';
+
+  @override
+  String get failureOther => 'Autre erreur';
+
+  @override
+  String get connectionClosed => 'Fermée';
+
+  @override
+  String get timeline => 'Chronologie';
+
+  @override
+  String get connectionInfo => 'Infos';
+
+  @override
+  String get decryption => 'Déchiffrement';
+
+  @override
+  String connectionRuleIndex(Object number) {
+    return 'nº $number';
+  }
+
+  @override
+  String get handshake => 'Négociation';
+
+  @override
+  String get now => 'Maintenant';
+
+  @override
+  String get mitmCertificateRefused => 'Certificat refusé par le client';
+
+  @override
+  String get connectionEndLocal => 'Fermée localement';
+
+  @override
+  String get connectionEndRemote => 'Fermée par le distant';
+
+  @override
+  String get connectionEndFinished => 'Terminée';
+
+  @override
+  String get connectionEndReset => 'Réinitialisée';
+
+  @override
+  String get connectionEndCore => 'Fermée par le Core';
+
+  @override
+  String get fakeIpMapping => 'Correspondance fake-ip';
+
+  @override
+  String get dnsFromHosts => 'Depuis hosts';
+
+  @override
+  String get condition => 'Condition';
+
+  @override
+  String get addCondition => 'Ajouter une condition';
+
+  @override
+  String get conditionField => 'Champ';
+
+  @override
+  String get conditionContains => 'Contient';
+
+  @override
+  String get conditionEquals => 'Égal à';
+
+  @override
+  String get conditionTip =>
+      'Les conditions d’un même champ en demandent une seule, celles de champs différents toutes. La recherche accepte la même forme, par exemple host:github.com -app:chrome.';
+
+  @override
+  String get conditionNotContains => 'Ne contient pas';
+
+  @override
+  String get conditionNotEquals => 'Différent de';
+
+  @override
+  String get editCondition => 'Modifier la condition';
+
+  @override
+  String conditionValuesIn(String field) {
+    return '$field dans la liste';
+  }
+
+  @override
+  String conditionShows(String count) {
+    return 'Connexions affichées : $count';
+  }
+
+  @override
+  String get conditionRows => 'Une par ligne, toutes les lignes';
+
+  @override
+  String get clearAll => 'Tout effacer';
+
+  @override
+  String get conditionOr => 'ou';
+
+  @override
+  String get selectConnection => 'Sélectionnez une connexion';
+
+  @override
+  String get selectConnectionHint =>
+      'Sa chronologie, ses requêtes HTTP et les détails de la connexion s’affichent ici';
+
+  @override
+  String get selectDnsQuery => 'Sélectionnez une requête DNS';
+
+  @override
+  String get selectDnsQueryHint =>
+      'Ses réponses, son serveur amont et les connexions liées s’affichent ici';
+
+  @override
+  String get relatedConnections => 'Connexions liées';
+
+  @override
+  String get upstream => 'Serveur amont';
+
+  @override
+  String get dnsQueryFields => 'Requête';
+
+  @override
+  String dnsQueryAskedBy(String initiator) {
+    return 'Demandée par $initiator';
+  }
+
+  @override
+  String get dnsConditionTip =>
+      'Les conditions d’un même champ en demandent une seule, celles de champs différents toutes.';
+
+  @override
+  String dnsConditionValuesIn(String field) {
+    return '$field dans la liste';
+  }
+
+  @override
+  String dnsConditionShows(String count) {
+    return 'Requêtes affichées : $count';
+  }
+
+  @override
+  String get connectionPath => 'Chemin';
+
+  @override
+  String get processPath => 'Chemin du processus';
+
+  @override
+  String get proxyNode => 'Nœud';
+
+  @override
+  String get closingTime => 'Fermée à';
+
+  @override
+  String processUid(int uid) {
+    return 'UID $uid';
+  }
+
+  @override
+  String get onlyThisApp => 'Cette app seulement';
+
+  @override
+  String get onlyThisDomain => 'Ce domaine seulement';
+
+  @override
+  String get hideThisHost => 'Masquer cet hôte';
+
+  @override
+  String get copySummary => 'Copier le résumé';
+
+  @override
+  String get copyDomain => 'Copier le domaine';
+
+  @override
+  String get copyAnswers => 'Copier les réponses';
+
+  @override
+  String get viewHttp => 'Voir le HTTP';
 
   @override
   String get inbound => 'Entrant';
@@ -787,7 +1037,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get writeToSystemDesc =>
-      'Écrire dans le système règle aussi l’horloge système ; Android l’ignore.';
+      'Écrire dans le système n’a aucun effet sur Android.';
 
   @override
   String get sniffer => 'Sniffer';
@@ -797,10 +1047,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get forceDnsMapping => 'Forcer le mappage DNS';
-
-  @override
-  String get forceDnsMappingDesc =>
-      'Forcer le mappage DNS analyse aussi les connexions dont le domaine provient d’un mappage DNS.';
 
   @override
   String get parsePureIp => 'Analyser les IP seules';
@@ -835,7 +1081,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get dnsOverrideDesc =>
-      'Les entrées ajoutées ici remplacent le DNS de tous les profils URL et fichier ; tout ce qui n’est pas ajouté garde le réglage du profil. Les profils personnalisés définissent leur DNS dans leur contenu.';
+      'Les entrées ajoutées remplacent le DNS des profils URL et fichier.';
 
   @override
   String get settingEntries => 'réglages';
@@ -868,7 +1114,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get respectRulesDesc =>
-      'Respecter les règles fait passer les connexions DNS selon les règles et nécessite un Proxy Server Nameserver.';
+      'Respecter les règles nécessite un Proxy Server Nameserver.';
 
   @override
   String get dnsMode => 'Mode DNS';
@@ -1110,9 +1356,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get filter => 'Filtrer';
-
-  @override
-  String get groupBy => 'Regrouper par';
 
   @override
   String get hideTimeoutProxies => 'Masquer les proxys expirés';
@@ -2408,9 +2651,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get pickFromAlbum => 'Choisir dans l’album';
 
   @override
-  String get closeConnections => 'Fermer les connexions';
-
-  @override
   String get scrollToSelected => 'Défiler jusqu’à la sélection';
 
   @override
@@ -2704,6 +2944,11 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String scriptNotification(Object script, Object text) {
+    return 'Script $script\n$text';
+  }
+
+  @override
   String customIssuesSummary(Object count) {
     return '$count éléments posent problème, et l’application de ce profil peut échouer';
   }
@@ -2794,7 +3039,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get strictRouteDesc =>
-      'La route stricte empêche le trafic tel que le DNS de contourner TUN et, avec IPv6 désactivé, bloque les connexions IPv6 de cet appareil.';
+      'Avec IPv6 désactivé, la route stricte bloque aussi les connexions IPv6 de cet appareil.';
 
   @override
   String get initFailed => 'Échec du démarrage';
@@ -2826,7 +3071,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get disableIcmpForwardingDesc =>
-      'Avec le transfert ICMP désactivé, TUN répond lui-même au ping, qui n’indique donc plus la latence réelle.';
+      'Avec le transfert ICMP désactivé, le ping n’indique plus la latence réelle.';
 
   @override
   String get excludeInterface => 'Interfaces exclues';
@@ -2836,7 +3081,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get includeInterfaceDesc =>
-      'Seul le trafic arrivant sur les interfaces incluses passe par TUN, et les interfaces exclues ne s’appliquent plus.';
+      'Une fois défini, les interfaces exclues ne s’appliquent plus.';
 
   @override
   String get includeUid => 'ID utilisateur inclus';
@@ -2862,15 +3107,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tunOverrideDesc =>
-      'Les entrées ajoutées ici remplacent les réglages TUN de tous les profils ; tout ce qui n’est pas ajouté garde le réglage du profil. Les entrées qu’un profil personnalisé ajoute lui-même priment.';
+      'Les entrées ajoutées remplacent celles de tous les profils ; celles d’un profil personnalisé priment.';
 
   @override
   String get generalOverrideDesc =>
-      'Les entrées ajoutées ici remplacent le réglage correspondant de tous les profils ; tout ce qui n’est pas ajouté garde le réglage du profil, ou la valeur par défaut du cœur si le profil n’en a pas.';
+      'Les entrées ajoutées remplacent le réglage de chaque profil.';
 
   @override
   String get profileTunSettingsDesc =>
-      'S’applique uniquement à ce profil et prime sur les entrées de remplacement TUN des réglages réseau.';
+      'Pour ce profil seulement ; prime sur les remplacements TUN des réglages réseau.';
 
   @override
   String settingsCount(num count) {
@@ -3281,27 +3526,44 @@ class AppLocalizationsFr extends AppLocalizations {
   String get httpCapture => 'Capture HTTP';
 
   @override
-  String get httpCaptureDesc =>
-      'Enregistre les requêtes vers les hôtes listés dans Nom d’hôte, à consulter dans les détails de la connexion. Les enregistrements restent uniquement en mémoire.';
-
-  @override
   String get httpCaptureNoHosts =>
-      'Aucun hôte n’est listé, rien n’est donc enregistré. Ajoutez des hôtes dans Nom d’hôte sur la page MITM, ou depuis les détails d’une connexion.';
+      'Rien n’est enregistré tant qu’aucun hôte n’est ajouté dans Nom d’hôte.';
 
   @override
   String get httpCaptureLimit => 'Nombre maximal d’enregistrements';
 
   @override
-  String httpCaptureLimitDesc(Object memory, Object body) {
-    return 'Les plus anciens enregistrements sont supprimés en premier une fois ce nombre atteint ou $memory de mémoire occupés. Seuls les premiers $body de chaque corps sont conservés.';
-  }
+  String get httpCaptureMemoryOnly => 'Gardé en mémoire uniquement';
 
   @override
   String get httpRequests => 'Requêtes HTTP';
 
   @override
+  String httpRequestCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count requêtes HTTP',
+      one: '1 requête HTTP',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String latestHttpRequest(String request) {
+    return 'Dernière : $request';
+  }
+
+  @override
   String get httpRequestsMissing =>
       'Les requêtes envoyées avant l\'activation de la capture, ou déjà effacées, ne sont pas listées.';
+
+  @override
+  String get noHttpRequests => 'Aucune requête pour l’instant';
+
+  @override
+  String get noHttpRequestsHint =>
+      'Cette connexion est déchiffrée, et ses requêtes HTTP s’afficheront ici';
 
   @override
   String get httpRequestCleared =>
@@ -3320,7 +3582,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get originalUrl => 'URL d\'origine';
 
   @override
-  String get timeToFirstByte => 'Délai du premier octet';
+  String get httpTiming => 'Temps';
+
+  @override
+  String get httpWaiting => 'Attente de la réponse';
+
+  @override
+  String get httpReceiving => 'Réception';
 
   @override
   String get requestBody => 'Corps de la requête';
@@ -3455,7 +3723,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get mitmAndroidRootDesc =>
-      'Sans root, seules les applications qui font confiance aux certificats utilisateur, surtout les navigateurs, peuvent être déchiffrées. Avec root, toutes les applications le peuvent.';
+      'Sans root, seules les applications qui font confiance aux certificats utilisateur sont déchiffrées.';
 
   @override
   String get mitmCertificateLinuxTip =>
@@ -3621,12 +3889,21 @@ class AppLocalizationsFr extends AppLocalizations {
   String get mitmIgnoredLines => 'Lignes ignorées';
 
   @override
-  String get mitmModuleRulesDesc =>
-      'Les règles de routage passent avant celles du profil.';
+  String get mitmModuleRulesDesc => 'Évaluées avant les règles du profil.';
 
   @override
   String get mitmRequestRulesDesc =>
-      'Les règles URL-REGEX et USER-AGENT du module deviennent des réécritures d’URL évaluées à chaque requête : sur toute requête HTTP en clair et, en HTTPS, seulement pour les hôtes de la liste MITM.';
+      'Les règles URL-REGEX et USER-AGENT agissent comme des réécritures d’URL, en HTTPS seulement pour les hôtes listés.';
+
+  @override
+  String mitmExtendedMatchingNote(Object count) {
+    return '$count utilisent la correspondance étendue';
+  }
+
+  @override
+  String mitmActionModule(Object module) {
+    return 'De $module';
+  }
 
   @override
   String mitmModuleSystemTip(Object system) {
@@ -3648,7 +3925,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get mitmNetworkRisk =>
-      'À la génération de la configuration, il modifie les réglages réseau ci-dessous, en passant avant ce que vous avez défini pour les mêmes dans FlClash. Désactiver ou supprimer le module annule ces changements.';
+      'Tant qu’il est activé, il remplace ces réglages réseau.';
 
   @override
   String mitmSkipVerifyRisk(Object hosts) {
@@ -3662,7 +3939,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get mitmClientSourceTunTip =>
-      'Avec TUN activé, les apps de cet appareil arrivent depuis l’adresse de TUN ; si la liste ne la contient pas, leur trafic n’est pas déchiffré.';
+      'Avec TUN activé, incluez son adresse pour déchiffrer les apps de cet appareil.';
 
   @override
   String get mitmNetworkChanges => 'Réglages réseau';
@@ -3706,10 +3983,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get mitmSkipRule => 'Ce type de règle n’est pas pris en charge';
 
   @override
-  String get mitmSkipHttpRulePolicy =>
-      'Les règles URL-REGEX et USER-AGENT n’acceptent qu’une stratégie REJECT';
-
-  @override
   String get mitmSkipFinalRule =>
       'Les règles du module passent en premier ; une règle finale masquerait toutes les suivantes';
 
@@ -3738,10 +4011,6 @@ class AppLocalizationsFr extends AppLocalizations {
       'FlClash ne peut pas renvoyer les paquets à leur expéditeur';
 
   @override
-  String get mitmSkipConditional =>
-      'Les réécritures conditionnelles ne sont pas prises en charge';
-
-  @override
   String get mitmSkipSkipVerifyAll =>
       'La vérification des certificats n’est pas désactivée pour tous les hôtes';
 
@@ -3750,11 +4019,67 @@ class AppLocalizationsFr extends AppLocalizations {
       'Le fichier que nomme cette ligne n’est pas joint ; utilisez une URL ou joignez-le';
 
   @override
-  String get mitmSkipNotDownloaded =>
-      'Son fichier n’a pas encore été téléchargé';
+  String get mitmSkipUnreadable => 'Cette ligne est illisible';
 
   @override
-  String get mitmSkipUnreadable => 'Cette ligne est illisible';
+  String get mitmSkipNoSection => 'Cette ligne n’est dans aucune section';
+
+  @override
+  String get mitmSkipRequirementUnreadable =>
+      'La condition requise de cette ligne est illisible';
+
+  @override
+  String get mitmSkipPolicy => 'La stratégie de cette règle ne désigne rien';
+
+  @override
+  String get mitmSkipNestedRuleSet =>
+      'Un ensemble de règles ne peut pas en inclure un autre';
+
+  @override
+  String get mitmSkipCondition => 'Cette condition ne peut pas être vérifiée';
+
+  @override
+  String get mitmSkipRuntimeValue =>
+      'Cette ligne demande une valeur que seule la requête en cours possède';
+
+  @override
+  String get mitmResources => 'Fichiers distants';
+
+  @override
+  String get mitmResourceOk => 'Téléchargé';
+
+  @override
+  String get mitmResourceFetching => 'Téléchargement en cours';
+
+  @override
+  String get mitmResourceMissing => 'Pas encore téléchargé';
+
+  @override
+  String get mitmFetchDns =>
+      'Échec du téléchargement : le nom d’hôte n’a pas pu être résolu';
+
+  @override
+  String get mitmFetchTls =>
+      'Échec du téléchargement : la connexion sécurisée n’a pas pu être établie';
+
+  @override
+  String get mitmFetchTimeout =>
+      'Échec du téléchargement : le serveur a mis trop de temps';
+
+  @override
+  String get mitmFetchConnection =>
+      'Échec du téléchargement : la connexion a été perdue';
+
+  @override
+  String get mitmFetchOther => 'Échec du téléchargement';
+
+  @override
+  String get mitmResourcesFetch => 'Télécharger à nouveau';
+
+  @override
+  String mitmFetchHttp(int status) {
+    return 'Échec du téléchargement : le serveur a répondu $status';
+  }
 
   @override
   String get mitmAddLocalFile => 'Ajouter un fichier local';
@@ -3791,6 +4116,9 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get mitmScriptGeneric => 'Générique';
+
+  @override
+  String get mitmScriptDns => 'DNS';
 
   @override
   String get mitmExcluded => 'Exclu';
@@ -3907,6 +4235,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Impossible de télécharger la mise à jour.';
 
   @override
+  String get updateFileMissing =>
+      'La publication ne contient pas le fichier de mise à jour. Téléchargez-le depuis la page de publication.';
+
+  @override
   String get defaultNameserverDesc =>
       'Résout les noms des autres serveurs DNS. Adresses IP uniquement.';
 
@@ -3963,6 +4295,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String coreStoppedWithReason(Object reason) {
     return 'L’application a perdu la connexion au cœur : $reason';
   }
+
+  @override
+  String get coreUnavailableTip =>
+      'Le cœur n’est pas en marche. Réessayez une fois qu’il aura démarré.';
 
   @override
   String mixedPortReset(Object value, Object port) {
@@ -4040,16 +4376,56 @@ class AppLocalizationsFr extends AppLocalizations {
   String get vpnServiceStartFailed => 'Le service VPN n\'a pas pu démarrer.';
 
   @override
-  String get rootTun => 'Mode root';
+  String get requestPath => 'Chemin';
 
   @override
-  String get rootTunDesc => 'Utilise root au lieu du VPN système.';
+  String get statusCode => 'Code d’état';
 
   @override
-  String get rootTunUnavailable => 'Aucun root détecté sur cet appareil';
+  String get contentKind => 'Type';
 
   @override
-  String rootTunFallback(Object reason) {
-    return 'Root n\'est pas disponible ($reason) : cette session utilise le VPN système.';
+  String get httpRewritten => 'Réécrites';
+
+  @override
+  String get httpAnswerReject => 'Rejetée';
+
+  @override
+  String get httpAnswerRedirect => 'Redirigée';
+
+  @override
+  String get httpAnswerScript => 'Réponse de script';
+
+  @override
+  String get httpBodyText => 'Texte';
+
+  @override
+  String get httpBodyImage => 'Image';
+
+  @override
+  String get regexReplace => 'Remplacement par regex';
+
+  @override
+  String get owningConnection => 'Connexion';
+
+  @override
+  String get selectHttpRequest => 'Sélectionnez une requête';
+
+  @override
+  String get selectHttpRequestHint =>
+      'Sa requête, sa réponse et ses temps s’affichent ici';
+
+  @override
+  String httpConditionShows(String count) {
+    return 'Requêtes affichées : $count';
   }
+
+  @override
+  String httpConditionValuesIn(String field) {
+    return '$field dans la liste';
+  }
+
+  @override
+  String get httpConditionTip =>
+      'Les conditions d’un même champ en demandent une seule, celles de champs différents toutes.';
 }

@@ -59,7 +59,7 @@ class Application extends ConsumerStatefulWidget {
 
 class ApplicationState extends ConsumerState<Application> {
   Timer? _autoUpdateProfilesTaskTimer;
-  bool? _preHasVpn;
+  bool _preHasVpn = false;
   // Windows can only watch SIGINT and SIGHUP.
   final _terminateSignals = system.isDesktop && !system.isWindows
       ? ProcessSignal.sigterm.watch()
@@ -77,7 +77,6 @@ class ApplicationState extends ConsumerState<Application> {
       }
       _autoUpdateProfilesTask();
       _initLink();
-      ref.read(failoverEngineProvider).init();
       if (!safeModeBuild) {
         unawaited(app?.initShortcuts());
       }
@@ -131,12 +130,18 @@ class ApplicationState extends ConsumerState<Application> {
     );
     unawaited(ref.read(systemActionProvider.notifier).updateLocalIp());
     final hasVpn = state.vpn;
-    final isVpnStateFlip = _preHasVpn != null && _preHasVpn != hasVpn;
-    _preHasVpn = hasVpn;
-    if (!isVpnStateFlip) {
+    if (_preHasVpn == hasVpn) {
       ref.read(routeTrackerProvider.notifier).bumpHostEpoch();
-      unawaited(ref.read(failoverEngineProvider).onNetworkChanged(state));
+      // Android's NetworkObserver tells the Core about a new network itself.
+      if (system.isDesktop) {
+        debouncer.call(
+          FunctionTag.networkChange,
+          ref.read(coreActionProvider.notifier).reportNetworkChange,
+          duration: const Duration(milliseconds: 200),
+        );
+      }
     }
+    _preHasVpn = hasVpn;
   }
 
   @override
@@ -148,7 +153,7 @@ class ApplicationState extends ConsumerState<Application> {
         );
         final themeProps = ref.watch(themeSettingProvider);
         final textScale = themeProps.textScale;
-        return PrismApp(
+        final prismApp = PrismApp(
           debugShowCheckedModeBanner: false,
           navigatorKey: globalState.navigatorKey,
           onNavigationNotification: (_) => true,
@@ -189,6 +194,13 @@ class ApplicationState extends ConsumerState<Application> {
             builder: (_) => KeyboardInsetHold(child: child!),
           ),
         );
+        final desktopWindow = window;
+        return desktopWindow == null
+            ? prismApp
+            : HiddenWindowFocusGuard(
+                shown: desktopWindow.shown,
+                child: prismApp,
+              );
       },
       child: const HomePage(),
     );

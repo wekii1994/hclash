@@ -212,13 +212,28 @@ DashboardChip _chip(WidgetTester tester, String label) =>
 void main() {
   setUpAll(() => registerFallbackValue(const OutboundIpParams(timeout: 0)));
 
-  group('root access', () {
-    testWidgets('fades in a glow and names it only to a screen reader', (
+  group('su access glow', () {
+    Widget glow({required bool granted}) => TestApp(
+      locale: const Locale('en'),
+      child: Center(
+        child: SizedBox(
+          width: 320,
+          height: 120,
+          child: SuAccessGlow(
+            granted: granted,
+            shape: AppShape.all(AppCorner.lg),
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('fades in and names it only to a screen reader', (
       tester,
     ) async {
       final semantics = tester.ensureSemantics();
-      await tester.pumpWidget(_app((_, _) async => _residential, root: true));
-      await tester.pump();
+      await tester.pumpWidget(glow(granted: false));
+      await tester.pumpWidget(glow(granted: true));
       await tester.pump(const Duration(milliseconds: 150));
 
       expect(_rootGlow(tester), inExclusiveRange(0, 1));
@@ -231,11 +246,24 @@ void main() {
       semantics.dispose();
     });
 
-    testWidgets('leaves the card plain without it', (tester) async {
-      await tester.pumpWidget(_app((_, _) async => _residential));
+    testWidgets('stays plain without su', (tester) async {
+      await tester.pumpWidget(glow(granted: false));
       await tester.pump(commonDuration);
 
       expect(_rootGlow(tester), 0);
+    });
+
+    testWidgets('is off on the status card even with su granted', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(_app((_, _) async => _residential, root: true));
+      await tester.pump(commonDuration);
+
+      expect(suAccessGlowShown, isFalse);
+      expect(find.byType(SuAccessGlow), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('Status Root')), findsNothing);
+      semantics.dispose();
     });
   });
 
@@ -671,12 +699,14 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('is off without a profile', (tester) async {
+    testWidgets('starts without a profile, which runs everything direct', (
+      tester,
+    ) async {
       container = containerWith(profiles: const []);
       await pumpCard(tester, density: DashboardDensity.mobile);
 
       final toggle = tester.widget<PressRegion>(startButton());
-      expect(toggle.onTap, isNull);
+      expect(toggle.onTap, isNotNull);
       expect(tester.takeException(), isNull);
     });
   });

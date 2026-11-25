@@ -5,7 +5,7 @@ import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/ui/icons/icons.dart';
-import 'package:fl_clash/ui/ui.dart';
+import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -28,8 +28,9 @@ class AboutView extends ConsumerWidget {
   Future<void> _checkUpdate(BuildContext context, WidgetRef ref) async {
     if (ref.read(loadingProvider(LoadingTag.checkUpdate))) return;
     final commonAction = ref.read(commonActionProvider.notifier);
+    final channel = ref.read(appSettingProvider).updateChannel;
     final result = await globalState.loadingRun(
-      () async => (release: await request.checkForUpdate()),
+      () async => (release: await request.checkForUpdate(channel)),
       title: context.appLocalizations.checkUpdate,
       tag: LoadingTag.checkUpdate,
     );
@@ -64,7 +65,7 @@ class AboutView extends ConsumerWidget {
       isLoading: isLoading,
       title: appLocalizations.about,
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16).copyWith(
+        padding: context.listInsets.page().copyWith(
           top: context.contentTopPadding,
           bottom: 32 + context.bottomInset,
         ),
@@ -85,6 +86,20 @@ class AboutView extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 8),
+          generateSection(
+            title: appLocalizations.update,
+            items: [
+              ConfigToggleItem(
+                title: (l) => l.autoCheckUpdate,
+                selector: appSettingProvider.select(
+                  (state) => state.autoCheckUpdate,
+                ),
+                onChanged: (ref, value) => ref
+                    .read(appSettingProvider.notifier)
+                    .update((state) => state.copyWith(autoCheckUpdate: value)),
+              ),
+            ],
+          ),
           generateSection(
             title: appLocalizations.more,
             items: [
@@ -157,7 +172,7 @@ class _AboutHero extends StatelessWidget {
     final colorScheme = context.colorScheme;
     final appLocalizations = context.appLocalizations;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+      padding: context.listInsets.page(top: infoSectionSpacing),
       child: Column(
         children: [
           _DeveloperModeDetector(
@@ -180,7 +195,7 @@ class _AboutHero extends StatelessWidget {
             alignment: WrapAlignment.center,
             children: [
               _Pill(
-                label: 'v${globalState.packageInfo.version}',
+                label: installedVersionLabel(globalState.packageInfo.version),
                 color: colorScheme.primary,
                 foregroundColor: colorScheme.onPrimary,
               ),

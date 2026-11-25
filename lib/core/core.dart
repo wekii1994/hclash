@@ -7,7 +7,6 @@ export 'api/model_api.dart';
 export 'backend.dart';
 export 'controller.dart';
 export 'desktop/model.dart';
-export 'failover_engine.dart';
 export 'lib.dart';
 export 'service.dart';
 export 'state_sync.dart';

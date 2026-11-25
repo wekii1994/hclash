@@ -14,6 +14,8 @@ SHELL := /bin/bash
 
 CARGO := env -u all_proxy -u ALL_PROXY CARGO_INCREMENTAL=0 cargo
 CORE_MAX_BYTES ?= 30000000
+# concord/.agents/commands.md lists the same crates: the members that declare default features.
+CORE_FEATURE_CRATES := concord-common concord-engine concord-mitm
 KIND ?= rs
 
 PACKAGE := dart tool/package.dart
@@ -136,14 +138,18 @@ core-build: ## Build the desktop Core in debug
 core-fmt: ## Format the Concord workspace
 	cd concord && $(CARGO) fmt
 
-core-check: ## cargo fmt --check, clippy, check-layers and schema --check
+core-check: ## cargo fmt --check, clippy (also each crate without its default features), check-layers and schema --check
 	cd concord && $(CARGO) fmt --check
 	cd concord && $(CARGO) clippy --workspace --all-targets -- -D warnings
+	cd concord && for crate in $(CORE_FEATURE_CRATES); do \
+		$(CARGO) clippy -p $$crate --no-default-features --all-targets -- -D warnings || exit 1; done
 	cd concord && $(CARGO) xtask check-layers
 	cd concord && $(CARGO) xtask schema --check
 
-core-test: ## cargo test --workspace, with the app-tree contract tests required
+core-test: ## cargo test --workspace, with the app-tree contract tests required, and each crate without its default features
 	cd concord && CONCORD_REQUIRE_APP_TREE=1 $(CARGO) test --workspace
+	cd concord && for crate in $(CORE_FEATURE_CRATES); do \
+		$(CARGO) test -p $$crate --no-default-features || exit 1; done
 
 core-sent-config: ## Load the config each platform sends with concord -t
 	env -u all_proxy dart tool/check_sent_config.dart

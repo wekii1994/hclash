@@ -82,14 +82,6 @@ class _AndroidContainerState extends ConsumerState<AndroidManager>
   }
 
   @override
-  void onRootTunFallback(String reason) {
-    dialogs.showBanner(
-      currentAppLocalizations.rootTunFallback(reason),
-      level: BannerLevel.warning,
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
     return widget.child;
   }

@@ -1,7 +1,7 @@
 concord_dir: concord
 core_name: FlClashCore
 core_bundle_id: com.follow.clash.rs.core
-product_name: hclash
+product_name: FlClash
 output_dir: libclash
 helper_dir: services/helper
 helper_name: FlClashHelperService

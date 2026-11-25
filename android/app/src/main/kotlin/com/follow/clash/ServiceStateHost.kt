@@ -17,14 +17,6 @@ internal data class ServiceRuntime(
     val startedAtMillis: Long,
 )
 
-internal sealed interface ServiceStart {
-    data object Started : ServiceStart
-
-    data object Failed : ServiceStart
-
-    data class RootUnavailable(val reason: String) : ServiceStart
-}
-
 /**
  * The machine owns the arbitration and the transitions; this is only the part that cannot run on a
  * plain JVM, so unit tests can drive the state machine with an in-memory implementation.
@@ -51,11 +43,9 @@ internal interface ServiceStateHost {
 
     fun notifyStopped(failure: StartFailure? = null)
 
-    fun notifyRootFallback(reason: String)
-
     suspend fun quickSetup(initParams: String, setupParams: String): Result<String>
 
-    suspend fun startService(options: VpnOptions): ServiceStart
+    suspend fun startService(options: VpnOptions): Boolean
 
     suspend fun stopService()
 }
@@ -136,19 +126,10 @@ internal object AndroidServiceStateHost : ServiceStateHost {
         flutterEngine?.plugin<ServicePlugin>()?.notifyStopped(failure)
     }
 
-    override fun notifyRootFallback(reason: String) {
-        val plugin = flutterEngine?.plugin<ServicePlugin>()
-        if (plugin != null) {
-            plugin.notifyRootFallback(reason)
-        } else {
-            showToast("$ROOT_FALLBACK_MESSAGE $reason")
-        }
-    }
-
     override suspend fun quickSetup(initParams: String, setupParams: String): Result<String> =
         ServiceController.quickSetup(initParams, setupParams)
 
-    override suspend fun startService(options: VpnOptions): ServiceStart =
+    override suspend fun startService(options: VpnOptions): Boolean =
         ServiceController.start(options)
 
     override suspend fun stopService() = ServiceController.stop()

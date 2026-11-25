@@ -41,11 +41,9 @@ object NetworkObserver {
     private var currentNetwork: Network? = null
     private var started = false
 
-    @Volatile
-    var onNetworkSwitched: (() -> Unit)? = null
-
     private val request = NetworkRequest.Builder().apply {
         addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+        addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             addCapability(NetworkCapabilities.NET_CAPABILITY_FOREGROUND)
         }
@@ -136,7 +134,6 @@ object NetworkObserver {
         // them makes apps reconnect now instead of after a TCP timeout.
         if (currentNetwork != null && currentNetwork != network) {
             Core.resetNetwork()
-            onNetworkSwitched?.invoke()
         }
         currentNetwork = network
     }

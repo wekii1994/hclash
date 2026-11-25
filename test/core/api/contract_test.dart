@@ -21,7 +21,6 @@ const _notCalledByDart = {
   'dns.query',
   'provider.healthCheck',
   'proxy.states',
-  'rule.list',
 };
 
 /// The schema types its answer as optional where the core always fills it, so
@@ -56,6 +55,15 @@ final Map<String, _Call> _calls = {
       delayTestTimeout: 3000,
       mitmCapture: true,
     ),
+    host: const {
+      'externalController': '127.0.0.1:9090',
+      'secret': 's',
+      'externalControllerCors': {
+        'allowOrigins': ['*'],
+        'allowPrivateNetwork': true,
+      },
+      'hostCredential': 'h:s',
+    },
   ),
   'config.patch': (api) => api.patchConfig(
     const ConfigPatch(
@@ -69,8 +77,13 @@ final Map<String, _Call> _calls = {
       tcpConcurrent: true,
       externalController: '127.0.0.1:9090',
       secret: 's',
+      externalControllerCors: ControllerCorsArg(
+        allowOrigins: ['*'],
+        allowPrivateNetwork: true,
+      ),
       unifiedDelay: true,
       authentication: ['u:p'],
+      hostCredential: 'h:s',
       geoAutoUpdate: true,
       geoUpdateInterval: 24,
       geoxUrl: {'geoip': 'http://g'},
@@ -107,6 +120,7 @@ final Map<String, _Call> _calls = {
   'provider.update': (api) => api.updateProvider('p'),
   'provider.sideLoad': (api) => api.sideLoadProvider('p', 'data'),
   'ruleSet.dump': (api) => api.dumpRuleSet('/p.yaml', outputFile: '/out'),
+  'rule.list': (api) => api.ruleList(),
   'ruleSet.compile': (api) => api.compileRuleSet('r', url: 'http://u'),
   'geo.update': (api) => api.updateGeo('geoip'),
   'traffic.watch': (api) =>
@@ -150,10 +164,40 @@ final Map<String, _Call> _calls = {
   'mitm.runScript': (api) =>
       api.runMitmScript('s', guard: const Duration(seconds: 5)),
   'mitm.exchanges': (api) => api.mitmExchanges(1),
+  'mitm.query': (api) => api.mitmQuery(
+    filter: const MitmFilter(
+      statuses: [MitmStatus.clientError, MitmStatus.failed],
+      methods: ['GET'],
+      kinds: [MitmKind.json],
+      hosts: ['example.com'],
+      apps: [''],
+      rewritten: true,
+      slowMs: 1,
+      text: 'a',
+      from: 1,
+      to: 2,
+    ),
+    before: 1,
+    limit: 1,
+    since: 1,
+    facets: true,
+    rateFrom: 1,
+  ),
   'mitm.exchange': (api) => api.mitmExchange(1),
   'mitm.body': (api) async {
     await api.mitmBody(1, response: true);
     return api.mitmBody(1, response: false);
+  },
+  'mitm.readModule': (api) => api.readMitmModule(
+    '[Rule]',
+    arguments: const {'a': '1'},
+    attachments: const {'a.js': 'f.js'},
+    language: 'zh-Hans',
+  ),
+  'mitm.moduleStatus': (api) => api.mitmModuleStatus(),
+  'mitm.fetchModule': (api) async {
+    await api.fetchMitmModule();
+    return api.fetchMitmModule(name: 'm');
   },
 };
 

@@ -203,12 +203,12 @@ class ProxiesAction extends _$ProxiesAction {
       sync.selectEnded(groupName, result.seq);
       changed = result.changed;
     } catch (error) {
-      sync.selectEnded(groupName, null);
       commonPrint.log(
         'changeProxy($groupName -> $proxyName) failed: $error',
         logLevel: coreFailureLogLevel(error),
       );
       profilesAction.updateCurrentSelectedMap(groupName, rollbackName);
+      sync.selectEnded(groupName, null);
       dialogs.showBanner(
         currentAppLocalizations.changeProxyFailedTip,
         level: BannerLevel.error,

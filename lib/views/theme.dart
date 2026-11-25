@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/services.dart';
-
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
@@ -12,6 +10,7 @@ import 'package:fl_clash/ui/icons/icons.dart';
 import 'package:fl_clash/views/font_family.dart';
 import 'package:fl_clash/views/theme_preview.dart';
 import 'package:fl_clash/widgets/widgets.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -30,27 +29,27 @@ class ThemeView extends StatelessWidget {
         ),
         children: [
           const ThemeLivePreview(),
-          const SizedBox(height: 16),
+          const SizedBox(height: infoSectionSpacing),
           const _ThemeModeItem(),
-          const SizedBox(height: 16),
+          const SizedBox(height: infoSectionSpacing),
           const _PureBlackItem(),
-          const SizedBox(height: 16),
+          const SizedBox(height: infoSectionSpacing),
           const _PrimaryColorItem(),
-          const SizedBox(height: 16),
+          const SizedBox(height: infoSectionSpacing),
           const _NavigationBarItem(),
-          const SizedBox(height: 16),
+          const SizedBox(height: infoSectionSpacing),
           const _TabAnimationItem(),
-          const SizedBox(height: 16),
+          const SizedBox(height: infoSectionSpacing),
           const _LiquidGlassItem(),
-          const SizedBox(height: 16),
+          const SizedBox(height: infoSectionSpacing),
           if (system.isMacOS || system.isWindows) ...const [
             _SidebarBlurItem(),
-            SizedBox(height: 16),
+            SizedBox(height: infoSectionSpacing),
           ],
           const _FontFamilyItem(),
-          const SizedBox(height: 16),
+          const SizedBox(height: infoSectionSpacing),
           const _TextScaleFactorItem(),
-          const SizedBox(height: 16),
+          const SizedBox(height: infoSectionSpacing),
           const _PageScaleItem(),
         ],
       ),
@@ -217,8 +216,9 @@ class _PrimaryColorItem extends ConsumerWidget {
         }
         return state.copyWith(
           primaryColors: primaryColors,
-          primaryColor:
-              state.primaryColor == color ? edited : state.primaryColor,
+          primaryColor: state.primaryColor == color
+              ? edited
+              : state.primaryColor,
         );
       }),
     );
@@ -237,7 +237,8 @@ class _PrimaryColorItem extends ConsumerWidget {
           primaryColor: state.primaryColor,
           primaryColors: state.primaryColors,
           colorStyle: state.colorStyle,
-          isDefault: state.primaryColor == defaultPrimaryColor &&
+          isDefault:
+              state.primaryColor == defaultPrimaryColor &&
               intListEquality.equals(
                 state.primaryColors,
                 defaultPrimaryColors,
@@ -260,7 +261,7 @@ class _PrimaryColorItem extends ConsumerWidget {
           ],
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          padding: context.listInsets.page(top: infoSectionContentGap),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: 8,
@@ -323,8 +324,9 @@ class _ColorSwatches extends ConsumerWidget {
     final appLocalizations = context.appLocalizations;
     final colorScheme = context.colorScheme;
     final level = context.raisedSurfaceLevel;
-    final systemColor =
-        ref.watch(dynamicColorProvider).seedOf(Theme.of(context).brightness);
+    final systemColor = ref
+        .watch(dynamicColorProvider)
+        .seedOf(Theme.of(context).brightness);
     return Container(
       padding: const EdgeInsets.all(_inset),
       decoration: ShapeDecoration(
@@ -573,14 +575,14 @@ class _PureBlackItem extends ConsumerWidget {
     final floatingBar = ref.watch(_floatingBarProvider);
     final liquidGlass = ref.watch(_liquidGlassProvider);
     Widget preview(bool pureBlack) => MiniScreenThumb(
-          screen: MiniScreen(
-            colorScheme: ref.watch(
-              genColorSchemeProvider(Brightness.dark, pureBlack: pureBlack),
-            ),
-            floatingBar: floatingBar,
-            liquidGlass: liquidGlass,
-          ),
-        );
+      screen: MiniScreen(
+        colorScheme: ref.watch(
+          genColorSchemeProvider(Brightness.dark, pureBlack: pureBlack),
+        ),
+        floatingBar: floatingBar,
+        liquidGlass: liquidGlass,
+      ),
+    );
     return PreviewChoiceGroup<bool>(
       info: Info(
         label: appLocalizations.pureBlackMode,
@@ -665,16 +667,16 @@ class _TabAnimationItem extends ConsumerWidget {
     final liquidGlass = ref.watch(_liquidGlassProvider);
     final colorScheme = context.colorScheme;
     Widget switching(TabAnimation tabAnimation) => MiniScreenThumb(
-          screen: MiniScreen(
-            colorScheme: colorScheme,
-            floatingBar: floatingBar,
-            liquidGlass: liquidGlass,
-            selected: 1,
-            previous: 0,
-            progress: 0.55,
-            tabAnimation: tabAnimation,
-          ),
-        );
+      screen: MiniScreen(
+        colorScheme: colorScheme,
+        floatingBar: floatingBar,
+        liquidGlass: liquidGlass,
+        selected: 1,
+        previous: 0,
+        progress: 0.55,
+        tabAnimation: tabAnimation,
+      ),
+    );
     return PreviewChoiceGroup<TabAnimation>(
       info: Info(label: appLocalizations.tabAnimation, glyph: AppGlyphs.motion),
       value: tabAnimation,
@@ -712,13 +714,13 @@ class _LiquidGlassItem extends ConsumerWidget {
     // Floating either way, as a docked bar stays a fill, over the list page,
     // whose rows run on under the bar where glass shows them.
     Widget preview(bool liquidGlass) => MiniScreenThumb(
-          screen: MiniScreen(
-            colorScheme: colorScheme,
-            floatingBar: true,
-            liquidGlass: liquidGlass,
-            selected: 1,
-          ),
-        );
+      screen: MiniScreen(
+        colorScheme: colorScheme,
+        floatingBar: true,
+        liquidGlass: liquidGlass,
+        selected: 1,
+      ),
+    );
     return PreviewChoiceGroup<LiquidGlassMode>(
       info: Info(
         label: appLocalizations.liquidGlass,
@@ -764,7 +766,7 @@ class _SidebarBlurItem extends StatelessWidget {
           info: Info(label: appLocalizations.sidebar, glyph: AppGlyphs.blur),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          padding: context.listInsets.page(top: infoSectionContentGap),
           child: generateGroup([
             ConfigToggleItem(
               title: (l) => l.backgroundBlur,
@@ -793,7 +795,9 @@ class _FontFamilyItem extends ConsumerWidget {
       themeSettingProvider.select((state) => state.fontFamily),
     );
     final preview = Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+      padding: ListItem.chevronPaddingOf(
+        context,
+      ).copyWith(top: listRowVerticalPadding, bottom: listRowVerticalPadding),
       child: Row(
         spacing: 12,
         children: [
@@ -808,7 +812,9 @@ class _FontFamilyItem extends ConsumerWidget {
               fontFamily ?? appLocalizations.defaultText,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppTextStyle.subheadline.of(context).copyWith(
+              style: AppTextStyle.subheadline
+                  .of(context)
+                  .copyWith(
                     fontFamily: fontFamily,
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -816,7 +822,6 @@ class _FontFamilyItem extends ConsumerWidget {
           ),
           GlyphIcon(
             AppGlyphs.chevronForward,
-            size: 20,
             color: colorScheme.onSurfaceVariant,
           ),
         ],
@@ -824,13 +829,13 @@ class _FontFamilyItem extends ConsumerWidget {
     );
     final cardColor = context.raisedSurfaceLevel.colorOf(colorScheme);
     Widget card(VoidCallback onTap) => PressSurface(
-          fill: cardColor,
-          shape: AppShape.lg,
-          childFills: true,
-          clipsChild: true,
-          onPressed: onTap,
-          child: preview,
-        );
+      fill: cardColor,
+      shape: AppShape.lg,
+      childFills: true,
+      clipsChild: true,
+      onPressed: onTap,
+      child: preview,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -838,7 +843,7 @@ class _FontFamilyItem extends ConsumerWidget {
           info: Info(label: appLocalizations.fontFamily, glyph: AppGlyphs.font),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          padding: context.listInsets.page(top: infoSectionContentGap),
           child: context.isMobileView
               ? OpenContainer<void>(
                   closedShape: AppShape.lg,
@@ -908,7 +913,7 @@ class _TextScaleFactorItemState extends ConsumerState<_TextScaleFactorItem> {
           ],
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          padding: context.listInsets.page(top: infoSectionContentGap),
           child: Column(
             spacing: 8,
             children: [
@@ -922,7 +927,9 @@ class _TextScaleFactorItemState extends ConsumerState<_TextScaleFactorItem> {
                     _update((state) => state.copyWith(enable: value)),
               ),
               Container(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                padding: EdgeInsets.all(
+                  context.listInsets.leading,
+                ).copyWith(bottom: infoSectionContentGap),
                 decoration: ShapeDecoration(
                   color: level.colorOf(colorScheme),
                   shape: AppShape.lg,
@@ -978,11 +985,11 @@ class _TextScaleFactorItemState extends ConsumerState<_TextScaleFactorItem> {
                             style: AppTextStyle.subheadline
                                 .of(context, emphasized: true)
                                 .copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                              fontFeatures: const [
-                                FontFeature.tabularFigures(),
-                              ],
-                            ),
+                                  color: colorScheme.onSurfaceVariant,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                ),
                           ),
                         ),
                       ],
@@ -995,7 +1002,9 @@ class _TextScaleFactorItemState extends ConsumerState<_TextScaleFactorItem> {
                           ExcludeSemantics(
                             child: Text(
                               'A',
-                              style: AppTextStyle.footnote.of(context).copyWith(
+                              style: AppTextStyle.footnote
+                                  .of(context)
+                                  .copyWith(
                                     color: colorScheme.onSurfaceVariant,
                                   ),
                             ),
@@ -1018,7 +1027,9 @@ class _TextScaleFactorItemState extends ConsumerState<_TextScaleFactorItem> {
                           ExcludeSemantics(
                             child: Text(
                               'A',
-                              style: AppTextStyle.title2.of(context).copyWith(
+                              style: AppTextStyle.title2
+                                  .of(context)
+                                  .copyWith(
                                     color: colorScheme.onSurfaceVariant,
                                   ),
                             ),
@@ -1119,9 +1130,11 @@ class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
           ],
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          padding: context.listInsets.page(top: infoSectionContentGap),
           child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: EdgeInsets.all(
+              context.listInsets.leading,
+            ).copyWith(bottom: infoSectionContentGap),
             decoration: ShapeDecoration(
               color: level.colorOf(colorScheme),
               shape: AppShape.lg,
@@ -1159,11 +1172,11 @@ class _PageScaleItemState extends ConsumerState<_PageScaleItem> {
                             style: AppTextStyle.subheadline
                                 .of(context, emphasized: true)
                                 .copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                              fontFeatures: const [
-                                FontFeature.tabularFigures(),
-                              ],
-                            ),
+                                  color: colorScheme.onSurfaceVariant,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                ),
                           ),
                         ),
                       ),
@@ -1281,9 +1294,9 @@ class _CustomColorSheetState extends State<_CustomColorSheet> {
       ),
       body: ListView(
         padding: EdgeInsets.fromLTRB(
-          max(16, gestureInsets.left),
+          max(context.listInsets.margin, gestureInsets.left),
           context.contentTopPadding,
-          max(16, gestureInsets.right),
+          max(context.listInsets.margin, gestureInsets.right),
           20 + context.bottomInset,
         ),
         children: [
@@ -1294,7 +1307,7 @@ class _CustomColorSheetState extends State<_CustomColorSheet> {
               onChanged: (color) => _controller.value = color,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: infoSectionSpacing),
           Palette(controller: _controller),
         ],
       ),
@@ -1317,27 +1330,27 @@ class _CustomColorPreview extends ConsumerWidget {
     final liquidGlass = ref.watch(_liquidGlassProvider);
     final level = context.raisedSurfaceLevel;
     Widget screen(Brightness brightness) => ExcludeSemantics(
-          child: SizedBox.fromSize(
-            size: _screenSize * _scale,
-            child: ClipRSuperellipse(
-              borderRadius: AppRadius.md,
-              child: FittedBox(
-                child: SizedBox.fromSize(
-                  size: _screenSize,
-                  child: MiniScreen(
-                    colorScheme: ref.watch(
-                      genColorSchemeProvider(brightness, color: color),
-                    ),
-                    floatingBar: floatingBar,
-                    liquidGlass: liquidGlass,
-                  ),
+      child: SizedBox.fromSize(
+        size: _screenSize * _scale,
+        child: ClipRSuperellipse(
+          borderRadius: AppRadius.md,
+          child: FittedBox(
+            child: SizedBox.fromSize(
+              size: _screenSize,
+              child: MiniScreen(
+                colorScheme: ref.watch(
+                  genColorSchemeProvider(brightness, color: color),
                 ),
+                floatingBar: floatingBar,
+                liquidGlass: liquidGlass,
               ),
             ),
           ),
-        );
+        ),
+      ),
+    );
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(context.listInsets.leading),
       decoration: ShapeDecoration(
         color: level.colorOf(context.colorScheme),
         shape: AppShape.xl,

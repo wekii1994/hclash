@@ -6,12 +6,14 @@ ConfigPatch updateParams(Ref ref) {
     networkSettingProvider.select((state) => state.authentication),
   );
   final options = ref.watch(coreOptionsProvider);
+  final hostCredential = ref.watch(hostCredentialProvider);
   final tunDisabled = ref.watch(tunDisabledThisRunProvider);
   return ref.watch(
     patchClashConfigProvider.select(
       (state) => configPatchOf(
         tunDisabled ? state.copyWith.tun(enable: false) : state,
         authentication: authentication.credentials,
+        hostCredential: hostCredential,
         options: options,
       ),
     ),
@@ -43,7 +45,7 @@ CoreOptions coreOptions(Ref ref) {
 
 @riverpod
 ({PatchClashConfig patchConfig, bool appendSystemDns, bool bypassPrivateRoute})
-    setupPatch(Ref ref) {
+setupPatch(Ref ref) {
   return (
     patchConfig: ref.watch(
       patchClashConfigProvider.select((state) => state.setupOnly),
@@ -52,7 +54,8 @@ CoreOptions coreOptions(Ref ref) {
       networkSettingProvider.select((state) => state.appendSystemDns),
     ),
     // Android's VPN service takes it on its next start instead.
-    bypassPrivateRoute: system.isDesktop &&
+    bypassPrivateRoute:
+        system.isDesktop &&
         ref.watch(
           networkSettingProvider.select((state) => state.bypassPrivateRoute),
         ),
@@ -193,7 +196,6 @@ Group? _findPrimaryGroup(
   final searchPool =
       selectorGroups.isNotEmpty ? selectorGroups : nonGlobalGroups;
 
-  // 1. 计算拓扑结构：找出入度为 0（未被其他非 GLOBAL 组引用）的根策略组
   final groupNames = nonGlobalGroups.map((g) => g.name).toSet();
   final referencedGroupNames = <String>{};
   for (final g in nonGlobalGroups) {
@@ -206,10 +208,8 @@ Group? _findPrimaryGroup(
   final rootGroups =
       searchPool.where((g) => !referencedGroupNames.contains(g.name)).toList();
 
-  // 优先在根策略组中搜索；若所有组相互引用导致无根组，再退回全量 searchPool
   final candidatePool = rootGroups.isNotEmpty ? rootGroups : searchPool;
 
-  // 强入口特征词（高优先级）
   const strongPrimaryKeywords = [
     '节点选择',
     '选择节点',
@@ -224,10 +224,8 @@ Group? _findPrimaryGroup(
     '🔰',
   ];
 
-  // 宽泛特征词（低优先级）
   const broadPrimaryKeywords = ['全球', '代理', '节点', '主'];
 
-  // 子分流与地区策略组排除词（防止分流组或地区组被误判为主入口）
   const excludeKeywords = [
     '手动',
     'manual',
@@ -272,7 +270,6 @@ Group? _findPrimaryGroup(
   bool isExcluded(String lowerName) =>
       excludeKeywords.any((k) => lowerName.contains(k));
 
-  // 2. 外层按关键字优先级、内层按候选组顺序匹配强特征词
   for (final keyword in strongPrimaryKeywords) {
     for (final group in candidatePool) {
       final lowerName = group.name.toLowerCase();
@@ -282,7 +279,6 @@ Group? _findPrimaryGroup(
     }
   }
 
-  // 3. 拓扑特征匹配：在根策略组中，优先选包含子策略组且总节点/子项最多的组
   final rootWithSub = rootGroups
       .where((g) => g.all.any((p) => groupNames.contains(p.name)))
       .toList();
@@ -291,7 +287,6 @@ Group? _findPrimaryGroup(
     return rootWithSub.first;
   }
 
-  // 4. 宽泛关键字兜底匹配
   for (final keyword in broadPrimaryKeywords) {
     for (final group in candidatePool) {
       final lowerName = group.name.toLowerCase();
@@ -301,7 +296,6 @@ Group? _findPrimaryGroup(
     }
   }
 
-  // 5. 回退到用户当前聚焦的分组
   if (currentGroupName != null && currentGroupName.isNotEmpty) {
     final currentGroup = groups.getGroup(currentGroupName);
     if (currentGroup != null && currentGroup.name.toUpperCase() != 'GLOBAL') {
@@ -309,7 +303,6 @@ Group? _findPrimaryGroup(
     }
   }
 
-  // 6. 最终回退
   if (rootGroups.isNotEmpty) {
     rootGroups.sort((a, b) => b.all.length.compareTo(a.all.length));
     return rootGroups.first;
@@ -393,6 +386,8 @@ SharedState sharedState(Ref ref) {
     directLabel: currentAppLocalizations.direct,
   );
   final selectedMap = currentProfile.selectedMap;
+  final hostCredential = ref.watch(hostCredentialProvider);
+  final safeMode = ref.watch(safeModeProvider);
   final onlyStatisticsProxy = appSetting.onlyStatisticsProxy;
   return SharedState(
     currentProfileName: currentProfileName,
@@ -404,6 +399,15 @@ SharedState sharedState(Ref ref) {
     setupParams: SetupParams(
       selectedMap: selectedMap,
       options: ref.watch(coreOptionsProvider),
+      host: ref.watch(
+        patchClashConfigProvider.select(
+          (config) => hostSettingsOf(
+            config,
+            credential: hostCredential,
+            safeMode: safeMode,
+          ),
+        ),
+      ),
     ),
     vpnOptions: ref.watch(vpnOptionsProvider).value,
   );
@@ -470,11 +474,10 @@ Future<VpnOptions> vpnOptions(Ref ref) async {
     allowBypass: vpnSetting.allowBypass,
     bypassDomain:
         (await modules).bypassDomain?.applyTo(networkSetting.bypassDomain) ??
-            networkSetting.bypassDomain,
+        networkSetting.bypassDomain,
     routeAddress: await routeAddress,
     mtu: tun.mtu,
     congestionController: tun.congestionController,
-    rootTun: vpnSetting.rootTun,
   );
 }
 

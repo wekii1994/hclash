@@ -24,7 +24,16 @@ const defaultBypassDomain = [
   '172.17.*',
   '172.18.*',
   '172.19.*',
-  '172.2*',
+  '172.20.*',
+  '172.21.*',
+  '172.22.*',
+  '172.23.*',
+  '172.24.*',
+  '172.25.*',
+  '172.26.*',
+  '172.27.*',
+  '172.28.*',
+  '172.29.*',
   '172.30.*',
   '172.31.*',
   '192.168.*',
@@ -69,7 +78,8 @@ const defaultFilters = [
   ),
   Filter(
     label: 'United States',
-    regex: r'(?i)🇺🇸|美国|美國|美西|美东|美東|洛杉矶|圣何塞|西雅图|硅谷|纽约'
+    regex:
+        r'(?i)🇺🇸|美国|美國|美西|美东|美東|洛杉矶|圣何塞|西雅图|硅谷|纽约'
         r'|(?<![a-z])usa?(?![a-z])|united\s*states',
   ),
   Filter(
@@ -78,7 +88,8 @@ const defaultFilters = [
   ),
   Filter(
     label: 'United Kingdom',
-    regex: r'(?i)🇬🇧|英国|英國|伦敦|倫敦|(?<![a-z])(uk|gb)(?![a-z])'
+    regex:
+        r'(?i)🇬🇧|英国|英國|伦敦|倫敦|(?<![a-z])(uk|gb)(?![a-z])'
         r'|united\s*kingdom|britain|london',
   ),
   Filter(
@@ -89,7 +100,8 @@ const defaultFilters = [
   Filter(label: 'Traffic Reset', regex: r'(?i)重置|reset'),
   Filter(
     label: 'Website & Notices',
-    regex: r'(?i)官网|官網|网址|網址|域名|公告|套餐|客服|群组|群組|频道|頻道'
+    regex:
+        r'(?i)官网|官網|网址|網址|域名|公告|套餐|客服|群组|群組|频道|頻道'
         r'|website|telegram|(?<![a-z])tg(?![a-z])',
   ),
 ];
@@ -263,13 +275,13 @@ abstract class AppSettingProps with _$AppSettingProps {
     @Default(false) bool autoRun,
     @Default(false) bool openLogs,
     @Default(true) bool closeConnections,
-    @Default(RequestFeed.live) RequestFeed requestFeed,
     @Default(defaultDelayTestTimeout) int delayTestTimeout,
     @Default(TabAnimation.fade)
     @JsonKey(readValue: _readTabAnimation)
     TabAnimation tabAnimation,
     @Default(true) bool floatingNavigationBar,
     @Default(true) bool autoCheckUpdate,
+    @Default(UpdateChannel.stable) UpdateChannel updateChannel,
     @Default(true)
     @JsonKey(readValue: _readSidebarExpanded)
     bool sidebarExpanded,
@@ -291,7 +303,6 @@ abstract class AppSettingProps with _$AppSettingProps {
     @Default([]) List<String> serviceOrder,
     @Default([]) List<String> disabledServices,
     @Default({}) Map<String, Map<String, double>> tableColumnWidths,
-    @Default({}) Map<String, String> recordGroupings,
   }) = _AppSettingProps;
 
   factory AppSettingProps.fromJson(Map<String, Object?> json) =>
@@ -325,14 +336,14 @@ extension AccessControlPropsExt on AccessControlProps {
   bool get hasPackages => acceptList.isNotEmpty || rejectList.isNotEmpty;
 
   List<String> get currentList => switch (mode) {
-        AccessControlMode.acceptSelected => acceptList,
-        AccessControlMode.rejectSelected => rejectList,
-      };
+    AccessControlMode.acceptSelected => acceptList,
+    AccessControlMode.rejectSelected => rejectList,
+  };
 
   AccessControlProps copyWithNewList(List<String> value) => switch (mode) {
-        AccessControlMode.acceptSelected => copyWith(acceptList: value),
-        AccessControlMode.rejectSelected => copyWith(rejectList: value),
-      };
+    AccessControlMode.acceptSelected => copyWith(acceptList: value),
+    AccessControlMode.rejectSelected => copyWith(rejectList: value),
+  };
 }
 
 @freezed
@@ -371,7 +382,6 @@ abstract class VpnProps with _$VpnProps {
     @Default(true) bool allowBypass,
     @Default(false) bool dnsHijacking,
     @Default(defaultAccessControlProps) AccessControlProps accessControlProps,
-    @Default(false) bool rootTun,
   }) = _VpnProps;
 
   factory VpnProps.fromJson(Map<String, Object?>? json) =>
@@ -388,8 +398,8 @@ abstract class AuthenticationProps with _$AuthenticationProps {
 
   factory AuthenticationProps.fromJson(Map<String, Object?>? json) =>
       json == null
-          ? defaultAuthenticationProps
-          : _$AuthenticationPropsFromJson(json);
+      ? defaultAuthenticationProps
+      : _$AuthenticationPropsFromJson(json);
 }
 
 extension AuthenticationPropsExt on AuthenticationProps {

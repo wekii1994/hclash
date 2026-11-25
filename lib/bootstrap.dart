@@ -105,11 +105,12 @@ class Bootstrap {
       config = config.copyWith(patchClashConfig: patchClashConfig);
       await preferences.saveConfig(config);
     }
+    final hostCredential = await preferences.getHostCredential();
     final appState = AppState(
       brightness: WidgetsBinding.instance.platformDispatcher.platformBrightness,
       version: version,
       viewSize: Size.zero,
-      requests: FixedList(maxRequestsLength),
+      requests: ConnectionLog(maxRequestsLength),
       logs: FixedList(maxLogsLength),
       traffics: FixedList(trafficSampleLength),
       totalTraffic: const Traffic(),
@@ -118,7 +119,11 @@ class Bootstrap {
     final appStateOverrides = buildAppStateOverrides(appState);
     final configOverrides = buildConfigOverrides(config);
     final container = ProviderContainer(
-      overrides: [...appStateOverrides, ...configOverrides],
+      overrides: [
+        ...appStateOverrides,
+        ...configOverrides,
+        hostCredentialProvider.overrideWithValue(hostCredential),
+      ],
     );
     globalState.container = container;
     container

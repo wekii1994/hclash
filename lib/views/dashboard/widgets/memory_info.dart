@@ -242,9 +242,9 @@ class _MemorySummary extends StatelessWidget {
           maxLines: 1,
         ),
         if (mobile) const SizedBox(height: 14) else const Spacer(),
-        _MemoryBar(
+        ProportionBar(
           segments: [
-            for (final part in parts) (bytes: part.bytes, color: part.color),
+            for (final part in parts) (value: part.bytes, color: part.color),
           ],
         ),
         SizedBox(height: compact ? 8 : 10),
@@ -416,7 +416,7 @@ class _MemoryDetailSheetState extends ConsumerState<MemoryDetailSheet>
         ),
       ],
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16).copyWith(
+        padding: context.listInsets.page().copyWith(
           top: context.contentTopPadding,
           bottom: 20 + context.bottomInset,
         ),
@@ -487,9 +487,6 @@ class _MemorySection extends StatelessWidget {
 class _MemoryOverview extends StatelessWidget {
   const _MemoryOverview({required this.snapshot});
 
-  /// The optical edge of the xl-radius cards, not their geometric one.
-  static const _inset = 5.0;
-
   final MemorySnapshot snapshot;
 
   @override
@@ -498,7 +495,9 @@ class _MemoryOverview extends StatelessWidget {
     final colorScheme = context.colorScheme;
     final total = snapshot.total.traffic;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(_inset, 8, _inset, 0),
+      padding: EdgeInsets.symmetric(
+        horizontal: context.listInsets.leading,
+      ).copyWith(top: infoSectionContentGap),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -529,11 +528,11 @@ class _MemoryOverview extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          _MemoryBar(
+          ProportionBar(
             segments: [
-              (bytes: snapshot.app, color: colorScheme.primary),
+              (value: snapshot.app, color: colorScheme.primary),
               (
-                bytes: snapshot.coreTotal,
+                value: snapshot.coreTotal,
                 color: DashboardColors.of(context).series2,
               ),
             ],
@@ -548,65 +547,6 @@ class _MemoryOverview extends StatelessWidget {
                 .copyWith(color: colorScheme.onSurfaceVariant),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _MemoryBar extends StatelessWidget {
-  const _MemoryBar({required this.segments});
-
-  static const _gap = 2.0;
-
-  final List<({int bytes, Color color})> segments;
-
-  @override
-  Widget build(BuildContext context) {
-    final duration = context.motionDuration(commonDuration);
-    final total = segments.fold(
-      0,
-      (sum, segment) => sum + max(0, segment.bytes),
-    );
-    return ClipRSuperellipse(
-      borderRadius: AppRadius.full,
-      child: SizedBox(
-        height: 8,
-        child: total == 0
-            ? ColoredBox(color: DashboardColors.of(context).tone2)
-            : Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final (index, segment) in segments.indexed) ...[
-                    if (index > 0)
-                      AnimatedContainer(
-                        duration: duration,
-                        curve: Easing.standard,
-                        width:
-                            segment.bytes > 0 &&
-                                segments
-                                    .take(index)
-                                    .any((previous) => previous.bytes > 0)
-                            ? _gap
-                            : 0,
-                      ),
-                    // Whole percents, so the drift between two polls does not
-                    // replay the animation every time.
-                    TweenAnimationBuilder<double>(
-                      tween: Tween(
-                        end: (max(0, segment.bytes) * 100 / total)
-                            .roundToDouble(),
-                      ),
-                      duration: duration,
-                      curve: Easing.standard,
-                      builder: (_, percent, child) => Expanded(
-                        flex: (percent * 100).round(),
-                        child: child!,
-                      ),
-                      child: ColoredBox(color: segment.color),
-                    ),
-                  ],
-                ],
-              ),
       ),
     );
   }

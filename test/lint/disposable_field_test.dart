@@ -19,10 +19,15 @@ const _disposableTypes = {
 /// Fields the analyzer would flag that are deliberately never released, keyed by
 /// `<path>#<field>`. Everything here has to outlive the process, not a widget.
 const _allowed = {
-  // `App` is the process-wide Android plugin; the notifiers relay keyboard
+  // `CoreEventManager` is a private-constructor singleton that fans core events
+  // out for the whole run; closing its controller would end event delivery.
+  // `App` is the process-wide Android plugin; the notifier relays keyboard
   // state from the platform channel for the whole run.
   'lib/plugins/app.dart#floatingKeyboard',
   'lib/plugins/app.dart#_networkChanges',
+  // `Window` is the process-wide desktop window singleton; the notifier tracks
+  // whether it is shown for the whole run.
+  'lib/common/window.dart#_shown',
 };
 
 final _declaration = RegExp(
@@ -63,8 +68,9 @@ void main() {
       final lines = source.split('\n');
       for (var i = 0; i < lines.length; i++) {
         final match = _declaration.firstMatch(lines[i]);
-        final lateMatch =
-            match == null ? _lateDeclaration.firstMatch(lines[i]) : null;
+        final lateMatch = match == null
+            ? _lateDeclaration.firstMatch(lines[i])
+            : null;
         if (match == null && lateMatch == null) {
           continue;
         }
@@ -73,7 +79,8 @@ void main() {
         if (_allowed.contains('$relative#$field')) {
           continue;
         }
-        final released = source.contains('$field.dispose()') ||
+        final released =
+            source.contains('$field.dispose()') ||
             source.contains('$field.close()');
         if (!released) {
           offenders.add('$relative:${i + 1} $field ($type)');

@@ -141,6 +141,8 @@ abstract class CargoBuild : DefaultTask() {
             val triple = triples.get()[index]
             val abi = abis.get()[index]
             val underscored = triple.replace('-', '_')
+            val target = workspace.get().asFile.resolve(System.getenv("CARGO_TARGET_DIR")?.ifEmpty { null } ?: "target")
+            val release = target.resolve("$triple/release")
             val clang = bin.resolve("${clangPrefixes.get()[index]}$api-clang").path
             // boring-sys assembles its own Android CMake arguments, which recent CMake rejects at link time,
             // and it honours a toolchain file instead.
@@ -153,6 +155,8 @@ abstract class CargoBuild : DefaultTask() {
                 """.trimIndent(),
             )
             val ndkEnvironment: ExecSpec.() -> Unit = {
+                // The glue builds in another directory, where a relative CARGO_TARGET_DIR would point elsewhere.
+                environment("CARGO_TARGET_DIR", target.path)
                 environment("ANDROID_NDK_HOME", ndk.path)
                 environment("ANDROID_NDK_ROOT", ndk.path)
                 environment("CC_$underscored", clang)
@@ -173,11 +177,9 @@ abstract class CargoBuild : DefaultTask() {
                     (rustflags + prefixes.map { (from, to) -> "--remap-path-prefix=$from=$to" }).joinToString("\u001f"),
                 )
                 listOf("CFLAGS", "CXXFLAGS").map { "${it}_$underscored" }.forEach { name ->
-                    environment(name, (listOfNotNull(System.getenv(name)) + fileMaps).joinToString(" "))
+                    environment(name, (listOfNotNull(System.getenv(name)) + fileMaps + "-DNDEBUG").joinToString(" "))
                 }
             }
-            val target = workspace.get().asFile.resolve("target")
-            val release = target.resolve("$triple/release")
             execOperations.exec {
                 ndkEnvironment()
                 workingDir(workspace)
@@ -187,15 +189,11 @@ abstract class CargoBuild : DefaultTask() {
                 ndkEnvironment()
                 workingDir(glue)
                 environment("CONCORD_LIB_DIR", release.path)
-                environment("CARGO_TARGET_DIR", target.path)
                 commandLine(cargoExecutable.get(), "build", "--release", "--locked", "--target", triple)
             }
             listOf("libconcord.so", "libcore_jni.so").forEach { library ->
                 release.resolve(library).copyTo(output.resolve("$abi/$library"), overwrite = true)
             }
-            // Packaged as a library so the installer extracts it to the native library directory,
-            // the one place an app can execute a file from.
-            release.resolve("tun").copyTo(output.resolve("$abi/libtun.so"), overwrite = true)
         }
     }
 
